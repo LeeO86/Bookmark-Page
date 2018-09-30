@@ -1,0 +1,38 @@
+version: "2"
+services:
+    www:
+        build: .
+        ports: 
+            - "8080:80"
+        volumes:
+            - ./www:/var/www/html/
+        links:
+            - db
+        networks:
+            - default
+    db:
+        image: mysql
+        ports: 
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: bookmark-db
+            MYSQL_USER: bookmark
+            MYSQL_PASSWORD: bookpass
+            MYSQL_ROOT_PASSWORD: bookpass
+        volumes:
+            - ./dump:/docker-entrypoint-initdb.d
+            - persistent:/var/lib/mysql
+        networks:
+            - default
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        links: 
+            - db:db
+        ports:
+            - 8000:80
+        environment:
+            MYSQL_USER: bookmark
+            MYSQL_PASSWORD: bookpass
+            MYSQL_ROOT_PASSWORD: bookpass
+volumes:
+    persistent:

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+
+    <title>Bookmark-Page</title>
+  </head>
+  <body class="bg-secondary">
+    <nav class="navbar navbar-dark bg-dark">
+      <a class="navbar-brand" href="" id="page-name">Page-Name</a>
+      <form class="form-inline">
+        <button type="button" class="btn btn-outline-light my-2 my-sm-0 d-flex align-items-center" id="configBtn"><i data-feather="settings" width="22" height="22"></i></button>
+      </form>
+    </nav>
+    <div class="container">
+      <div class="card bg-light mt-3">
+        <div class="card-body">
+          <h5 class="card-title" id="pageClaim">Claim</h5>
+          <div class="mb-2" id="bookmarks"></div>
+        </div>
+      </div>
+      <div class="text-center">
+        <small>written by Adi Hilber</small>
+      </div>
+    </div>
+    <!-- Modal - Global-Config -->
+    <div class="modal fade" id="globalConfigModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Global-Configuration</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          </div>
+          <div class="modal-body">
+            <div role="tabpanel">
+              <!-- Nav tabs -->
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                  <a class="nav-link active" id="gcBM" href="#bmTab" aria-controls="bmTab" role="tab" data-toggle="tab" aria-selected="true">Bookmarks</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" id="gcGroups" href="#groupTab" aria-controls="groupTab" role="tab" data-toggle="tab" aria-selected="false">Groups</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" id="gcGlobals" href="#globalTab" aria-controls="globalTab" role="tab" data-toggle="tab" aria-selected="false">Globals</a>
+                </li>
+              </ul>
+              <!-- Tab panes -->
+              <div class="tab-content" style="padding-top:  15px;">
+                <div role="tabpanel" class="tab-pane fade show active" id="bmTab">
+                  <form id="gcBMForm" novalidate>
+                    <div class="form-group">
+                      <label for="gcBMSelect">Select Bookmark</label>
+                      <select class="form-control" id="gcBMSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcBMName">Bookmark-Name</label>
+                      <div class="input-group">
+                        <input type="text" id="gcBMName" placeholder="Bookmark" class="form-control" required/>
+                        <div class="invalid-feedback" id="gcBMNameIVF"></div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcBMLink">Link</label>
+                      <div class="input-group">
+                        <input type="url" id="gcBMLink" placeholder="http://www.whatever.xyz" class="form-control" required/>
+                        <div class="invalid-feedback" id="gcBMLinkIVF"></div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcBMFav">Favicon-URL</label>
+                      <div class="input-group">
+                        <input type="url" id="gcBMFav" placeholder="http://www.whatever.xyz/favicon.ico" class="form-control" required/>
+                        <div class="invalid-feedback" id="gcBMFavIVF"></div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcBMRemarks">Remarks</label>
+                      <div class="input-group">
+                        <input type="text" id="gcBMRemarks" placeholder="some Remarks..." class="form-control" />
+                        <div class="invalid-feedback" id="gcBMRemarksIVF"></div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcBMGroup">Select Group</label>
+                      <select class="form-control" id="gcBMGroup" required></select>
+                    </div>
+                  </form>
+                  <div class="float-right">
+                    <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                    <button type="button" class="btn btn-outline-success ml-2" id="gcSaveBM">Save</button>
+                  </div>
+                </div>
+                <div role="tabpanel" class="tab-pane fade" id="groupTab">
+                  <form id="gcGroupForm" novalidate>
+                    <div class="form-group">
+                      <label for="gcGroupSelect">Select Group</label>
+                      <select class="form-control" id="gcGroupSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcGroupName">Group-Name</label>
+                      <div class="input-group">
+                        <input type="text" id="gcGroupName" placeholder="Group-Name" class="form-control" required/>
+                        <div class="invalid-feedback" id="gcGroupNameIVF"></div>
+                      </div>
+                    </div>
+                  </form>
+                  <div class="float-right">
+                    <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                    <button type="button" class="btn btn-outline-success ml-2" id="gcSaveGroup" onclick="saveGroup();">Save</button>
+                  </div>
+                </div>
+                <div role="tabpanel" class="tab-pane fade" id="globalTab">
+                  <form id="gcGlobalForm" novalidate>
+                    <div class="form-group">
+                      <label for="gcSiteTitle">Site-Title</label>
+                      <div class="input-group">
+                        <input type="text" id="gcSiteTitle" placeholder="Bookmark-Page" class="form-control" required/>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcSiteClaim">Site-Claim</label>
+                      <div class="input-group">
+                        <input type="text" id="gcSiteClaim" placeholder="your on Claim:" class="form-control" required/>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcRefreshRate">Refresh-Rate</label>
+                      <div class="input-group">
+                        <input type="number" id="gcRefreshRate" placeholder="30" class="form-control" min="5" required/>
+                        <div class="input-group-append">
+                          <span class="input-group-text">s</span>
+                        </div>
+                      </div>
+                    </div>                    
+                  </form>
+                  <div class="float-right">
+                    <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                    <button type="button" class="btn btn-outline-success ml-2" id="gcSaveGlobal" onclick="saveGlobals();">Save</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Optional JavaScript -->
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/feather.min.js"></script>
+    <script src="js/bookmark.js"></script>
+  </body>
+</html>
