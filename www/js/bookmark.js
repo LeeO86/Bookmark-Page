@@ -1,6 +1,7 @@
 // Gloal Vars
 var Global = {};
 var Bookmarks = {};
+var RefreshTimer = false;
 
 // Functions
 function loadPage(){
@@ -10,6 +11,8 @@ function loadPage(){
 		document.title = Global.name;
 		$('#page-name').text(Global.name);
 		$('#pageClaim').text(Global.claim);
+		if(!RefreshTimer)
+			RefreshTimer = setInterval(function(){ loadPage() }, (parseInt(Global.refresh)*1000));
 	});
 	$.get('php/getBookmarks.php', {}, function (ret, status){
 		console.log(ret);
@@ -24,8 +27,8 @@ function loadPage(){
 		html += '</tbody></table></div>';
 		$('#bookmarks').empty().html(html);
 	});
-
 }
+
 function toggleGroup(groupClass){
 	$('.'+groupClass).toggle(0);
 }
@@ -33,6 +36,11 @@ function toggleGroup(groupClass){
 function openInNewTab(url){
   var win = window.open(url, '_blank');
   win.focus();
+}
+
+function stopRefresh(){
+	clearInterval(RefreshTimer);
+	RefreshTimer = false;
 }
 
 function openConfig(){

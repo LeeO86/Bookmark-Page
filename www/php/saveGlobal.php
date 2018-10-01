@@ -15,12 +15,12 @@ if(isset($_POST['title']) && isset($_POST['claim']) && isset($_POST['refresh']))
 		}
 	}
 	
-	var_dump(http_response_code(200));
+	http_response_code(200);
 	echo("OK");
 
 	mysqli_close($con);
 }else{
-	var_dump(http_response_code(400));
+	http_response_code(400);
 	echo("HTTP-POST ERROR");
 }
 
