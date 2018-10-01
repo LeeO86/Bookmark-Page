@@ -21,7 +21,7 @@ function loadPage(){
 		for (gName in Bookmarks){
 			html += '<tr onclick="toggleGroup(\'g-'+gName+'\');"><td></td><th colspan="2" scope="row">'+gName+'</th></tr>';
 			$.each(ret[gName], function(i, bookmark){
-				html += '<tr id="bm-'+bookmark.id+'" class="g-'+gName+'" onclick="openInNewTab(\''+bookmark.link+'\');"><td><img src="'+bookmark.favicon+'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td></tr>';
+				html += '<tr id="bm-'+bookmark.id+'" class="g-'+gName+'" onclick="openInNewTab(\''+bookmark.link+'\');"><td><img style="height: 21px; max-width: 50px;" src="'+bookmark.favicon+'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td></tr>';
 			});
 		}
 		html += '</tbody></table></div>';
@@ -57,6 +57,10 @@ function openConfig(){
 	//BM-Tab
 	$('#gcBMSelect').empty().append(bookmarkDD);
 	$('#gcBMGroup').empty().append(bMgroupDD);
+	$('#gcBMName').val('');
+	$('#gcBMLink').val('');
+	$('#gcBMFav').val('');
+	$('#gcBMRemarks').val('');
 	$('#gcBMSelect').off().on('change', function(e){
 		var rootId = this.value;
   		if(rootId !== '-1'){
@@ -88,6 +92,7 @@ function openConfig(){
     $('#gcBM').removeClass("border-bottom-0 border-danger text-danger");
 	//Group-Tab
 	$('#gcGroupSelect').empty().append(groupDD);
+	$('#gcGroupName').val('');
 	$('#gcGroupSelect').off().on('change', function(e){
   		if(this.value !== '-1')
     		$('#gcGroupName').val(this.value);
@@ -127,6 +132,9 @@ function saveBM(event){
     	}
     }
     if(send){
+    	if(favicon == ''){
+    		favicon = 'img/nofavicon.png';
+    	}
     	$.post('php/saveBookmark.php', {
 			id: old.id,
 			name: name,
@@ -138,6 +146,7 @@ function saveBM(event){
 		}, function(data,status){
 			console.log("SaveBM Req-Answer Data: "+data+", Status: "+status);
 			if(data == 'OK'){
+				stopRefresh();
 				loadPage();
 				$('#globalConfigModal').modal('hide');
 			}
@@ -172,6 +181,7 @@ function saveGroup(){
 		}, function(data,status){
 			console.log("SaveGroup Req-Answer Data: "+data+", Status: "+status);
 			if(data == 'OK'){
+				stopRefresh();
 				loadPage();
 				$('#globalConfigModal').modal('hide');
 			}
@@ -202,6 +212,7 @@ function saveGlobals(){
 		}, function(data,status){
 			console.log("SaveGlobals Req-Answer Data: "+data+", Status: "+status);
 			if(data == 'OK'){
+				stopRefresh();
 				loadPage();
 				$('#globalConfigModal').modal('hide');
 			}

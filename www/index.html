@@ -12,7 +12,10 @@
   </head>
   <body class="bg-secondary">
     <nav class="navbar navbar-dark bg-dark">
-      <a class="navbar-brand" href="" id="page-name">Page-Name</a>
+      <div>
+        <i data-feather="bookmark" class="mr-2 text-light mb-1" width="30" height="30"></i>
+        <a class="navbar-brand" href="" id="page-name">Page-Name</a>
+      </div>
       <form class="form-inline">
         <button type="button" class="btn btn-outline-light my-2 my-sm-0 d-flex align-items-center" id="configBtn"><i data-feather="settings" width="22" height="22"></i></button>
       </form>
@@ -75,7 +78,7 @@
                     <div class="form-group">
                       <label for="gcBMFav">Favicon-URL</label>
                       <div class="input-group">
-                        <input type="url" id="gcBMFav" placeholder="http://www.whatever.xyz/favicon.ico" class="form-control" required/>
+                        <input type="text" id="gcBMFav" placeholder="http://www.whatever.xyz/favicon.ico" class="form-control" />
                         <div class="invalid-feedback" id="gcBMFavIVF"></div>
                       </div>
                     </div>
