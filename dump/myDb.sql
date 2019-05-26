@@ -1,3 +1,12 @@
+-- phpMyAdmin SQL Dump
+-- version 4.8.3
+-- https://www.phpmyadmin.net/
+--
+-- Host: db
+-- Erstellungszeit: 26. Mai 2019 um 21:58
+-- Server-Version: 8.0.12
+-- PHP-Version: 7.2.8
+
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
 START TRANSACTION;
@@ -12,6 +21,8 @@ SET time_zone = "+00:00";
 --
 -- Datenbank: `bookmark-db`
 --
+CREATE DATABASE IF NOT EXISTS `bookmark-db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE `bookmark-db`;
 
 -- --------------------------------------------------------
 
@@ -19,20 +30,31 @@ SET time_zone = "+00:00";
 -- Tabellenstruktur für Tabelle `bookmarks`
 --
 
-CREATE TABLE `bookmarks` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `bookmarks`;
+CREATE TABLE IF NOT EXISTS `bookmarks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sort` int(11) NOT NULL,
   `link` varchar(255) NOT NULL,
   `favicon` varchar(255) NOT NULL,
   `name` varchar(64) NOT NULL,
-  `remarks` text NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=COMPACT;
+  `remarks` text NOT NULL,
+  `user1` text NOT NULL,
+  `user2` text NOT NULL,
+  `user3` text NOT NULL,
+  `user4` text NOT NULL,
+  `user5` text NOT NULL,
+  `user6` text NOT NULL,
+  `user7` text NOT NULL,
+  `user8` text NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=COMPACT;
 
 --
 -- Daten für Tabelle `bookmarks`
 --
 
-INSERT INTO `bookmarks` (`id`, `link`, `favicon`, `name`, `remarks`) VALUES
-(1, 'https://www.google.com', 'https://s2.googleusercontent.com/s2/favicons?domain_url=https://www.google.ch', 'Google', 'The Search-Engine');
+INSERT INTO `bookmarks` (`id`, `sort`, `link`, `favicon`, `name`, `remarks`, `user1`, `user2`, `user3`, `user4`, `user5`, `user6`, `user7`, `user8`) VALUES
+(1, 1, 'https://www.google.com', 'https://s2.googleusercontent.com/s2/favicons?domain_url=https://www.google.ch', 'Google', 'The Search-Engine', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
 
 -- --------------------------------------------------------
 
@@ -40,9 +62,11 @@ INSERT INTO `bookmarks` (`id`, `link`, `favicon`, `name`, `remarks`) VALUES
 -- Tabellenstruktur für Tabelle `global`
 --
 
-CREATE TABLE `global` (
+DROP TABLE IF EXISTS `global`;
+CREATE TABLE IF NOT EXISTS `global` (
   `key` text NOT NULL,
-  `value` text NOT NULL
+  `value` text NOT NULL,
+  PRIMARY KEY (`key`(20))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -51,8 +75,19 @@ CREATE TABLE `global` (
 
 INSERT INTO `global` (`key`, `value`) VALUES
 ('claim', 'There is your claim'),
+('favcolor', 'faviconClear.ico'),
 ('name', 'Bookmark Page'),
-('refresh', '30');
+('nameU1', 'Label 1'),
+('nameU2', 'Label 2'),
+('nameU3', 'Label 3'),
+('nameU4', 'Label 4'),
+('nameU5', 'Label 5'),
+('nameU6', 'Label 6'),
+('nameU7', 'Label 7'),
+('nameU8', 'Label 8'),
+('refresh', '30'),
+('userCol', '0'),
+('version', '1.1');
 
 -- --------------------------------------------------------
 
@@ -60,17 +95,20 @@ INSERT INTO `global` (`key`, `value`) VALUES
 -- Tabellenstruktur für Tabelle `groups`
 --
 
-CREATE TABLE `groups` (
-  `id` int(11) NOT NULL,
-  `name` text NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=COMPACT;
+DROP TABLE IF EXISTS `groups`;
+CREATE TABLE IF NOT EXISTS `groups` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sort` int(11) NOT NULL,
+  `name` text NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=COMPACT;
 
 --
 -- Daten für Tabelle `groups`
 --
 
-INSERT INTO `groups` (`id`, `name`) VALUES
-(1, 'Default-Group');
+INSERT INTO `groups` (`id`, `sort`, `name`) VALUES
+(1, 0, 'Default-Group');
 
 -- --------------------------------------------------------
 
@@ -78,11 +116,13 @@ INSERT INTO `groups` (`id`, `name`) VALUES
 -- Tabellenstruktur für Tabelle `link-groups-bookmarks`
 --
 
-CREATE TABLE `link-groups-bookmarks` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `link-groups-bookmarks`;
+CREATE TABLE IF NOT EXISTS `link-groups-bookmarks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `group-id` int(11) NOT NULL,
-  `bookmark-id` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `bookmark-id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Daten für Tabelle `link-groups-bookmarks`
@@ -90,56 +130,6 @@ CREATE TABLE `link-groups-bookmarks` (
 
 INSERT INTO `link-groups-bookmarks` (`id`, `group-id`, `bookmark-id`) VALUES
 (1, 1, 1);
-
---
--- Indizes der exportierten Tabellen
---
-
---
--- Indizes für die Tabelle `bookmarks`
---
-ALTER TABLE `bookmarks`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indizes für die Tabelle `global`
---
-ALTER TABLE `global`
-  ADD PRIMARY KEY (`key`(20));
-
---
--- Indizes für die Tabelle `groups`
---
-ALTER TABLE `groups`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indizes für die Tabelle `link-groups-bookmarks`
---
-ALTER TABLE `link-groups-bookmarks`
-  ADD PRIMARY KEY (`id`);
-
---
--- AUTO_INCREMENT für exportierte Tabellen
---
-
---
--- AUTO_INCREMENT für Tabelle `bookmarks`
---
-ALTER TABLE `bookmarks`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT für Tabelle `groups`
---
-ALTER TABLE `groups`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT für Tabelle `link-groups-bookmarks`
---
-ALTER TABLE `link-groups-bookmarks`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -7,13 +7,15 @@
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="css/bootstrap.min.css">
-
+    <link rel="stylesheet" href="css/bootstrap-select.min.css">
+    <link rel="stylesheet" href="css/bookmark.css">
     <title>Bookmark-Page</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
   </head>
   <body class="bg-secondary">
     <nav class="navbar navbar-dark bg-dark">
       <div>
-        <i data-feather="bookmark" class="mr-2 text-light mb-1" width="30" height="30"></i>
+        <img src="img/logo.svg" class="mr-2 mb-1" height="33"></img>
         <a class="navbar-brand" href="" id="page-name">Page-Name</a>
       </div>
       <form class="form-inline">
@@ -23,12 +25,22 @@
     <div class="container">
       <div class="card bg-light mt-3">
         <div class="card-body">
-          <h5 class="card-title" id="pageClaim">Claim</h5>
-          <div class="mb-2" id="bookmarks"></div>
+          <div class="row align-items-center mb-1">
+            <div class="col-lg-7">
+              <h5 class="card-title" id="pageClaim">Claim</h5>
+            </div>
+            <div class="input-group col-lg-5 mb-2">
+              <input type="text" class="form-control" id="searchInput" placeholder="Search..." aria-label="Search..." aria-describedby="basic-addon">
+              <div class="input-group-append">
+                <span class="input-group-text" id="basic-addon1"><i data-feather="search" id="basic-addon" width="20" height="20"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="table-responsive mb-2" id="bookmarks">ooops! That's an Error... </div>
         </div>
       </div>
       <div class="text-center">
-        <small>written by Adi Hilber</small>
+        <small>written by Adi Hilber | v<span id="version"></span></small>
       </div>
     </div>
     <!-- Modal - Global-Config -->
@@ -47,6 +59,9 @@
                   <a class="nav-link active" id="gcBM" href="#bmTab" aria-controls="bmTab" role="tab" data-toggle="tab" aria-selected="true">Bookmarks</a>
                 </li>
                 <li class="nav-item">
+                  <a class="nav-link" id="gcBMSort" href="#bmSortTab" aria-controls="bmSortTab" role="tab" data-toggle="tab" aria-selected="false">Sort Bookmarks</a>
+                </li>
+                <li class="nav-item">
                   <a class="nav-link" id="gcGroups" href="#groupTab" aria-controls="groupTab" role="tab" data-toggle="tab" aria-selected="false">Groups</a>
                 </li>
                 <li class="nav-item">
@@ -63,42 +78,90 @@
                     </div>
                     <div class="form-group">
                       <label for="gcBMName">Bookmark-Name</label>
-                      <div class="input-group">
-                        <input type="text" id="gcBMName" placeholder="Bookmark" class="form-control" required/>
-                        <div class="invalid-feedback" id="gcBMNameIVF"></div>
-                      </div>
+                      <input type="text" id="gcBMName" placeholder="Bookmark" class="form-control" required/>
+                      <div class="invalid-feedback" id="gcBMNameIVF"></div>
                     </div>
                     <div class="form-group">
                       <label for="gcBMLink">Link</label>
-                      <div class="input-group">
-                        <input type="url" id="gcBMLink" placeholder="http://www.whatever.xyz" class="form-control" required/>
-                        <div class="invalid-feedback" id="gcBMLinkIVF"></div>
-                      </div>
+                      <input type="url" id="gcBMLink" placeholder="http://www.whatever.xyz" class="form-control" required/>
+                      <div class="invalid-feedback" id="gcBMLinkIVF"></div>
                     </div>
                     <div class="form-group">
-                      <label for="gcBMFav">Favicon-URL</label>
-                      <div class="input-group">
-                        <input type="text" id="gcBMFav" placeholder="http://www.whatever.xyz/favicon.ico" class="form-control" />
-                        <div class="invalid-feedback" id="gcBMFavIVF"></div>
+                      <div class="mb-1" for="gcBMFav">
+                        <span>Favicon-URL</span>
+                        <div class="form-check float-right">
+                          <input class="form-check-input" type="checkbox" value="" id="gcBMFavSelectCheck" data-toggle="toggle">
+                          <label class="form-check-label" for="gcBMFavSelectCheck">
+                            Choose standard Icon
+                          </label>
+                        </div>
+                      </div>
+                      <input type="text" id="gcBMFav" placeholder="http://www.whatever.xyz/favicon.ico" class="form-control" />
+                      <div class="invalid-feedback" id="gcBMFavIVF"></div>
+                      <div class="form-group" id="gcBMFavSelectParent">
+                        <select class="form-control selectpicker" id="gcBMFavSelect" data-show-content="true" data-live-search="true" data-width="100%"></select>
                       </div>
                     </div>
                     <div class="form-group">
                       <label for="gcBMRemarks">Remarks</label>
-                      <div class="input-group">
                         <input type="text" id="gcBMRemarks" placeholder="some Remarks..." class="form-control" />
                         <div class="invalid-feedback" id="gcBMRemarksIVF"></div>
-                      </div>
                     </div>
+                    <span id="gcBMUserCols"></span>
                     <div class="form-group">
                       <label for="gcBMGroup">Select Group</label>
                       <select class="form-control" id="gcBMGroup" required></select>
                     </div>
                   </form>
-                  <div class="float-right">
-                    <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
-                    <button type="button" class="btn btn-outline-success ml-2" id="gcSaveBM">Save</button>
+                  <div class="row align-items-center">
+                    <div class="col-5">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" checked="checked" value="" id="gcBMcloseCheck">
+                        <label class="form-check-label" for="gcBMcloseCheck">
+                          Save and Close
+                        </label>
+                      </div>
+                    </div>
+                    <div class="col-7">
+                      <div class="float-right">
+                        <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                        <button type="button" class="btn btn-outline-danger ml-2" id="gcDeleteBM">Delete</button>
+                        <button type="button" class="btn btn-outline-success ml-2" id="gcSaveBM">Save</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+                <div role="tabpanel" class="tab-pane fade" id="bmSortTab">
+                  <form id="gcSortBMForm" novalidate>
+                    <div class="form-group">
+                      <label for="gcSortBMSelect">Select Group</label>
+                      <select class="form-control" id="gcSortBMSelect"></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcSortBMList">Sort Bookmarks</label>
+                      <ul class="list-group" id="gcSortBMList"></ul>
+                      <small class="text-secondary">Drag and Drop to reorder Bookmarks...</small>
+                    </div>
+                    <div class="invalid-feedback text-right mt-0 mb-2" id="gcBMSortIVF"></div>
+                  </form>
+                  <div class="row align-items-center">
+                    <div class="col-5">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" checked="checked" value="" id="gcCloseCheckBMSort">
+                        <label class="form-check-label" for="gcCloseCheckBMSort">
+                          Save and Close
+                        </label>
+                      </div>
+                    </div>
+                    <div class="col-7">
+                      <div class="float-right">
+                        <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                        <button type="button" class="btn btn-outline-success ml-2" id="gcSaveBMSort" onclick="saveBMSort();">Save</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div role="tabpanel" class="tab-pane fade" id="groupTab">
                   <form id="gcGroupForm" novalidate>
                     <div class="form-group">
@@ -107,30 +170,42 @@
                     </div>
                     <div class="form-group">
                       <label for="gcGroupName">Group-Name</label>
-                      <div class="input-group">
-                        <input type="text" id="gcGroupName" placeholder="Group-Name" class="form-control" required/>
-                        <div class="invalid-feedback" id="gcGroupNameIVF"></div>
-                      </div>
+                      <input type="text" id="gcGroupName" placeholder="Group-Name" class="form-control" required/>
+                      <div class="invalid-feedback" id="gcGroupNameIVF"></div>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcGroupSort">Sort Groups</label>
+                      <ul class="list-group" id="gcGroupSort"></ul>
+                      <small class="text-secondary">Drag and Drop to reorder Groups...</small>
                     </div>
                   </form>
-                  <div class="float-right">
-                    <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
-                    <button type="button" class="btn btn-outline-success ml-2" id="gcSaveGroup" onclick="saveGroup();">Save</button>
+                  <div class="row align-items-center">
+                    <div class="col-5">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" checked="checked" value="" id="gcCloseCheckGroup">
+                        <label class="form-check-label" for="gcCloseCheckGroup">
+                          Save and Close
+                        </label>
+                      </div>
+                    </div>
+                    <div class="col-7">
+                      <div class="float-right">
+                        <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
+                        <button type="button" class="btn btn-outline-danger ml-2" id="gcDeleteGroup">Delete</button>
+                        <button type="button" class="btn btn-outline-success ml-2" id="gcSaveGroup" onclick="saveGroup();">Save</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div role="tabpanel" class="tab-pane fade" id="globalTab">
                   <form id="gcGlobalForm" novalidate>
                     <div class="form-group">
                       <label for="gcSiteTitle">Site-Title</label>
-                      <div class="input-group">
-                        <input type="text" id="gcSiteTitle" placeholder="Bookmark-Page" class="form-control" required/>
-                      </div>
+                      <input type="text" id="gcSiteTitle" placeholder="Bookmark-Page" class="form-control" required/>
                     </div>
                     <div class="form-group">
                       <label for="gcSiteClaim">Site-Claim</label>
-                      <div class="input-group">
-                        <input type="text" id="gcSiteClaim" placeholder="your on Claim:" class="form-control" required/>
-                      </div>
+                      <input type="text" id="gcSiteClaim" placeholder="your on Claim:" class="form-control" required/>
                     </div>
                     <div class="form-group">
                       <label for="gcRefreshRate">Refresh-Rate</label>
@@ -140,7 +215,16 @@
                           <span class="input-group-text">s</span>
                         </div>
                       </div>
-                    </div>                    
+                    </div>
+                    <div class="form-group">
+                      <label for="gcFaviconSelect">Site-Favicon</label>
+                      <select class="form-control selectpicker" id="gcFaviconSelect" data-show-content="true" required></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="gcUserCol">Number of User-Columns</label>
+                      <input type="number" id="gcUserCol" placeholder="0-8" class="form-control" min="0" max="8" required/>
+                    </div>
+                    <span id="gcUserNames"></span>
                   </form>
                   <div class="float-right">
                     <button type="button" class="btn btn-outline-secondary ml-2" class="close" data-dismiss="modal" aria-label="Close">Cancel</button>
@@ -156,7 +240,10 @@
     <!-- Optional JavaScript -->
     <script src="js/jquery-3.3.1.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/bootstrap-select.min.js"></script>
     <script src="js/feather.min.js"></script>
+    <script src="js/sortable.min.js"></script>
+    <script src="js/jquery-sortable.js"></script>
     <script src="js/bookmark.js"></script>
   </body>
 </html>
