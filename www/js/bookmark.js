@@ -109,6 +109,9 @@ function sort(row){
 }
 
 function toggleGroup(groupClass){
+	var d = new Date();
+	d.setTime(d.getTime() + (365*24*60*60*1000));
+	var expires = "expires="+ d.toUTCString();
 	$('.'+groupClass).toggle(0);
 	GroupHide[groupClass] = !GroupHide[groupClass];
 	if(GroupHide[groupClass]){
@@ -117,7 +120,7 @@ function toggleGroup(groupClass){
 		$('#gI-'+groupClass).empty().html('<i data-feather="chevron-up" width="20" height="20"></i>');
 	}
 	feather.replace();
-	document.cookie = 'GroupHide' + "=" + JSON.stringify(GroupHide) + ";path=/";
+	document.cookie = 'GroupHide' + "=" + JSON.stringify(GroupHide) + "; " + expires + "; path=/";
 }
 
 function reToggleGroup(){
