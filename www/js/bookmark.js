@@ -579,6 +579,11 @@ function deleteBM(event){
 
 function deleteGroup(event){
 	var name = event.data;
+	if(Numbers[name]){
+		if(!confirm('The Group '+name+' contains '+Numbers[name]+' Bookmarks!\nAll Bookmarks of '+name+' will be deleted if you delete the Group!\nAre you sure?')){
+			return;
+		}
+	}
     if(name != '-1'){
     	$.post('php/deleteGroup.php', {
 			groupname: name,
