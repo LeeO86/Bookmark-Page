@@ -1,4 +1,11 @@
 <?php
+/*
+ * Bookmark-Page (https://github.com/LeeO86/Bookmark-Page)
+ *
+ * Copyright 2020 Adrian Hilber
+ * Licensed under MIT (https://github.com/LeeO86/Bookmark-Page/blob/master/LICENSE)
+ */
+
 if(isset($_POST['id'])){
 	include 'db-conn.php';
 	$id = $_POST['id'];

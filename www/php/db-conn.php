@@ -1,4 +1,10 @@
 <?php
+/*
+ * Bookmark-Page (https://github.com/LeeO86/Bookmark-Page)
+ *
+ * Copyright 2020 Adrian Hilber
+ * Licensed under MIT (https://github.com/LeeO86/Bookmark-Page/blob/master/LICENSE)
+ */
 
 // Connection variables 
 $host = "db"; // MySQL host name eg. localhost

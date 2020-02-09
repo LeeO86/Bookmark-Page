@@ -1,4 +1,11 @@
 <?php
+/*
+ * Bookmark-Page (https://github.com/LeeO86/Bookmark-Page)
+ *
+ * Copyright 2020 Adrian Hilber
+ * Licensed under MIT (https://github.com/LeeO86/Bookmark-Page/blob/master/LICENSE)
+ */
+
 include 'db-conn.php';
 if(isset($_POST['sort'])){
 	$sort = $_POST['sort'];
