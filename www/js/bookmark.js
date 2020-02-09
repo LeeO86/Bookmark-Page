@@ -259,8 +259,8 @@ function openConfigFn(){
 	$('#gcBMSelect').empty().append(bookmarkDD);
 	$('#gcBMGroup').empty().append(bMgroupDD);
 	$('#gcBMName').val('');
-	$('#gcBMLink').val('');
-	$('#gcBMFav').val('');
+	$('#gcBMLink').val('http://');
+	$('#gcBMFav').val('http://');
 	$('#gcBMRemarks').val('');
 	$('#gcBMSelect').off().on('change', function(e){
 		var rootId = this.value;
@@ -268,6 +268,7 @@ function openConfigFn(){
   			for (gName in Bookmarks){
   				$.each(Bookmarks[gName], function(i, bookmark){
   					if(bookmark.id == rootId){
+						$('#gcBMFavSelectCheck').prop('checked', false).change();
   						$('#gcBMName').val(bookmark.name);
   						$('#gcBMLink').val(bookmark.link);
   						$('#gcBMFav').val(bookmark.favicon);
@@ -285,8 +286,8 @@ function openConfigFn(){
   			}
     	}else{
     		$('#gcBMName').val('');
-			$('#gcBMLink').val('');
-			$('#gcBMFav').val('');
+			$('#gcBMLink').val('http://');
+			$('#gcBMFav').val('http://');
 			$('#gcBMRemarks').val('');
 			$('#gcBMGroup').val('');
 			$('#gcSaveBM').off().click({id: '-1'}, saveBM);
