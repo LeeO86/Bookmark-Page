@@ -9,6 +9,7 @@
 var Global = {};
 var Bookmarks = {};
 var RefreshTimer = false;
+var RefreshChangedString = '';
 var Sort = {row: 'sort', asc: true};
 var Numbers = {};
 var GroupHide = {};
@@ -16,9 +17,12 @@ var BMP_Version = '1.1';
 
 // Functions
 function loadPage(callback){
+	RefreshChangedString = '';
 	$.get('php/getGlobal.php', {}, function (ret, status){
-		console.log(ret.name+':loadPage()');
-		Global = ret;
+		if(JSON.stringify(ret) !== JSON.stringify(Global)){
+			RefreshChangedString += ret.name+' Loaded Globals\n';
+			Global = ret;
+		}
 		if($.isEmptyObject(Global)){
 			$('#bookmarks').empty().html('ooops! There is an MySQL-DB Error!<br>Call your System-Administrator or check Console...');
 			console.log('There is an MySQL-DB Error! Log in to the PHPmyAdmin Page an check if there is a bookmark-db. If not insert ../dump/myDb.sql');
@@ -30,71 +34,91 @@ function loadPage(callback){
 			feather.replace();
 			return;
 		}
-		document.title = Global.name;
-		$('#page-name').text(Global.name);
-		$('#pageClaim').text(Global.claim);
+		if(RefreshChangedString){
+			document.title = Global.name;
+			$('#page-name').text(Global.name);
+			$('#pageClaim').text(Global.claim);
+		}
 		if(!RefreshTimer)
-			RefreshTimer = setInterval(function(){ $('[data-toggle="tooltip"]').tooltip('hide'); loadPage(function(){$("#searchInput").focus();});}, (parseInt(Global.refresh)*1000));
+			RefreshTimer = setInterval(function(){ $('[data-toggle="tooltip"]').tooltip('hide'); loadPage(refreshCallback);}, (parseInt(Global.refresh)*1000));
 	
 		$.post('php/getBookmarks.php', {
 			sort: Sort.row,
 			asc: Sort.asc
 
 		}, function (ret, status){
-			console.log(ret);
-			Bookmarks = ret;
-			var sendBMSort = {};
-			var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"></th><th id="S-name">Name<span id="SI-name"></span></th><th id="S-remarks">Remarks<span id="SI-remarks"></span></th>'
-			for (var i = 1; i <= Global.userCol; i++) {
-				html += '<th id="S-user'+i+'" onclick="sort(\'user'+i+'\');">'+Global['nameU'+i]+'<span id="SI-user'+i+'"></span></th>';
-			}
-			html += '</thead><tbody id="searchData">';
-			var colspanNr = (parseInt(Global.userCol)+2);
-			var gcid = 0;
-			for (gName in Bookmarks){
-				html += '<tr class="GroupTitle" onclick="toggleGroup(\'g-'+gcid+'\');"><td id="gI-g-'+gcid+'" class="GroupIcon"><i data-feather="chevron-up" width="20" height="20"></i></td><th colspan="'+colspanNr+'" scope="row">'+gName+'</th></tr>';
-				$.each(ret[gName], function(i, bookmark){
-					html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img style="height: 21px; max-width: 50px;" src="'+bookmark.favicon+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
-					for (var j = 1; j <= Global.userCol; j++) {
-						html += '<td>'+bookmark['user'+j]+'</td>';
-					}
-					html += '</tr>';
-					Numbers[gName] = i+1;
-					if(Sort.row == 'sort' && Sort.asc && bookmark.sort != i+1){
-						sendBMSort[bookmark.id] = i+1;
-					}
-				});
-				gcid++;
-			}
-			Numbers.groups = gcid;
-			html += '</tbody></table>';
-			$('#bookmarks').empty().html(html);
-			if(Sort.row != 'id'){
-				if(Sort.asc){
-					$('#SI-'+Sort.row).html('<i data-feather="chevron-down" width="20" height="20" class="ml-2"></i>');
-				}else{
-					$('#SI-'+Sort.row).html('<i data-feather="chevron-up" width="20" height="20" class="ml-2"></i>');
+			if(JSON.stringify(ret) !== JSON.stringify(Bookmarks)){
+				Bookmarks = ret;
+				var sendBMSort = {};
+				var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"></th><th id="S-name">Name<span id="SI-name"></span></th><th id="S-remarks">Remarks<span id="SI-remarks"></span></th>'
+				for (var i = 1; i <= Global.userCol; i++) {
+					html += '<th id="S-user'+i+'" onclick="sort(\'user'+i+'\');">'+Global['nameU'+i]+'<span id="SI-user'+i+'"></span></th>';
 				}
-			}
-			$('[data-toggle="tooltip"]').tooltip({placement: "top", delay: { "show": 1500, "hide": 10 }});
-			reToggleGroup();
-			feather.replace();
-			$('#S-sort').click(function(){sort('sort');});
-			$('#S-name').click(function(){sort('name');});
-			$('#S-remarks').click(function(){sort('remarks');});
-			if(!$.isEmptyObject(sendBMSort)){
-				$.post('php/saveBMsort.php', {
-					json: JSON.stringify(sendBMSort)
-
-				}, function (ret, status){
-					console.log("SaveBM-Sort Req-Answer Data: "+ret+", Status: "+status);
-					if(ret == 'OK'){
-						stopRefresh();
-						loadPage();
+				html += '</thead><tbody id="searchData">';
+				var colspanNr = (parseInt(Global.userCol)+2);
+				var gcid = 0;
+				var reloadTime = Math.floor($.now()/1000);
+				Numbers.totalBMs = 0;
+				for (gName in Bookmarks){
+					html += '<tr class="GroupTitle" onclick="toggleGroup(\'g-'+gcid+'\');"><td id="gI-g-'+gcid+'" class="GroupIcon"><i data-feather="chevron-up" width="20" height="20"></i></td><th colspan="'+colspanNr+'" scope="row">'+gName+'</th></tr>';
+					$.each(Bookmarks[gName], function(i, bookmark){
+						html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img class="bm-img" src="'+bookmark.favicon+'?loadTime='+reloadTime+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
+						for (var j = 1; j <= Global.userCol; j++) {
+							html += '<td>'+bookmark['user'+j]+'</td>';
+						}
+						html += '</tr>';
+						Numbers[gName] = i+1;
+						Numbers.totalBMs++;
+						if(Sort.row == 'sort' && Sort.asc && bookmark.sort != i+1){
+							sendBMSort[bookmark.id] = i+1;
+						}
+					});
+					gcid++;
+				}
+				Numbers.groups = gcid;
+				html += '</tbody></table>';
+				$('#bookmarks').empty().html(html);
+				RefreshChangedString += 'Loaded '+Numbers.totalBMs+' Bookmarks in '+Numbers.groups+' Groups';
+				if(Sort.row != 'id'){
+					if(Sort.asc){
+						$('#SI-'+Sort.row).html('<i data-feather="chevron-down" width="20" height="20" class="ml-2"></i>');
+					}else{
+						$('#SI-'+Sort.row).html('<i data-feather="chevron-up" width="20" height="20" class="ml-2"></i>');
 					}
-				});
+				}
+				$('[data-toggle="tooltip"]').tooltip({placement: "top", delay: { "show": 1500, "hide": 10 }});
+				reToggleGroup();
+				feather.replace();
+				$('#S-sort').click(function(){sort('sort');});
+				$('#S-name').click(function(){sort('name');});
+				$('#S-remarks').click(function(){sort('remarks');});
+				if(!$.isEmptyObject(sendBMSort)){
+					$.post('php/saveBMsort.php', {
+						json: JSON.stringify(sendBMSort)
+
+					}, function (ret, status){
+						console.log("SaveBM-Sort Req-Answer Data: "+ret+", Status: "+status);
+						if(ret == 'OK'){
+							stopRefresh();
+							loadPage(refreshCallback);
+						}
+					});
+				}
+			}else{
+				var reloadTime = Math.floor($.now()/1000);
+				for (gName in Bookmarks){
+					$.each(Bookmarks[gName], function(i, bm){
+						$('#bm-'+bm.id+' .bm-img').attr({'src':bm.favicon+'?loadTime='+reloadTime, 'onerror':'this.onerror=null; this.src="img/errorfav.svg"'});
+					});
+				}
+				
 			}
-			if(typeof(callback) === typeof(Function))
+			if(!RefreshChangedString){
+				console.log('Page-Reload: Nothing changed but BM-Icons reloaded.');
+			}else{
+				console.log(RefreshChangedString);
+			}
+			if(typeof(callback) === typeof(Function) && RefreshChangedString)
 				callback();
 		});
 	});
@@ -112,7 +136,7 @@ function sort(row){
 		Sort.row = row;
 		Sort.asc = true;
 	}
-	loadPage();
+	loadPage(refreshCallback);
 }
 
 function toggleGroup(groupClass){
@@ -148,6 +172,17 @@ function openInNewTab(url){
 function stopRefresh(){
 	clearInterval(RefreshTimer);
 	RefreshTimer = false;
+}
+
+function refreshCallback(){
+	if($("#searchInput").val().trim()){
+		var searchstring = $("#searchInput").val().toLowerCase();
+    	$("#searchData tr").filter(function() {
+			$(this).toggle($(this).text().toLowerCase().indexOf(searchstring) > -1)
+		});
+    	$('.GroupTitle').hide();
+	}
+	$("#searchInput").focus();
 }
 
 function openConfig(){
@@ -371,7 +406,7 @@ function saveBM(event){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcBMcloseCheck').prop('checked')){
-					loadPage();
+					loadPage(refreshCallback);
 					$('#globalConfigModal').modal('hide');
 				}else
 					loadPage(openConfig);
@@ -398,7 +433,7 @@ function saveBMSort(){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcCloseCheckBMSort').prop('checked')){
-					loadPage();
+					loadPage(refreshCallback);
 					$('#globalConfigModal').modal('hide');
 				}else
 					loadPage(openConfig);
@@ -451,7 +486,7 @@ function saveGroup(){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcCloseCheckGroup').prop('checked')){
-					loadPage();
+					loadPage(refreshCallback);
 					$('#globalConfigModal').modal('hide');
 				}else
 					loadPage(openConfig);
@@ -510,7 +545,7 @@ function saveGlobals(){
 				stopRefresh();
 				if(favcolor != Global.favcolor)
 					location.reload();
-				loadPage();
+				loadPage(refreshCallback);
 				$('#globalConfigModal').modal('hide');
 			}
 		});
@@ -528,7 +563,7 @@ function deleteBM(event){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcBMcloseCheck').prop('checked')){
-					loadPage();
+					loadPage(refreshCallback);
 					$('#globalConfigModal').modal('hide');
 				}else
 					loadPage(openConfig);
@@ -549,7 +584,7 @@ function deleteGroup(event){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcCloseCheckGroup').prop('checked')){
-					loadPage();
+					loadPage(refreshCallback);
 					$('#globalConfigModal').modal('hide');
 				}else
 					loadPage(openConfig);
@@ -639,7 +674,7 @@ function updateDB(){
 		}, function(data,status){
 			console.log("UpdateDB Req-Answer Data: "+data+", Status: "+status);
 			if(data == 'OK'){
-				loadPage();
+				loadPage(refreshCallback);
 			}else{
 				$('#bookmarks').empty().html('<h4>Updating bookmarks-DB...</h4><p>'+data+'</p>');
 			}
@@ -669,7 +704,6 @@ $(document).ready(function () {
 	if(cGroupHide != ''){
 		GroupHide = JSON.parse(cGroupHide);
 	}
-	console.log(GroupHide);
 	loadPage(function(){$("#searchInput").focus();});
 	$('#configBtn').click(function(){openConfig();});
 	$("#searchInput").on("keyup", function() {
