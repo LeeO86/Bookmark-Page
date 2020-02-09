@@ -13,7 +13,7 @@ var RefreshChangedString = '';
 var Sort = {row: 'sort', asc: true};
 var Numbers = {};
 var GroupHide = {};
-var BMP_Version = '1.1';
+var BMP_Version = '1.1.1';
 
 // Functions
 function loadPage(callback){
@@ -29,8 +29,8 @@ function loadPage(callback){
 			feather.replace();
 			return;
 		}else if(Global.version !== BMP_Version){
-			$('#bookmarks').empty().html('<h4>ooops! You have to update your MySQL-DB!</h4><p>Call your System-Administrator...</p><small class="text-muted">You can update your DB but probably you want to save your bookmarks DB before via the PHPmyAdmin Console...</small><div class="text-center"><button type="button" onclick="updateDB();" class="btn btn-outline-danger mt-3 ml-2">Update ?</button></div>');
-			console.log('You have to update your MySQL-DB! You can update your DB but probably you want to save your bookmark-db before via the PHPmyAdmin Console...');
+			$('#bookmarks').empty().html('<h4>ooops! You have to update your MySQL-DB!</h4><p>Call your System-Administrator...</p><small class="text-muted">You can update your DB but probably you want to save your bookmarks DB before via the PHPmyAdmin Console... <br/> Page-Version: v'+BMP_Version+' | DB-Version: v'+Global.version+'</small><div class="text-center"><button type="button" onclick="updateDB();" class="btn btn-outline-danger mt-3 ml-2">Update ?</button></div>');
+			console.log('You have to update your MySQL-DB! You can update your DB but probably you want to save your bookmark-db before via the PHPmyAdmin Console...\nPage-Version: v'+BMP_Version+' | DB-Version: v'+Global.version);
 			feather.replace();
 			return;
 		}
@@ -699,6 +699,7 @@ function updateDB(){
 	$('#bookmarks').empty().html('<h4>Updating bookmark-db...</h4><div class="progress m-4"><div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div></div><div class="text-center"><small class="text-muted text-center">This should not take so long...</small></div>');
 	$.post('php/updateDB.php', {
 			version: BMP_Version,
+			dbVersion: Global.version,
 	
 		}, function(data,status){
 			console.log("UpdateDB Req-Answer Data: "+data+", Status: "+status);

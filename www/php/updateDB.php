@@ -7,28 +7,44 @@
  */
 
 if(isset($_POST['version'])){
-    // Name of the file
-    $filename = 'update_v'.$_POST['version'].'.sql';
-    include 'db-conn.php';
+    $version = explode('.', $_POST['version']);
+    $dbVersion = explode('.', $_POST['dbVersion']);
     $out = '';
-    // Temporary variable, used to store current query
-    $templine = '';
-    // Read in entire file
-    $lines = file($filename);
-    // Loop through each line
-    foreach ($lines as $line) {
-    // Skip it if it's a comment
-        if (substr($line, 0, 2) == '--' || $line == '')
-            continue;
+    $filename ='';
+    include 'db-conn.php';
+    if($version[0] == '1' && $version[1] == '1') {
+        if($version[2] == '1' && $dbVersion[0] == '1' && $dbVersion[1] == '1'){
+            $query = 'UPDATE `global` SET `value` = "'.$_POST['version'].'" WHERE `global`.`key` = "version"';
+            if (!$result = mysqli_query($con, $query)) {
+                exit(mysqli_error($con));
+            }
+        }else{
+            $filename = 'update_v1.1.sql';
+        }
+    }else{
+        // Name of the file
+        $filename = 'update_v'.$_POST['version'].'.sql';
+    }
+    if(!empty($filename)){
+        // Temporary variable, used to store current query
+        $templine = '';
+        // Read in entire file
+        $lines = file($filename);
+        // Loop through each line
+        foreach ($lines as $line) {
+        // Skip it if it's a comment
+            if (substr($line, 0, 2) == '--' || $line == '')
+                continue;
 
-    // Add this line to the current segment
-        $templine .= $line;
-    // If it has a semicolon at the end, it's the end of the query
-        if (substr(trim($line), -1, 1) == ';') {
-            // Perform the query
-            $con->query($templine) or $out .= 'Error performing query \'<strong>' . $templine . '\': ' . $con->error() . '<br />';
-            // Reset temp variable to empty
-            $templine = '';
+        // Add this line to the current segment
+            $templine .= $line;
+        // If it has a semicolon at the end, it's the end of the query
+            if (substr(trim($line), -1, 1) == ';') {
+                // Perform the query
+                $con->query($templine) or $out .= 'Error performing query \'<strong>' . $templine . '\': ' . $con->error() . '<br />';
+                // Reset temp variable to empty
+                $templine = '';
+            }
         }
     }
     if ($out == ''){
