@@ -49,6 +49,7 @@ function loadPage(callback){
 		}, function (ret, status){
 			if(JSON.stringify(ret) !== JSON.stringify(Bookmarks)){
 				Bookmarks = ret;
+				Numbers = {};
 				var sendBMSort = {};
 				var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"></th><th id="S-name">Name<span id="SI-name"></span></th><th id="S-remarks">Remarks<span id="SI-remarks"></span></th>'
 				for (var i = 1; i <= Global.userCol; i++) {
@@ -446,6 +447,7 @@ function saveBMSort(){
 
 function saveGroup(){
 	var send = true;
+	var sendSort = false;
 	var orderChanged = {};
 	var oldGroup = $('#gcGroupSelect').val();
 	var newGroup = $('#gcGroupName').val();
@@ -457,9 +459,9 @@ function saveGroup(){
 			$('#gcGroupNameIVF').text('Group-Name alredy exists');
 			send = false;
 		}
+		orderChanged[order[i]] = i+1;
 		if(order[i] != gName){
-			orderChanged[order[i]] = i+1;
-			console.log('Oohh '+order[i]+' != '+gName);
+			sendSort = true;
 		}
 		i++;
 	}
@@ -470,8 +472,10 @@ function saveGroup(){
 		$('#gcGroupNameIVF').text('Group-Name can not be empty');
 		send = false;
 	}
-	console.log(JSON.stringify(orderChanged));
-    if(send || !$.isEmptyObject(orderChanged)){
+	if(sendSort){
+		console.log('Group-Sort changed, saving Sort');
+	}
+    if(send || sendSort){
     	if(!send){
     		newGroup = '-1';
     	}
@@ -584,14 +588,33 @@ function deleteGroup(event){
 			if(data == 'OK'){
 				stopRefresh();
 				if($('#gcCloseCheckGroup').prop('checked')){
-					loadPage(refreshCallback);
+					loadPage(function(){refreshCallback(); saveGroupSort();});
 					$('#globalConfigModal').modal('hide');
 				}else
-					loadPage(openConfig);
+					loadPage(function(){saveGroupSort(); openConfig();});
 			}
 		});
     }
 
+}
+
+function saveGroupSort(){
+	var orderChanged = {};
+	var order = $('#gcGroupSort').sortable('toArray');
+	var i = 0;
+	for (gName in Bookmarks) {
+		orderChanged[gName] = i+1;
+		i++;
+	}
+	console.log(JSON.stringify(orderChanged));
+	$.post('php/saveGroup.php', {
+		old: '-1',
+		new: '-1',
+		json: JSON.stringify(orderChanged)
+
+	}, function(data,status){
+		console.log("SaveGroupSort Req-Answer Data: "+data+", Status: "+status);
+	});
 }
 
 function getIcons() {
@@ -676,7 +699,7 @@ function updateDB(){
 			if(data == 'OK'){
 				loadPage(refreshCallback);
 			}else{
-				$('#bookmarks').empty().html('<h4>Updating bookmarks-DB...</h4><p>'+data+'</p>');
+				$('#bookmarks').empty().html('<h4>Updating bookmark-db...</h4><p>'+data+'</p>');
 			}
 		});
 

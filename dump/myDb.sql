@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS `groups` (
 --
 
 INSERT INTO `groups` (`id`, `sort`, `name`) VALUES
-(1, 0, 'Default-Group');
+(1, 1, 'Default-Group');
 
 -- --------------------------------------------------------
 

@@ -14,8 +14,8 @@ if(isset($_POST['old']) && isset($_POST['new']) && isset($_POST['json'])){
 	$json = $_POST['json'];
 	$array = json_decode($json);
 
-	foreach ($array as $group => $sort) {
-		$query = 'UPDATE `groups` SET `sort` = "'.$sort.'" WHERE `groups`.`name` = "'.$group.'"';
+	foreach ($array as $group => $jsort) {
+		$query = 'UPDATE `groups` SET `sort` = "'.$jsort.'" WHERE `groups`.`name` = "'.$group.'"';
 		if (!$result = mysqli_query($con, $query)) {
 	    	exit(mysqli_error($con));
 		}
