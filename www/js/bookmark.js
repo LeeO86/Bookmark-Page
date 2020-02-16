@@ -58,12 +58,11 @@ function loadPage(callback){
 				html += '</thead><tbody id="searchData">';
 				var colspanNr = (parseInt(Global.userCol)+2);
 				var gcid = 0;
-				var reloadTime = Math.floor($.now()/1000);
 				Numbers.totalBMs = 0;
 				for (gName in Bookmarks){
 					html += '<tr class="GroupTitle" onclick="toggleGroup(\'g-'+gcid+'\');"><td id="gI-g-'+gcid+'" class="GroupIcon"><i data-feather="chevron-up" width="20" height="20"></i></td><th colspan="'+colspanNr+'" scope="row">'+gName+'</th></tr>';
 					$.each(Bookmarks[gName], function(i, bookmark){
-						html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img class="bm-img" src="'+bookmark.favicon+'?loadTime='+reloadTime+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
+						html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img class="bm-img" src="'+bookmark.favicon+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
 						for (var j = 1; j <= Global.userCol; j++) {
 							html += '<td>'+bookmark['user'+j]+'</td>';
 						}
@@ -106,10 +105,9 @@ function loadPage(callback){
 					});
 				}
 			}else{
-				var reloadTime = Math.floor($.now()/1000);
 				for (gName in Bookmarks){
 					$.each(Bookmarks[gName], function(i, bm){
-						$('#bm-'+bm.id+' .bm-img').attr({'src':bm.favicon+'?loadTime='+reloadTime, 'onerror':'this.onerror=null; this.src="img/errorfav.svg"'});
+						$('#bm-'+bm.id+' .bm-img').attr({'src':bm.favicon, 'onerror':'this.onerror=null; this.src="img/errorfav.svg"'});
 					});
 				}
 				
