@@ -18,9 +18,11 @@ var BMP_Version = '1.1.1';
 // Functions
 function loadPage(callback){
 	RefreshChangedString = '';
+	var fullReload = false;
 	$.get('php/getGlobal.php', {}, function (ret, status){
 		if(JSON.stringify(ret) !== JSON.stringify(Global)){
 			RefreshChangedString += ret.name+' Loaded Globals\n';
+			fullReload = true;
 			Global = ret;
 		}
 		if($.isEmptyObject(Global)){
@@ -47,13 +49,15 @@ function loadPage(callback){
 			asc: Sort.asc
 
 		}, function (ret, status){
-			if(JSON.stringify(ret) !== JSON.stringify(Bookmarks)){
+			if(JSON.stringify(ret) !== JSON.stringify(Bookmarks) || fullReload){
 				Bookmarks = ret;
 				Numbers = {};
 				var sendBMSort = {};
-				var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"></th><th id="S-name">Name<span id="SI-name"></span></th><th id="S-remarks">Remarks<span id="SI-remarks"></span></th>'
+				var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"><span class="SortIndex" id="SI-sort"></span></th><th id="S-name">Name<span class="SortIndex" id="SI-name"></span></th><th id="S-remarks">Remarks<span class="SortIndex" id="SI-remarks"></span></th>'
 				for (var i = 1; i <= Global.userCol; i++) {
-					html += '<th id="S-user'+i+'" onclick="sort(\'user'+i+'\');">'+Global['nameU'+i]+'<span id="SI-user'+i+'"></span></th>';
+					if(Global['hideU'+i] === '0'){
+						html += '<th id="S-user'+i+'" onclick="sort(\'user'+i+'\');">'+Global['nameU'+i]+'<span class="SortIndex" id="SI-user'+i+'"></span></th>';
+					}
 				}
 				html += '</thead><tbody id="searchData">';
 				var colspanNr = (parseInt(Global.userCol)+2);
@@ -64,7 +68,9 @@ function loadPage(callback){
 					$.each(Bookmarks[gName], function(i, bookmark){
 						html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img class="bm-img" src="'+bookmark.favicon+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
 						for (var j = 1; j <= Global.userCol; j++) {
-							html += '<td>'+bookmark['user'+j]+'</td>';
+							html += '<td'
+							if(Global['hideU'+j] !== '0')	html += ' style="display: none;"'
+							html += '>'+bookmark['user'+j]+'</td>';
 						}
 						html += '</tr>';
 						Numbers[gName] = i+1;
@@ -79,12 +85,12 @@ function loadPage(callback){
 				html += '</tbody></table>';
 				$('#bookmarks').empty().html(html);
 				RefreshChangedString += 'Loaded '+Numbers.totalBMs+' Bookmarks in '+Numbers.groups+' Groups';
-				if(Sort.row != 'id'){
-					if(Sort.asc){
+				if(Sort.asc){
+					if(Sort.row != 'sort'){
 						$('#SI-'+Sort.row).html('<i data-feather="chevron-down" width="20" height="20" class="ml-2"></i>');
-					}else{
-						$('#SI-'+Sort.row).html('<i data-feather="chevron-up" width="20" height="20" class="ml-2"></i>');
 					}
+				}else{
+					$('#SI-'+Sort.row).html('<i data-feather="chevron-up" width="20" height="20" class="ml-2"></i>');
 				}
 				$('[data-toggle="tooltip"]').tooltip({placement: "top", delay: { "show": 1500, "hide": 10 }});
 				reToggleGroup();
@@ -105,12 +111,20 @@ function loadPage(callback){
 					});
 				}
 			}else{
+				$('.SortIndex').empty();
+				if(Sort.asc){
+					if(Sort.row != 'sort'){
+						$('#SI-'+Sort.row).html('<i data-feather="chevron-down" width="20" height="20" class="ml-2"></i>');
+					}
+				}else{
+					$('#SI-'+Sort.row).html('<i data-feather="chevron-up" width="20" height="20" class="ml-2"></i>');
+				}
 				for (gName in Bookmarks){
 					$.each(Bookmarks[gName], function(i, bm){
 						$('#bm-'+bm.id+' .bm-img').attr({'src':bm.favicon, 'onerror':'this.onerror=null; this.src="img/errorfav.svg"'});
 					});
 				}
-				
+				feather.replace();
 			}
 			if(!RefreshChangedString){
 				console.log('Page-Reload: Nothing changed but BM-Icons reloaded.');
@@ -249,7 +263,7 @@ function openConfigFn(){
 	}
 	for (var i = 1; i <= Global.userCol; i++) {
 		bMuserColNames += '<div class="form-group"><label for="gcUserCol-'+i+'">'+Global['nameU'+i]+'</label><input type="text" id="gcUserCol-'+i+'" placeholder="'+Global['nameU'+i]+'..." class="form-control" /></div>';
-		globalUserColNames += '<div class="form-group"><label for="gcUserColLabel-'+i+'">User-Column '+i+' Label</label><input type="text" id="gcUserColLabel-'+i+'" placeholder="your on Label" class="form-control" /></div>';
+		globalUserColNames += '<div class="form-group"><label for="gcUserColLabel-'+i+'">User-Column '+i+' Label</label><input type="text" id="gcUserColLabel-'+i+'" placeholder="your on Label" class="form-control" /><div class="form-check"><input class="form-check-input" type="checkbox" value="" id="gcUserColHide-'+i+'" data-toggle="toggle"><label class="form-check-label" for="gcUserColHide-'+i+'">Hide this Column (Use as Tag Column)</label></div></div>';
 	}
 	$('#gcBMUserCols').empty().html(bMuserColNames);
 	$('#gcUserNames').empty().html(globalUserColNames);
@@ -340,6 +354,8 @@ function openConfigFn(){
 	$('#gcUserCol').val(parseInt(Global.userCol));
 	for (var i = 1; i <= Global.userCol; i++) {
 		$('#gcUserColLabel-'+i).val(Global['nameU'+i]);
+		if(Global['hideU'+i] === '0')	$('#gcUserColHide-'+i).prop("checked", false);
+		else							$('#gcUserColHide-'+i).prop("checked", true);
 	}
 	$('#gcGlobalForm').removeClass('was-validated');
     $('#gcGlobals').removeClass("border-bottom-0 border-danger text-danger");
@@ -363,6 +379,34 @@ function saveBM(event){
 	for (var i = 1; i <= Global.userCol; i++) {
 		user[i] = $('#gcUserCol-'+i).val();
 	}
+	$('#gcBMName')[0].setCustomValidity('');
+	$('#gcBMNameIVF').empty();
+	$('#gcBMLink')[0].setCustomValidity('');
+	$('#gcBMLinkIVF').empty();
+	for (gName in Bookmarks){
+		$.each(Bookmarks[gName], function(i, bookmark){
+			if(gName == group){
+				if(name == bookmark.name && name !== old.name){
+					$('#gcBMNameIVF').html('Bookmark '+name+' already exists in the same Group '+group+'.<br/> This is not allowed! But in an other Group it would be...');
+					$('#gcBMName')[0].setCustomValidity('Bookmark Name '+name+' already exists!');
+					$('#gcBMName').change(function() {
+						$('#gcBMName')[0].setCustomValidity('');
+						$('#gcBMNameIVF').empty();
+						$('#gcBMName').off('change');
+					});
+				}
+			}
+			if(link == bookmark.link){
+				$('#gcBMLinkIVF').html('Link already exists in Bookmark '+bookmark.name+' in Group '+gName+'!<br/> The same Link is not allowed!');
+				$('#gcBMLink')[0].setCustomValidity('Link already exists!');
+				$('#gcBMLink').change(function() {
+					$('#gcBMLink')[0].setCustomValidity('');
+					$('#gcBMLinkIVF').empty();
+					$('#gcBMLink').off('change');
+				});
+			}
+		});
+	}
     if(!$('#gcBMForm')[0].checkValidity()){
         send = false;
         $('#gcBM').addClass("border-bottom-0 border-danger text-danger");
@@ -381,7 +425,7 @@ function saveBM(event){
     	}
     }
     if(send){
-    	if(favicon == ''){
+    	if(favicon == '' || favicon == 'http://'){
     		favicon = 'img/icons/bookmark.svg';
     	}
     	$.post('php/saveBookmark.php', {
@@ -505,6 +549,7 @@ function saveGroup(){
 function saveGlobals(){
 	var send = true;
 	var userLabel = ['', Global['nameU1'], Global['nameU2'], Global['nameU3'], Global['nameU4'], Global['nameU5'], Global['nameU6'], Global['nameU7'], Global['nameU8']];
+	var userLabelHide = ['', Global['hideU1'], Global['hideU2'], Global['hideU3'], Global['hideU4'], Global['hideU5'], Global['hideU6'], Global['hideU7'], Global['hideU8']];
     if(!$('#gcGlobalForm')[0].checkValidity()){
         send = false;
         $('#gcGlobals').addClass("border-bottom-0 border-danger text-danger");
@@ -512,6 +557,8 @@ function saveGlobals(){
     $('#gcGlobalForm').addClass('was-validated');
     for (var i = 1; i <= Global.userCol; i++) {
 		userLabel[i] = $('#gcUserColLabel-'+i).val();
+		if($('#gcUserColHide-'+i).prop('checked'))	userLabelHide[i] = '1';
+		else										userLabelHide[i] = '0';
 	}
     if(send){
 		var title = $('#gcSiteTitle').val();
@@ -540,7 +587,15 @@ function saveGlobals(){
 			nameU5: userLabel[5],
 			nameU6: userLabel[6],
 			nameU7: userLabel[7],
-			nameU8: userLabel[8]
+			nameU8: userLabel[8],
+			hideU1: userLabelHide[1],
+			hideU2: userLabelHide[2],
+			hideU3: userLabelHide[3],
+			hideU4: userLabelHide[4],
+			hideU5: userLabelHide[5],
+			hideU6: userLabelHide[6],
+			hideU7: userLabelHide[7],
+			hideU8: userLabelHide[8]
 	
 		}, function(data,status){
 			console.log("SaveGlobals Req-Answer Data: "+data+", Status: "+status);
