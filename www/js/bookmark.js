@@ -7,6 +7,7 @@
 
 // Gloal Vars
 var Global = {};
+var GroupData = {};
 var Bookmarks = {};
 var RefreshTimer = false;
 var RefreshChangedString = '';
@@ -52,8 +53,9 @@ function loadPage(callback){
 			asc: Sort.asc
 
 		}, function (ret, status){
-			if(JSON.stringify(ret) !== JSON.stringify(Bookmarks) || fullReload){
-				Bookmarks = ret;
+			if(JSON.stringify(ret.bookmarks) !== JSON.stringify(Bookmarks) || JSON.stringify(ret.groupdata) !== JSON.stringify(GroupData) || fullReload){
+				Bookmarks = ret.bookmarks;
+				GroupData = ret.groupdata;
 				Numbers = {};
 				var sendBMSort = {};
 				var html = '<table class="table table-hover"><thead><th style="width: 50px;" id="S-sort"><span class="SortIndex" id="SI-sort"></span></th><th id="S-name">Name<span class="SortIndex" id="SI-name"></span></th><th id="S-remarks">Remarks<span class="SortIndex" id="SI-remarks"></span></th>'
@@ -63,11 +65,11 @@ function loadPage(callback){
 					}
 				}
 				html += '</thead><tbody id="searchData">';
-				var colspanNr = (parseInt(Global.userCol)+2);
+				var colspanNr = (parseInt(Global.userCol)+1);
 				var gcid = 0;
 				Numbers.totalBMs = 0;
 				for (gName in Bookmarks){
-					html += '<tr class="GroupTitle" onclick="toggleGroup(\'g-'+gcid+'\');"><td id="gI-g-'+gcid+'" class="GroupIcon"><i data-feather="chevron-up" width="20" height="20"></i></td><th colspan="'+colspanNr+'" scope="row">'+gName+'</th></tr>';
+					html += '<tr class="GroupTitle" onclick="toggleGroup(\'g-'+gcid+'\');"><td id="gI-g-'+gcid+'" class="GroupIcon"><i data-feather="chevron-up" width="20" height="20"></i></td><th>'+gName+'</th><td colspan="'+colspanNr+'" scope="row">'+GroupData[gName].remarks+'</td></tr>';
 					$.each(Bookmarks[gName], function(i, bookmark){
 						html += '<tr id="bm-'+bookmark.id+'" class="g-'+gcid+'" onclick="openInNewTab(\''+bookmark.link+'\');" data-toggle="tooltip" title="URL: '+bookmark.link+'"><td><img class="bm-img" src="'+bookmark.favicon+'" onerror="this.onerror=null; this.src=\'img/errorfav.svg\'"></img></td><td>'+bookmark.name+'</td><td>'+bookmark.remarks+'</td>';
 						for (var j = 1; j <= Global.userCol; j++) {
@@ -220,7 +222,8 @@ function openConfig(){
 
 		}, function (ret, status){
 			console.log(ret);
-			Bookmarks = ret;
+			Bookmarks = ret.bookmarks;
+			GroupData = ret.groupdata;
 			openConfigFn();
 			//$('#SI-'+Sort.row).empty();
 		});
@@ -268,7 +271,7 @@ function openConfigFn(){
 		bMgroupDD += '<option value="'+gName+'">'+gName+'</option>';
 		bMsortGroupDD += '<option value="'+gName+'">'+gName+'</option>';
 		groupDD += '<option value="'+gName+'">'+gName+'</option>';
-		groupSortList += '<li class="list-group-item list-group-item-action sort-li" data-id="'+gName+'">'+gName+'<i data-feather="move" class="mt-1 float-right" height="17"></i></li>';
+		groupSortList += '<li class="list-group-item list-group-item-action sort-li" data-id="'+GroupData[gName].id+'">'+gName+'<i data-feather="move" class="mt-1 float-right" height="17"></i></li>';
 		$.each(Bookmarks[gName], function(i, bookmark){
 			bookmarkDD += '<option value="'+bookmark.id+'">'+bookmark.name+' | '+gName+'</option>';
 		});
@@ -343,19 +346,23 @@ function openConfigFn(){
 	$('#gcGroupSelect').empty().append(groupDD);
 	$('#gcGroupSort').sortable('destroy').empty().append(groupSortList);
 	$('#gcGroupName').val('');
+	$('#gcGroupRemark').val('');
 	$('#gcGroupSort').sortable();
 	$('#gcGroupSelect').off().on('change', function(e){
   		if(this.value !== '-1'){
-    		$('#gcGroupName').val(this.value);
+			$('#gcGroupName').val(this.value);
+			$('#gcGroupRemark').val(GroupData[this.value].remarks);
     		$('#gcDeleteGroup').off().click(this.value, deleteGroup).prop('disabled', false);
   		} else {
-    		$('#gcGroupName').val('');
+			$('#gcGroupName').val('');
+			$('#gcGroupRemark').val('');
     		$('#gcDeleteGroup').off().prop('disabled', true);
     	}
 	});
 	$('#gcDeleteGroup').off().prop('disabled', true);
     $('#gcGroups').removeClass("border-bottom-0 border-danger text-danger");
-    $('#gcGroupName').removeClass('is-invalid');
+	$('#gcGroupName').removeClass('is-invalid');
+	$('#gcGroupRemark').removeClass('is-valid');
 	$('#gcGroupSelect').removeClass('is-valid');
     $('#gcGroupNameIVF').empty();
     feather.replace();
@@ -504,39 +511,45 @@ function saveGroup(){
 	var send = true;
 	var sendSort = false;
 	var orderChanged = {};
+	var oldID = '-1';
 	var oldGroup = $('#gcGroupSelect').val();
 	var newGroup = $('#gcGroupName').val();
+	var newGroupRemark = $('#gcGroupRemark').val();
 	var sort = Numbers.groups + 1;
 	var order = $('#gcGroupSort').sortable('toArray');
 	var i = 0;
+	if(oldGroup !== '-1'){
+		oldID = GroupData[oldGroup].id;
+	}
 	for (gName in Bookmarks) {
-		if(newGroup === gName){
+		if(newGroup === gName && newGroup !== oldGroup){
 			$('#gcGroupNameIVF').text('Group-Name alredy exists');
 			send = false;
 		}
 		orderChanged[order[i]] = i+1;
-		if(order[i] != gName){
+		if(order[i] != GroupData[gName].id){
 			sendSort = true;
 		}
 		i++;
 	}
-	if(newGroup === oldGroup){
+	if(newGroup === '-1'){
+		$('#gcGroupNameIVF').text('Group-Name can\'t be "-1"!');
+		send = false;
+	}else if(newGroup === oldGroup && newGroupRemark === GroupData[oldGroup].remarks){
 		$('#gcGroupNameIVF').text('Group-Name not changed');
 		send = false;
 	}else if(!newGroup.trim()){
 		$('#gcGroupNameIVF').text('Group-Name can not be empty');
 		send = false;
 	}
-	if(sendSort){
-		console.log('Group-Sort changed, saving Sort');
-	}
     if(send || sendSort){
     	if(!send){
     		newGroup = '-1';
     	}
     	$.post('php/saveGroup.php', {
-			old: oldGroup,
+			old: oldID,
 			new: newGroup,
+			remark: newGroupRemark,
 			sort: sort,
 			json: JSON.stringify(orderChanged)
 	
@@ -553,7 +566,8 @@ function saveGroup(){
 		});
     }else{
     	$('#gcGroups').addClass("border-bottom-0 border-danger text-danger");
-    	$('#gcGroupName').addClass('is-invalid');
+		$('#gcGroupName').addClass('is-invalid');
+		$('#gcGroupRemark').addClass('is-valid');
     	$('#gcGroupSelect').addClass('is-valid');
     }
 }

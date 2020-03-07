@@ -25,10 +25,19 @@ if (!$resultG = mysqli_query($con, $queryGroup)) {
     exit(mysqli_error($con));
 }
 $data = array();
+$bookmarks = array();
+$groupdata = array();
 
 while($groupFetch = mysqli_fetch_assoc($resultG)) {
 	$queryMarks = 'SELECT `B`.*, `G`.`id` AS Gid, `G`.name AS Gname FROM `bookmarks` `B` INNER JOIN `link-groups-bookmarks` `L` ON `B`.`id` = `L`.`bookmark-id` INNER JOIN `groups` `G` ON `L`.`group-id` = `G`.`id` WHERE `L`.`group-id` = '.$groupFetch['id'].' ORDER BY `B`.`'.$sort.'` '.$dir;
+	$bmgroup = array();
 	$group = array();
+	$group['id'] = $groupFetch['id'];
+	$group['sort'] = $groupFetch['sort'];
+	$group['name'] = $groupFetch['name'];
+	$group['remarks'] = $groupFetch['remarks'];
+	$groupdata[$groupFetch['name']] = $group;
+	
 	if (!$resultBM = mysqli_query($con, $queryMarks)) {
 	    exit(mysqli_error($con));
 	}
@@ -48,10 +57,12 @@ while($groupFetch = mysqli_fetch_assoc($resultG)) {
 		$bm['user6'] = $bmFetch['user6'];
 		$bm['user7'] = $bmFetch['user7'];
 		$bm['user8'] = $bmFetch['user8'];
-		$group[] = $bm;
+		$bmgroup[] = $bm;
 	}
-	$data[$groupFetch['name']] = $group;
+	$bookmarks[$groupFetch['name']] = $bmgroup;
 }
+$data['bookmarks'] = $bookmarks;
+$data['groupdata'] = $groupdata;
 
 header('Content-Type: application/json');
 echo json_encode($data);

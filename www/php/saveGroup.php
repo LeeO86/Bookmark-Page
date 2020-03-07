@@ -11,11 +11,12 @@ if(isset($_POST['old']) && isset($_POST['new']) && isset($_POST['json'])){
 	$old = $_POST['old'];
 	$new = $_POST['new'];
 	$sort = $_POST['sort'];
+	$remark = $_POST['remark'];
 	$json = $_POST['json'];
 	$array = json_decode($json);
 
 	foreach ($array as $group => $jsort) {
-		$query = 'UPDATE `groups` SET `sort` = "'.$jsort.'" WHERE `groups`.`name` = "'.$group.'"';
+		$query = 'UPDATE `groups` SET `sort` = "'.$jsort.'" WHERE `groups`.`id` = "'.$group.'"';
 		if (!$result = mysqli_query($con, $query)) {
 	    	exit(mysqli_error($con));
 		}
@@ -23,9 +24,9 @@ if(isset($_POST['old']) && isset($_POST['new']) && isset($_POST['json'])){
 	
 	if($new != '-1'){
 		if($old == '-1'){
-			$insert = 'INSERT INTO `groups` (`id`, `sort`, `name`) VALUES (NULL, "'.$sort.'", "'.$new.'")';
+			$insert = 'INSERT INTO `groups` (`id`, `sort`, `name`, `remarks`) VALUES (NULL, "'.$sort.'", "'.$new.'", "'.$remark.'")';
 		}else{
-			$insert = 'UPDATE `groups` SET `name` = "'.$new.'" WHERE `groups`.`name` = "'.$old.'"';
+			$insert = 'UPDATE `groups` SET `name` = "'.$new.'", `remarks` = "'.$remark.'" WHERE `groups`.`id` = "'.$old.'"';
 		}
 
 		if (!$result = mysqli_query($con, $insert)) {
