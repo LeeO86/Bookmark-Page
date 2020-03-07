@@ -13,6 +13,9 @@ var RefreshChangedString = '';
 var Sort = {row: 'sort', asc: true};
 var Numbers = {};
 var GroupHide = {};
+var AltPressed = false;
+var ShiftPressed = false;
+var Mouseovered = false;
 var BMP_Version = '1.1.1';
 
 // Functions
@@ -178,8 +181,17 @@ function reToggleGroup(){
 }
 
 function openInNewTab(url){
-  var win = window.open(url, '_blank');
-  win.focus();
+	if(!AltPressed){
+		if(ShiftPressed){
+			ShiftPressed = false;
+			changeCursor();
+			var win = window.open(url);
+			win.focus();
+		}else{
+			var win = window.open(url, '_blank');
+			win.focus();
+		}
+	}
 }
 
 function stopRefresh(){
@@ -781,6 +793,14 @@ function getCookie(cname) {
 	return "";
 }
 
+function changeCursor(){
+	if(Mouseovered){
+		if(ShiftPressed)		$("#bookmarks").css({"cursor": "alias"});
+		else if(AltPressed)		$("#bookmarks").css({"cursor": "text"});
+		else  					$("#bookmarks").css({"cursor": "default"});
+	} 	
+}
+
 $(document).ready(function () {
 	$('#version').append(BMP_Version);
 	var cGroupHide = getCookie('GroupHide');
@@ -800,5 +820,23 @@ $(document).ready(function () {
     		$('.GroupTitle').show();
     		reToggleGroup();
     	}
-  	});
+	});
+    $("#bookmarks").mouseover(function(e){
+		Mouseovered = true;
+		changeCursor();
+    });
+    $("#bookmarks").mouseout(function(){
+		Mouseovered = false;
+		changeCursor();
+    });
+    $(document).keydown(function(e){
+		if (e.which === 18) 	AltPressed = true;
+		if (e.which === 16)		ShiftPressed = true;
+		changeCursor();
+    });
+    $(document).keyup(function(e){
+		if (e.which === 18 && AltPressed) 		AltPressed = false;
+		if (e.which === 16 && ShiftPressed) 	ShiftPressed = false;
+		changeCursor();
+    });
 });
