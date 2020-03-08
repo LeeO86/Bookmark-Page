@@ -18,8 +18,8 @@
     <title>Bookmark-Page</title>
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
   </head>
-  <body class="bg-secondary">
-    <nav class="navbar navbar-dark bg-dark">
+  <body style="background-color: #6c757d;">
+    <nav class="navbar navbar-dark" style="background-color: #343a40;">
       <div>
         <img src="img/logo.svg" class="mr-2 mb-1" height="33"></img>
         <a class="navbar-brand" href="" id="page-name">Page-Name</a>
@@ -81,7 +81,7 @@
                   <form id="gcBMForm" novalidate>
                     <div class="form-group">
                       <label for="gcBMSelect">Select Bookmark</label>
-                      <select class="form-control" id="gcBMSelect" required></select>
+                      <select class="form-control selectpicker" id="gcBMSelect" data-show-content="true" data-live-search="true" data-width="100%" required></select>
                     </div>
                     <div class="form-group">
                       <label for="gcBMName">Bookmark-Name</label>
@@ -231,6 +231,18 @@
                       <select class="form-control selectpicker" id="gcFaviconSelect" data-show-content="true" required></select>
                     </div>
                     <div class="form-group">
+                      <label for="gcBgSelect">Background</label>
+                      <select class="form-control selectpicker" id="gcBgSelect" data-show-content="true" required>
+                        <option value="grey" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #6c757d;"></div><div>Greyish (Default)</div></div>'></option>
+                        <option value="red" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #804040;"></div><div>Redish</div></div>'></option>
+                        <option value="yellow" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #808040;"></div><div>Yellowish</div></div>'></option>
+                        <option value="pink" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #804080;"></div><div>Pinkish</div></div>'></option>
+                        <option value="green" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #408040;"></div><div>Greenish</div></div>'></option>
+                        <option value="cyan" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #408080;"></div><div>Cyanish</div></div>'></option>
+                        <option value="blue" data-content='<div class="d-flex flex-row"><div class="gl-bg-icon mr-2 mt-1" style="background-color: #404080;"></div><div>Blueish</div></div>'></option>
+                      </select>
+                    </div>
+                    <div class="form-group">
                       <label for="gcUserCol">Number of User-Columns</label>
                       <input type="number" id="gcUserCol" placeholder="0-8" class="form-control" min="0" max="8" required/>
                     </div>
@@ -249,6 +261,7 @@
     </div>
     <!-- Optional JavaScript -->
     <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/jquery.color-2.1.2.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="js/bootstrap-select.min.js"></script>
     <script src="js/feather.min.js"></script>

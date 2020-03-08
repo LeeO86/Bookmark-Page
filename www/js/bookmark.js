@@ -17,7 +17,7 @@ var GroupHide = {};
 var AltPressed = false;
 var ShiftPressed = false;
 var Mouseovered = false;
-var BMP_Version = '1.1.1';
+var BMP_Version = '1.2.1';
 
 // Functions
 function loadPage(callback){
@@ -44,6 +44,7 @@ function loadPage(callback){
 			document.title = Global.name;
 			$('#page-name').text(Global.name);
 			$('#pageClaim').text(Global.claim);
+			changeBg(Global.background);
 		}
 		if(!RefreshTimer)
 			RefreshTimer = setInterval(function(){ $('[data-toggle="tooltip"]').tooltip('hide'); loadPage(refreshCallback);}, (parseInt(Global.refresh)*1000));
@@ -212,6 +213,41 @@ function refreshCallback(){
 	$("#searchInput").focus();
 }
 
+function changeBg(color){
+	var bgColour, navColour;
+	switch(color){
+		case 'red':
+			bgColour = '#663333';
+			navColour = '#402020';
+			break;
+		case 'yellow':
+			bgColour = '#666633';
+			navColour = '#404020';
+			break;
+		case 'pink':
+			bgColour = '#663366';
+			navColour = '#402040';
+			break;
+		case 'green':
+			bgColour = '#336633';
+			navColour = '#204020';
+			break;
+		case 'cyan':
+			bgColour = '#336666';
+			navColour = '#204040';
+			break;
+		case 'blue':
+			bgColour = '#333366';
+			navColour = '#202040';
+			break;
+		default:
+			bgColour = '#6c757d';
+			navColour = '#343a40';
+	}
+	$('nav').animate({'background-color': navColour});
+	$('body').animate({'background-color': bgColour});
+}
+
 function openConfig(){
 	if(Sort.row == 'sort' && Sort.asc){
 		openConfigFn();
@@ -231,7 +267,7 @@ function openConfig(){
 }
 
 function openConfigFn(){
-	var bookmarkDD = '<option value="-1">New Bookmark</option>';
+	var bookmarkDD = '<option value="-1" data-content=\'New Bookmark\'></option>';
 	var bMgroupDD = '';
 	var bMsortGroupDD;
 	var groupDD = '<option value="-1">New Group</option>';
@@ -273,7 +309,7 @@ function openConfigFn(){
 		groupDD += '<option value="'+gName+'">'+gName+'</option>';
 		groupSortList += '<li class="list-group-item list-group-item-action sort-li" data-id="'+GroupData[gName].id+'">'+gName+'<i data-feather="move" class="mt-1 float-right" height="17"></i></li>';
 		$.each(Bookmarks[gName], function(i, bookmark){
-			bookmarkDD += '<option value="'+bookmark.id+'">'+bookmark.name+' | '+gName+'</option>';
+			bookmarkDD += '<option value="'+bookmark.id+'" data-content=\'<img heigth="18" width="18" class="mr-2 mb-1" src="'+ $('#bm-'+bookmark.id+' .bm-img').attr('src') +'" "></img>'+bookmark.name+' | '+gName+'\'></option>';
 		});
 	}
 	for (var i = 1; i <= Global.userCol; i++) {
@@ -285,6 +321,7 @@ function openConfigFn(){
 	//BM-Tab
 	$('#gcBMSelect').empty().append(bookmarkDD);
 	$('#gcBMGroup').empty().append(bMgroupDD);
+	$('#gcBMSelect').selectpicker('refresh');
 	$('#gcBMName').val('');
 	$('#gcBMLink').val('http://');
 	$('#gcBMFav').val('http://');
@@ -320,6 +357,7 @@ function openConfigFn(){
 			$('#gcSaveBM').off().click({id: '-1'}, saveBM);
 			$('#gcDeleteBM').off().prop('disabled', true);
 		}
+		$('#gcBMSelect').selectpicker('refresh');
     });
     $('#gcSaveBM').off().click({id: '-1'}, saveBM);
     $('#gcDeleteBM').off().prop('disabled', true);
@@ -376,6 +414,11 @@ function openConfigFn(){
 		if(Global['hideU'+i] === '0')	$('#gcUserColHide-'+i).prop("checked", false);
 		else							$('#gcUserColHide-'+i).prop("checked", true);
 	}
+	$('#gcBgSelect').selectpicker('val', Global.background);
+	$('#gcBgSelect').off().on('change', function(e){
+		changeBg($('#gcBgSelect').val());
+		$('#gcBgSelect').selectpicker('refresh');
+	});
 	$('#gcGlobalForm').removeClass('was-validated');
     $('#gcGlobals').removeClass("border-bottom-0 border-danger text-danger");
 	$('#globalConfigModal').modal('show');
@@ -415,7 +458,7 @@ function saveBM(event){
 					});
 				}
 			}
-			if(link == bookmark.link){
+			if(link == bookmark.link && link !== old.link){
 				$('#gcBMLinkIVF').html('Link already exists in Bookmark '+bookmark.name+' in Group '+gName+'!<br/> The same Link is not allowed!');
 				$('#gcBMLink')[0].setCustomValidity('Link already exists!');
 				$('#gcBMLink').change(function() {
@@ -576,7 +619,7 @@ function saveGlobals(){
 	var send = true;
 	var userLabel = ['', Global['nameU1'], Global['nameU2'], Global['nameU3'], Global['nameU4'], Global['nameU5'], Global['nameU6'], Global['nameU7'], Global['nameU8']];
 	var userLabelHide = ['', Global['hideU1'], Global['hideU2'], Global['hideU3'], Global['hideU4'], Global['hideU5'], Global['hideU6'], Global['hideU7'], Global['hideU8']];
-    if(!$('#gcGlobalForm')[0].checkValidity()){
+	if(!$('#gcGlobalForm')[0].checkValidity()){
         send = false;
         $('#gcGlobals').addClass("border-bottom-0 border-danger text-danger");
     }
@@ -591,7 +634,9 @@ function saveGlobals(){
 		var claim = $('#gcSiteClaim').val();
 		var refresh = $('#gcRefreshRate').val();
 		var favcolor = $('#gcFaviconSelect').val();
+		var background = $('#gcBgSelect').val();
 		var userCol = $('#gcUserCol').val();
+		Global.background = background;
 	    if(favcolor != Global.favcolor){
     		$.post('php/getFavicons.php', {
 				color: favcolor
@@ -605,6 +650,7 @@ function saveGlobals(){
 			claim: claim,
 			refresh: refresh,
 			favcolor: favcolor,
+			background: background,
 			userCol: userCol,
 			nameU1: userLabel[1],
 			nameU2: userLabel[2],
@@ -852,5 +898,8 @@ $(document).ready(function () {
 		if (e.which === 18 && AltPressed) 		AltPressed = false;
 		if (e.which === 16 && ShiftPressed) 	ShiftPressed = false;
 		changeCursor();
-    });
+	});
+	$('#globalConfigModal').on('hidden.bs.modal', function () {
+		changeBg(Global.background);
+	});
 });

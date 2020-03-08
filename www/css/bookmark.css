@@ -13,3 +13,9 @@
     height: 21px;
     max-width: 50px;
 }
+
+.gl-bg-icon {
+    width:18px;
+    height:18px;
+    border:1px solid #495057;
+}
