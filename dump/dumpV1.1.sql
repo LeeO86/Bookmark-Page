@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.0.1
+-- version 4.8.3
 -- https://www.phpmyadmin.net/
 --
 -- Host: db
--- Erstellungszeit: 08. Mrz 2020 um 02:36
--- Server-Version: 8.0.19
--- PHP-Version: 7.4.1
+-- Erstellungszeit: 26. Mai 2019 um 21:58
+-- Server-Version: 8.0.12
+-- PHP-Version: 7.2.8
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
@@ -32,8 +32,8 @@ USE `bookmark-db`;
 
 DROP TABLE IF EXISTS `bookmarks`;
 CREATE TABLE IF NOT EXISTS `bookmarks` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `sort` int NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sort` int(11) NOT NULL,
   `link` varchar(255) NOT NULL,
   `favicon` varchar(255) NOT NULL,
   `name` varchar(64) NOT NULL,
@@ -74,17 +74,8 @@ CREATE TABLE IF NOT EXISTS `global` (
 --
 
 INSERT INTO `global` (`key`, `value`) VALUES
-('background', 'grey'),
 ('claim', 'There is your claim'),
 ('favcolor', 'faviconClear.ico'),
-('hideU1', '0'),
-('hideU2', '0'),
-('hideU3', '0'),
-('hideU4', '0'),
-('hideU5', '0'),
-('hideU6', '0'),
-('hideU7', '0'),
-('hideU8', '0'),
 ('name', 'Bookmark Page'),
 ('nameU1', 'Label 1'),
 ('nameU2', 'Label 2'),
@@ -96,7 +87,7 @@ INSERT INTO `global` (`key`, `value`) VALUES
 ('nameU8', 'Label 8'),
 ('refresh', '30'),
 ('userCol', '0'),
-('version', '1.2.1');
+('version', '1.1');
 
 -- --------------------------------------------------------
 
@@ -106,10 +97,9 @@ INSERT INTO `global` (`key`, `value`) VALUES
 
 DROP TABLE IF EXISTS `groups`;
 CREATE TABLE IF NOT EXISTS `groups` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `sort` int NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sort` int(11) NOT NULL,
   `name` text NOT NULL,
-  `remarks` text NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci ROW_FORMAT=COMPACT;
 
@@ -117,8 +107,8 @@ CREATE TABLE IF NOT EXISTS `groups` (
 -- Daten für Tabelle `groups`
 --
 
-INSERT INTO `groups` (`id`, `sort`, `name`, `remarks`) VALUES
-(1, 1, 'Default-Group', '');
+INSERT INTO `groups` (`id`, `sort`, `name`) VALUES
+(1, 1, 'Default-Group');
 
 -- --------------------------------------------------------
 
@@ -128,9 +118,9 @@ INSERT INTO `groups` (`id`, `sort`, `name`, `remarks`) VALUES
 
 DROP TABLE IF EXISTS `link-groups-bookmarks`;
 CREATE TABLE IF NOT EXISTS `link-groups-bookmarks` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `group-id` int NOT NULL,
-  `bookmark-id` int NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `group-id` int(11) NOT NULL,
+  `bookmark-id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

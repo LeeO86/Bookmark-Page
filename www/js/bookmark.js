@@ -17,7 +17,7 @@ var GroupHide = {};
 var AltPressed = false;
 var ShiftPressed = false;
 var Mouseovered = false;
-var BMP_Version = '1.2.1';
+var BMP_Version = '1.2.2';
 
 // Functions
 function loadPage(callback){
