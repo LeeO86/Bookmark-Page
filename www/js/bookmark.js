@@ -870,16 +870,24 @@ $(document).ready(function () {
 	loadPage(function(){$("#searchInput").focus();});
 	$('#configBtn').click(function(){openConfig();});
 	$("#searchInput").on("keyup", function() {
-    	var searchstring = $(this).val().toLowerCase();
+    	var searchstring = $.trim($(this).val().toLowerCase());
     	$("#searchData tr").filter(function() {
       		$(this).toggle($(this).text().toLowerCase().indexOf(searchstring) > -1)
     	});
-    	if($.trim(searchstring))
-    		$('.GroupTitle').hide();
-    	else{
+    	if(searchstring){
+			if($('#search-addon').is('.feather-search')){
+				$('.GroupTitle').hide();
+				$('#search-addon1').html('<i data-feather="x" id="search-addon" width="20" height="20"></i>').click(function() {
+					$('#searchInput').val('').trigger("keyup");
+				});
+				feather.replace();
+			}
+		}else{
     		$('.GroupTitle').show();
-    		reToggleGroup();
-    	}
+			reToggleGroup();
+			$('#search-addon1').off().html('<i data-feather="search" id="search-addon" width="20" height="20"></i>');
+			feather.replace();
+		}
 	});
     $("#bookmarks").mouseover(function(e){
 		Mouseovered = true;
