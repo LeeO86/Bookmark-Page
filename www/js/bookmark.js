@@ -17,7 +17,7 @@ var GroupHide = {};
 var AltPressed = false;
 var ShiftPressed = false;
 var Mouseovered = false;
-var BMP_Version = '1.2.2';
+var BMP_Version = '1.2.3';
 
 // Functions
 function loadPage(callback){
@@ -29,16 +29,23 @@ function loadPage(callback){
 			fullReload = true;
 			Global = ret;
 		}
-		if($.isEmptyObject(Global)){
-			$('#bookmarks').empty().html('ooops! There is an MySQL-DB Error!<br>Call your System-Administrator or check Console...');
-			console.log('There is an MySQL-DB Error! Log in to the PHPmyAdmin Page an check if there is a bookmark-db. If not insert ../dump/myDb.sql');
+		if($.isEmptyObject(Global) || !Global.version){
+			$('#bookmarks').empty().html('<h4>ooops! There is an Error!</h4><p>Call your System-Administrator or check Console...<br>Probably a Hard-Reload of the Page helps!</p><small> Page-Version: v'+BMP_Version+' | DB-Version: v'+Global.version+'</small>');
+			console.log('There is an MySQL-DB Error! Log in to the PHPmyAdmin Page an check if there is a bookmark-db. If not insert ../dump/myDb.sql\nPage-Version: v'+BMP_Version+' | DB-Version: v'+Global.version);
 			feather.replace();
 			return;
-		}else if(Global.version !== BMP_Version){
-			$('#bookmarks').empty().html('<h4>ooops! You have to update your MySQL-DB!</h4><p>Call your System-Administrator...</p><small class="text-muted">You can update your DB but probably you want to save your bookmarks DB before via the PHPmyAdmin Console... <br/> Page-Version: v'+BMP_Version+' | DB-Version: v'+Global.version+'</small><div class="text-center"><button type="button" onclick="updateDB();" class="btn btn-outline-danger mt-3 ml-2">Update ?</button></div>');
-			console.log('You have to update your MySQL-DB! You can update your DB but probably you want to save your bookmark-db before via the PHPmyAdmin Console...\nPage-Version: v'+BMP_Version+' | DB-Version: v'+Global.version);
-			feather.replace();
-			return;
+		}else if(compareVersions(BMP_Version, Global.version)){
+			if(compareVersions(BMP_Version, Global.version) === 1){
+				$('#bookmarks').empty().html('<h4>ooops! You have to update your MySQL-DB!</h4><p>Call your System-Administrator...</p><small class="text-muted">You can update your DB but probably you want to save your bookmarks DB before via the PHPmyAdmin Console... <br/> Page-Version: v'+BMP_Version+' | DB-Version: v'+Global.version+'</small><div class="text-center"><button type="button" onclick="updateDB();" class="btn btn-outline-danger mt-3 ml-2">Update ?</button></div>');
+				console.log('You have to update your MySQL-DB! You can update your DB but probably you want to save your bookmark-db before via the PHPmyAdmin Console...\nPage-Version: v'+BMP_Version+' | DB-Version: v'+Global.version);
+				feather.replace();
+				return;
+			}else{
+				$('#bookmarks').empty().html('<h4>ooops! You have to reload the Page!</h4><p>Try to Hard-Reload this Page. <br/> If the Error persists please call your System-Administrator...</p><small class="text-muted">The Version of the HTML-Page in your Cache is lower than the expected Verision from your Database. <br/> Page-Version: v'+BMP_Version+' | DB-Version: v'+Global.version+'</small><div class="text-center"><button type="button" onclick="location.reload(true);;" class="btn btn-outline-danger mt-3 ml-2">Reload ?</button></div>');
+				console.log('The Version of the HTML-Page in your Cache is lower than the expected Verision from your Database. Try to Hard-Reload this Page, probably there was shortly an Update!\nPage-Version: v'+BMP_Version+' | DB-Version: v'+Global.version);
+				feather.replace();
+				return;
+			}
 		}
 		if(RefreshChangedString){
 			document.title = Global.name;
@@ -246,6 +253,25 @@ function changeBg(color){
 	}
 	$('nav').animate({'background-color': navColour});
 	$('body').animate({'background-color': bgColour});
+}
+
+function compareVersions(a, b) {
+    if (a === b)	return 0;
+    var a_components = a.split(".");
+    var b_components = b.split(".");
+    var len = Math.min(a_components.length, b_components.length);
+    // loop while the components are equal
+    for (var i = 0; i < len; i++) {
+        // A bigger than B
+        if (parseInt(a_components[i]) > parseInt(b_components[i]))	return 1;
+        // B bigger than A
+        if (parseInt(a_components[i]) < parseInt(b_components[i]))	return -1;
+    }
+    // If one's a prefix of the other, the longer one is greater.
+    if (a_components.length > b_components.length)	return 1;
+    if (a_components.length < b_components.length)	return -1;
+    // Otherwise they are the same.
+    return 0;
 }
 
 function openConfig(){

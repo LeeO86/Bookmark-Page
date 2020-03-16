@@ -1,0 +1,31 @@
+<IfModule mod_expires.c>
+
+    ExpiresActive on
+    ExpiresDefault                                      "access plus 1 day"
+
+  # CSS
+    ExpiresByType text/css                              "access plus 1 day"
+
+  # Data interchange
+    ExpiresByType application/json                      "access plus 5 seconds"
+    ExpiresByType application/xml                       "access plus 5 seconds"
+    ExpiresByType text/xml                              "access plus 5 seconds"
+
+  # Favicon (cannot be renamed!)
+    ExpiresByType image/x-icon                          "access plus 1 week"
+
+  # HTML
+    ExpiresByType text/html                             "access plus 1 day"
+
+  # JavaScript
+    ExpiresByType application/javascript                "access plus 1 day"
+
+  # Manifest files
+    ExpiresByType application/x-web-app-manifest+json   "access plus 0 seconds"
+    ExpiresByType text/cache-manifest                   "access plus 0 seconds"
+
+  # Web feeds
+    ExpiresByType application/atom+xml                  "access plus 1 hour"
+    ExpiresByType application/rss+xml                   "access plus 1 hour"
+
+</IfModule>

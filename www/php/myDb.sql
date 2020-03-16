@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `bookmarks` (
 --
 
 INSERT INTO `bookmarks` (`id`, `sort`, `link`, `favicon`, `name`, `remarks`, `user1`, `user2`, `user3`, `user4`, `user5`, `user6`, `user7`, `user8`) VALUES
-(1, 1, 'https://www.google.com', 'https://s2.googleusercontent.com/s2/favicons?domain_url=https://www.google.ch', 'Google', 'The Search-Engine', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
+(1, 1, 'https://www.google.com', 'https://www.google.com/s2/favicons?domain=www.google.ch', 'Google', 'The Search-Engine', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
 
 -- --------------------------------------------------------
 
@@ -96,7 +96,7 @@ INSERT INTO `global` (`key`, `value`) VALUES
 ('nameU8', 'Label 8'),
 ('refresh', '30'),
 ('userCol', '0'),
-('version', '1.2.1');
+('version', '1.2.3');
 
 -- --------------------------------------------------------
 

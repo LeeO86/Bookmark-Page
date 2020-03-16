@@ -8,4 +8,4 @@ INSERT INTO `global` (`key`, `value`) VALUES ('hideU1', '0'), ('hideU2', '0'), (
 INSERT INTO `global` (`key`, `value`) VALUES ('background', 'grey');
 
 -- update version in global;
-UPDATE `global` SET `value` = '1.2.2' WHERE `global`.`key` = 'version';
+UPDATE `global` SET `value` = '1.2.3' WHERE `global`.`key` = 'version';
