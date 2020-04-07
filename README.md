@@ -1,5 +1,5 @@
 # Bookmark-Page
-clone the Repo and just run `docker-compose up -d` and goto localhost:8080. enjoy...
+clone the Repo and just run `docker-compose up -d` and goto localhost:8080. enjoy...  
 this Repo is also built under https://hub.docker.com/r/adihilber/bookmark-page 
 
 ## Development
