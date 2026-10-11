@@ -13,6 +13,9 @@ const defaults = {
   all_tab_public: false,
   audit_retention_days: 365,
   default_scope_edit_mode: 'field_ownership' as EditMode,
+  favicon_tls_verify: false,
+  favicon_refresh_days: 7,
+  client_checks_anonymous: false,
 }
 
 export type SettingKey = keyof typeof defaults
@@ -56,6 +59,7 @@ export function publicSettings(db: Db = getDatabase()) {
     faviconColour: values.favicon_colour,
     allTabPublic: values.all_tab_public,
     hasLogo: logoRecord(db) !== null,
+    clientChecksAnonymous: values.client_checks_anonymous === true,
   }
 }
 
@@ -150,6 +154,9 @@ export function adminSettings(db: Db = getDatabase()) {
     ...publicSettings(db),
     auditRetentionDays: values.audit_retention_days,
     defaultScopeEditMode: values.default_scope_edit_mode,
+    faviconTlsVerify: values.favicon_tls_verify === true,
+    faviconRefreshDays:
+      typeof values.favicon_refresh_days === 'number' ? values.favicon_refresh_days : 7,
   }
 }
 
@@ -162,6 +169,9 @@ export function writeSettings(
     allTabPublic: boolean
     auditRetentionDays: number
     defaultScopeEditMode: EditMode
+    faviconTlsVerify: boolean
+    faviconRefreshDays: number
+    clientChecksAnonymous: boolean
   }>,
   actorId: string | null,
   db: Db = getDatabase(),
@@ -174,6 +184,9 @@ export function writeSettings(
     allTabPublic: 'all_tab_public',
     auditRetentionDays: 'audit_retention_days',
     defaultScopeEditMode: 'default_scope_edit_mode',
+    faviconTlsVerify: 'favicon_tls_verify',
+    faviconRefreshDays: 'favicon_refresh_days',
+    clientChecksAnonymous: 'client_checks_anonymous',
   }
   const timestamp = now()
   for (const [field, key] of Object.entries(mapping)) {
@@ -212,4 +225,17 @@ export function defaultEditMode(db: Db = getDatabase()): EditMode {
 export function auditRetentionDays(db: Db = getDatabase()): number {
   const value = readSettingsMap(db).audit_retention_days
   return typeof value === 'number' ? value : 365
+}
+
+export function faviconTlsVerify(db: Db = getDatabase()): boolean {
+  return readSettingsMap(db).favicon_tls_verify === true
+}
+
+export function faviconRefreshDays(db: Db = getDatabase()): number {
+  const value = readSettingsMap(db).favicon_refresh_days
+  return typeof value === 'number' && value > 0 ? value : 7
+}
+
+export function clientChecksAnonymous(db: Db = getDatabase()): boolean {
+  return readSettingsMap(db).client_checks_anonymous === true
 }

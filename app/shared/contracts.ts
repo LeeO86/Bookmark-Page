@@ -182,9 +182,20 @@ export const filterWriteSchema = z.object({
   global: z.boolean().default(false),
 })
 
+export const checkReportSchema = z.object({
+  leaseId: z.string().min(1),
+  state: z.enum(['up', 'down', 'unknown']),
+  latencyMs: z.number().int().min(0).max(120_000).nullable().optional(),
+  message: z.string().max(500).default(''),
+})
+
 export const iconWriteSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  mediaType: z.string().max(100).nullable().optional(),
+  name: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
+  contentType: z.enum(['image/svg+xml', 'image/png', 'image/webp']),
+  data: z.string().min(1).max(400_000),
 })
 
 export const scopeWriteSchema = z.object({
@@ -223,6 +234,9 @@ export const settingsPatchSchema = z.object({
   allTabPublic: z.boolean().optional(),
   auditRetentionDays: z.number().int().min(0).max(36_500).optional(),
   defaultScopeEditMode: z.enum(editModes).optional(),
+  faviconTlsVerify: z.boolean().optional(),
+  faviconRefreshDays: z.number().int().min(1).max(365).optional(),
+  clientChecksAnonymous: z.boolean().optional(),
 })
 
 export type EntryWrite = z.infer<typeof entryWriteSchema>

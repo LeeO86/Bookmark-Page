@@ -11,16 +11,24 @@ COPY app/package.json app/package.json
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
+RUN pnpm build \
+  && mkdir -p /src/docker-lucide \
+  && cp -aL /src/app/node_modules/lucide-static/icons /src/docker-lucide/icons
 
 FROM node:24.21.0-bookworm-slim AS runner
 
 # The Node image already provides user node (uid 1000).
-RUN mkdir -p /data && chown node:node /data
+# iputils-ping is used for ICMP checks when CAP_NET_RAW is granted.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends iputils-ping \
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir -p /data \
+  && chown node:node /data
 
 WORKDIR /app
 COPY --from=build --chown=node:node /src/app/.output ./.output
 COPY --from=build --chown=node:node /src/app/drizzle ./drizzle
+COPY --from=build --chown=node:node /src/docker-lucide/icons ./node_modules/lucide-static/icons
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

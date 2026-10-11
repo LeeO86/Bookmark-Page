@@ -195,6 +195,7 @@ export const icons = sqliteTable('icons', {
   name: text('name').notNull().unique(),
   kind: text('kind').notNull().default('reference'),
   mediaType: text('media_type'),
+  data: blob('data', { mode: 'buffer' }),
   createdAt,
   updatedAt,
   createdBy: text('created_by'),

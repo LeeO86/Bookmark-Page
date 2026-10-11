@@ -10,6 +10,7 @@ import {
   updateSession,
 } from 'nuxt/server'
 import {
+  checkReportSchema,
   entryPatchSchema,
   entryWriteSchema,
   fieldDefinitionSchema,
@@ -62,7 +63,6 @@ import {
   updateUser,
   listFieldDefinitions,
   listFilters,
-  listIcons,
   listNamespaces,
   listScopes,
   listTags,
@@ -79,12 +79,15 @@ import {
   deleteEntry,
   getEntry,
   listEntries,
+  refreshEntryFavicons,
   listEntryHistory,
   restoreEntry,
   revealField,
   updateEntry,
   upsertManagedEntry,
 } from '../../services/entries'
+import { leaseChecks, reportCheck } from '../../checks/lease'
+import { prepareUpload, searchIcons } from '../../icons/files'
 import { publishLive, subscribeLive } from '../../services/live'
 import { clearLogo, readLogo, saveLogo } from '../../services/settings'
 import { writeAudit } from '../../services/audit'
@@ -201,6 +204,11 @@ export default defineEventHandler(async (event) => {
         decodeURIComponent(restore[1] ?? ''),
       )
     }
+    const faviconRefresh = match(path, /^\/api\/v1\/entries\/([^/]+)\/favicon$/)
+    if (faviconRefresh && method === 'POST') {
+      requireWrite(actor)
+      return refreshEntryFavicons(actor, decodeURIComponent(faviconRefresh))
+    }
     const reveal = matchAll(path, /^\/api\/v1\/entries\/([^/]+)\/fields\/([^/]+)\/reveal$/)
     if (reveal && method === 'POST') {
       requireRead(actor)
@@ -289,12 +297,18 @@ export default defineEventHandler(async (event) => {
 
     if (method === 'GET' && path === '/api/v1/icons') {
       requireRead(actor)
-      return { icons: listIcons() }
+      const query = getQuery(event).q
+      return { icons: searchIcons(typeof query === 'string' ? query : '') }
     }
     if (method === 'POST' && path === '/api/v1/icons') {
       requireAdmin(actor)
+      const body = iconWriteSchema.parse(await readBody(event))
       setResponseStatus(event, 201)
-      return createIcon(actor, iconWriteSchema.parse(await readBody(event)))
+      return createIcon(actor, {
+        name: body.name,
+        mediaType: body.contentType,
+        data: prepareUpload(body.contentType, body.data),
+      })
     }
     const iconId = match(path, /^\/api\/v1\/icons\/([^/]+)$/)
     if (iconId && method === 'DELETE') {
@@ -378,6 +392,26 @@ export default defineEventHandler(async (event) => {
     if (sync && method === 'POST') {
       requireWrite(actor)
       return syncScope(actor, decodeURIComponent(sync), syncBodySchema.parse(await readBody(event)))
+    }
+
+    if (method === 'POST' && path === '/api/v1/checks/lease') {
+      const body = await readBody(event)
+      const limit =
+        body && typeof body === 'object' && 'limit' in body && typeof body.limit === 'number'
+          ? body.limit
+          : 5
+      return { checks: leaseChecks(actor, limit) }
+    }
+    const report = match(path, /^\/api\/v1\/checks\/([^/]+)\/report$/)
+    if (report && method === 'POST') {
+      const body = checkReportSchema.parse(await readBody(event))
+      reportCheck(actor, decodeURIComponent(report), {
+        leaseId: body.leaseId,
+        state: body.state,
+        latencyMs: body.latencyMs ?? null,
+        message: body.message,
+      })
+      return { ok: true }
     }
 
     if (method === 'GET' && path === '/api/v1/settings') {

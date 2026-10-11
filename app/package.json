@@ -20,8 +20,10 @@
   "dependencies": {
     "@node-rs/argon2": "2.2.2",
     "@nuxt/ui": "4.11.3",
+    "@xmldom/xmldom": "0.9.12",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.4",
+    "lucide-static": "1.55.0",
     "nuxt": "4.6.1",
     "openid-client": "6.8.8",
     "tailwindcss": "4.3.3",

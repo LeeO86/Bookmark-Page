@@ -24,6 +24,7 @@ import {
   checks,
   checkStatus,
   entries,
+  faviconCache,
   entryTags,
   fieldDefinitions,
   fieldValues,
@@ -33,6 +34,7 @@ import {
   tagNamespaces,
 } from '../db/schema'
 import { badRequest, confirmDuplicate, forbidden, notFound } from '../http/errors'
+import { queueFavicon } from '../icons/favicon'
 import { publishLive } from './live'
 import { writeAudit } from './audit'
 import { assertKnownPlaceholders, resolveLinkUrl } from './placeholders'
@@ -133,7 +135,8 @@ export function listEntries(actor: Actor, rawQuery: string) {
     .where(where)
     .orderBy(asc(entries.sort), asc(entries.name))
     .all()
-  return { entries: hydrate(db, rows).map((entry) => present(entry, actor.role)) }
+  const icons = faviconMap(db)
+  return { entries: hydrate(db, rows).map((entry) => present(entry, actor.role, icons)) }
 }
 
 export function getEntry(actor: Actor, id: string) {
@@ -186,10 +189,17 @@ export function createEntry(actor: Actor, input: EntryWrite) {
       { name: input.name, snapshot: entrySnapshot(created) },
       db,
     )
-    return { entry: present(created, actor.role), warnings: existing }
+    return {
+      entry: present(created, actor.role),
+      warnings: existing,
+      faviconUrls: serverUrls(created),
+    }
   })
   publishLive({ type: 'entries' })
-  return result
+  for (const url of result.faviconUrls) {
+    queueFavicon(url, true)
+  }
+  return { entry: result.entry, warnings: result.warnings }
 }
 
 export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
@@ -259,10 +269,17 @@ export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
     }
     const updated = mustLoad(db, id)
     writeAudit(actor, 'entry.update', 'entry', id, { paths, snapshot: entrySnapshot(updated) }, db)
-    return { entry: present(updated, actor.role), warnings }
+    return {
+      entry: present(updated, actor.role),
+      warnings,
+      faviconUrls: effective.links ? serverUrls(updated) : [],
+    }
   })
   publishLive({ type: 'entries' })
-  return result
+  for (const url of result.faviconUrls) {
+    queueFavicon(url, true)
+  }
+  return { entry: result.entry, warnings: result.warnings }
 }
 
 export function deleteEntry(actor: Actor, id: string): void {
@@ -280,6 +297,16 @@ export function deleteEntry(actor: Actor, id: string): void {
     )
   })
   publishLive({ type: 'entries' })
+}
+
+export function refreshEntryFavicons(actor: Actor, id: string): { queued: number } {
+  const db = getDatabase()
+  assertVisible(db, actor.role, id)
+  const urls = serverUrls(mustLoad(db, id))
+  for (const url of urls) {
+    queueFavicon(url, true)
+  }
+  return { queued: urls.length }
 }
 
 export function revealField(actor: Actor, entryId: string, key: string) {
@@ -1145,7 +1172,94 @@ function ensureTag(
   return { id, namespaceName: parsed.namespaceName, value: parsed.value }
 }
 
-function present(entry: LoadedEntry, role: Role) {
+function faviconMap(db: Db): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const row of db.select().from(faviconCache).all()) {
+    if (row.status === 'ok' && row.data) {
+      map.set(row.origin, `/api/icons/favicon/${row.id}`)
+    }
+  }
+  return map
+}
+
+function iconUrl(
+  iconRef: string | null,
+  origin: string | null,
+  icons: Map<string, string>,
+): string | null {
+  if (iconRef?.startsWith('lucide:')) {
+    const name = iconRef.slice('lucide:'.length)
+    return /^[a-z0-9-]+$/.test(name) ? `/api/icons/lucide/${encodeURIComponent(name)}` : null
+  }
+  if (iconRef?.startsWith('upload:')) {
+    return `/api/icons/upload/${encodeURIComponent(iconRef.slice('upload:'.length))}`
+  }
+  if (!iconRef && origin) {
+    return icons.get(origin) ?? null
+  }
+  return null
+}
+
+function primaryOrigin(
+  entry: LoadedEntry,
+  fieldMap: Record<string, string>,
+  secretFields: ReadonlySet<string>,
+): string | null {
+  const primary = entry.links.find((link) => link.isPrimary) ?? entry.links[0]
+  if (!primary) {
+    return null
+  }
+  const resolved = resolveLinkUrl(
+    primary.urlTemplate,
+    { host: entry.host, name: entry.name, fields: fieldMap },
+    secretFields,
+  )
+  return httpOrigin(resolved.url)
+}
+
+function serverUrls(entry: LoadedEntry): string[] {
+  const fields: Record<string, string> = {}
+  for (const field of entry.fields) {
+    if (field.type === 'secret' && field.valueSecret) {
+      fields[field.key] = decryptSecret(field.valueSecret)
+    } else if (field.valueText != null) {
+      fields[field.key] = field.valueText
+    }
+  }
+  const urls: string[] = []
+  for (const link of entry.links) {
+    const resolved = resolveLinkUrl(
+      link.urlTemplate,
+      { host: entry.host, name: entry.name, fields },
+      new Set(),
+    )
+    if (resolved.url) {
+      urls.push(resolved.url)
+    }
+  }
+  return urls
+}
+
+function httpOrigin(url: string | null): string | null {
+  if (!url) {
+    return null
+  }
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
+function present(
+  entry: LoadedEntry,
+  role: Role,
+  icons: Map<string, string> = faviconMap(getDatabase()),
+) {
   const visibleFields = entry.fields.filter((field) => roleAtLeast(role, field.minRoleToView))
   const fieldMap: Record<string, string> = {}
   const secretFields = new Set<string>()
@@ -1162,6 +1276,7 @@ function present(entry: LoadedEntry, role: Role) {
     description: entry.description,
     host: entry.host,
     iconRef: entry.iconRef,
+    iconUrl: iconUrl(entry.iconRef, primaryOrigin(entry, fieldMap, secretFields), icons),
     sort: entry.sort,
     source: entry.source,
     scope: scopeName(entry.source),
@@ -1183,7 +1298,12 @@ function present(entry: LoadedEntry, role: Role) {
         },
         secretFields,
       )
-      return { ...link, url: resolved.url, urlError: resolved.error }
+      return {
+        ...link,
+        url: resolved.url,
+        urlError: resolved.error,
+        iconUrl: iconUrl(link.iconRef, httpOrigin(resolved.url), icons),
+      }
     }),
     fields: visibleFields.map((field) => ({
       key: field.key,

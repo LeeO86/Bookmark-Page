@@ -41,6 +41,9 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/entries/{id}/history/{auditId}/restore': {
     post: { summary: 'Restore an entry version from the audit log' },
   },
+  '/api/v1/entries/{id}/favicon': { post: { summary: 'Refetch favicons for an entry' } },
+  '/api/v1/checks/lease': { post: { summary: 'Lease due browser checks' } },
+  '/api/v1/checks/{id}/report': { post: { summary: 'Report a browser check result' } },
   '/api/v1/events': { get: { summary: 'Subscribe to entry and status changes' } },
   '/api/v1/logo': { get: { summary: 'Read the site logo' } },
   '/api/v1/namespaces': {
@@ -67,8 +70,8 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   },
   '/api/v1/fields/{id}': { delete: { summary: 'Delete a field definition' } },
   '/api/v1/icons': {
-    get: { summary: 'List icon metadata' },
-    post: { summary: 'Create icon metadata' },
+    get: { summary: 'Search Lucide icons and uploads' },
+    post: { summary: 'Upload a sanitised icon' },
   },
   '/api/v1/icons/{id}': { delete: { summary: 'Delete icon metadata' } },
   '/api/v1/users': { get: { summary: 'List users' }, post: { summary: 'Create a local user' } },

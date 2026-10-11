@@ -383,7 +383,7 @@ export function listIcons() {
   return getDatabase().select().from(icons).orderBy(asc(icons.name)).all().map(presentIcon)
 }
 
-export function createIcon(actor: Actor, input: { name: string; mediaType?: string | null }) {
+export function createIcon(actor: Actor, input: { name: string; mediaType: string; data: Buffer }) {
   return transaction((db) => {
     if (db.select().from(icons).where(eq(icons.name, input.name)).get()) {
       throw badRequest('Icon already exists')
@@ -394,15 +394,23 @@ export function createIcon(actor: Actor, input: { name: string; mediaType?: stri
       .values({
         id,
         name: input.name,
-        kind: 'reference',
-        mediaType: input.mediaType ?? null,
+        kind: 'upload',
+        mediaType: input.mediaType,
+        data: input.data,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: actor.userId,
         updatedBy: actor.userId,
       })
       .run()
-    writeAudit(actor, 'icon.create', 'icon', id, { name: input.name }, db)
+    writeAudit(
+      actor,
+      'icon.create',
+      'icon',
+      id,
+      { name: input.name, mediaType: input.mediaType },
+      db,
+    )
     return presentIcon(
       must(db.select().from(icons).where(eq(icons.id, id)).get(), 'Icon not found'),
     )

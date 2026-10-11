@@ -1,0 +1,1 @@
+ALTER TABLE `icons` ADD `data` blob;
