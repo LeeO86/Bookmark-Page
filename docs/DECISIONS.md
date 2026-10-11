@@ -53,3 +53,9 @@
 **Decision:** Domain migrations after `0000_baseline` are generated with `pnpm --dir app db:generate` from the Drizzle snapshot in `app/drizzle`. `0000_baseline` stays the first migration.
 
 **Reason:** The baseline snapshot has no tables, so the next generate produces the real schema as the following migration instead of rewriting history.
+
+## 2026-10-11 – Duplicate name and host
+
+**Decision:** The entry editor treats a duplicate name or host as a confirmation step. The first save does not write when another entry already uses that name or host. The editor asks the user to confirm, and only the confirmed save is stored. Creating a public filter does not ask for a second confirmation.
+
+**Reason:** A duplicate should be a deliberate choice, not a note beside a save that already happened. A public filter is already an explicit admin choice, so an extra dialog is not required.
