@@ -1,0 +1,50 @@
+# Traefik must already be running on an external Docker network named traefik.
+# Replace bookmarks.example.com with this instance's hostname.
+
+name: bookmark-page
+
+services:
+  bookmark-page:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: bookmark-page:local
+    ports:
+      - '3000:3000'
+    environment:
+      BOOKMARK_SECRET_KEY: ${BOOKMARK_SECRET_KEY}
+      DATABASE_PATH: /data/bookmark.db
+      MIGRATIONS_FOLDER: /app/drizzle
+    volumes:
+      - bookmark-data:/data
+    restart: unless-stopped
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - 'traefik.http.routers.bookmark-page.rule=Host(`bookmarks.example.com`)'
+      - traefik.http.routers.bookmark-page.entrypoints=websecure
+      - traefik.http.routers.bookmark-page.tls=true
+      - traefik.http.routers.bookmark-page.tls.certresolver=letsencrypt
+      - traefik.http.services.bookmark-page.loadbalancer.server.port=3000
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  bookmark-data:
