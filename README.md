@@ -22,7 +22,7 @@ pnpm dev
 - App: http://127.0.0.1:3000
 - Health: http://127.0.0.1:3000/api/health
 
-The process exits when `BOOKMARK_SECRET_KEY` is missing or blank. SQLite data for local development is `app/data/bookmark.db` when `DATABASE_PATH` is left as in `.env.example`.
+The process exits when `BOOKMARK_SECRET_KEY` is missing or blank. When secret fields land, that value must be standard Base64 decoding to 32 bytes. SQLite data for local development is `app/data/bookmark.db` when `DATABASE_PATH` is left as in `.env.example`.
 
 ## Checks
 

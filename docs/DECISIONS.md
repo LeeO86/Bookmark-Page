@@ -28,10 +28,22 @@
 
 **Decision:** Startup reads `BOOKMARK_SECRET_KEY`, `DATABASE_PATH`, and `MIGRATIONS_FOLDER` from `process.env` when the process boots. A missing or blank secret exits with status 1 and the message `BOOKMARK_SECRET_KEY is required`. The value is not logged, and its length is not checked yet. `GET /api/health` returns 200 `{ "status": "ok", "database": "ok" }` when `SELECT 1` succeeds, and 503 `{ "status": "error", "database": "error" }` when it does not. The body is a shared Zod schema.
 
-**Reason:** The spec names `BOOKMARK_SECRET_KEY`, which is not Nuxt's `NUXT_` runtime-config prefix, and the value must be supplied to a built image without rebuilding. Encryption in M1 will define the key format. The health path and the liveness-plus-database check are specified; the JSON shape was agreed for this milestone.
+**Reason:** The spec names `BOOKMARK_SECRET_KEY`, which is not Nuxt's `NUXT_` runtime-config prefix, and the value must be supplied to a built image without rebuilding. The health path and the liveness-plus-database check are specified; the JSON shape was agreed for this milestone. Key format is decided separately below.
 
 ## 2026-10-11 – Container user
 
 **Decision:** The image runs as the `node` user that ships with `node:24.21.0-bookworm-slim` (uid 1000). `/data` is owned by that user and declared as a volume. The image listens on port 3000.
 
 **Reason:** The spec requires a non-root container, a `/data` volume, and port 3000. That base image already uses uid 1000 for `node`, so a second group with the same id cannot be created. Uid 1000 still matches a typical host user for a bind mount.
+
+## 2026-10-11 – Secret key encoding
+
+**Decision:** `BOOKMARK_SECRET_KEY` is standard Base64 (RFC 4648, with padding) that decodes to exactly 32 bytes. That decoded value is the AES-256-GCM key. M1 refuses to start when the variable is missing, blank, not valid Base64, or the wrong length. The M0 process still accepts any non-empty string until that check ships with encryption.
+
+**Reason:** AES-256-GCM needs a 32-byte key. Base64 was chosen so the env value is a single line without raw binary.
+
+## 2026-10-11 – Later migrations
+
+**Decision:** Domain migrations after `0000_baseline` are generated with `pnpm --dir app db:generate` from the Drizzle snapshot in `app/drizzle`. `0000_baseline` stays the first migration.
+
+**Reason:** The baseline snapshot has no tables, so the next generate produces the real schema as the following migration instead of rewriting history.
