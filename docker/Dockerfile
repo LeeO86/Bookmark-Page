@@ -15,14 +15,12 @@ RUN pnpm build
 
 FROM node:24.21.0-bookworm-slim AS runner
 
-RUN groupadd --system --gid 1000 bookmark \
-  && useradd --system --uid 1000 --gid bookmark --home-dir /app --shell /usr/sbin/nologin bookmark \
-  && mkdir -p /data /app \
-  && chown bookmark:bookmark /data /app
+# The Node image already provides user node (uid 1000).
+RUN mkdir -p /data && chown node:node /data
 
 WORKDIR /app
-COPY --from=build --chown=bookmark:bookmark /src/app/.output ./.output
-COPY --from=build --chown=bookmark:bookmark /src/app/drizzle ./drizzle
+COPY --from=build --chown=node:node /src/app/.output ./.output
+COPY --from=build --chown=node:node /src/app/drizzle ./drizzle
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -30,7 +28,7 @@ ENV PORT=3000
 ENV DATABASE_PATH=/data/bookmark.db
 ENV MIGRATIONS_FOLDER=/app/drizzle
 
-USER bookmark
+USER node
 EXPOSE 3000
 VOLUME ["/data"]
 

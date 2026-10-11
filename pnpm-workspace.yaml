@@ -1,8 +1,9 @@
 packages:
   - app
 
+# better-sqlite3 loads the prebuilds published in the package (linux x64 and arm64).
+# Approving a node-gyp rebuild here would require Python and a compiler.
 onlyBuiltDependencies:
-  - better-sqlite3
   - esbuild
   - unrs-resolver
   - vue-demi

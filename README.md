@@ -38,7 +38,7 @@ pnpm test
 docker compose --env-file .env -f docker/docker-compose.yml up --build
 ```
 
-The container listens on port 3000 and stores the database on the `bookmark-data` volume at `/data/bookmark.db`. It runs as the non-root user `bookmark`.
+The container listens on port 3000 and stores the database on the `bookmark-data` volume at `/data/bookmark.db`. It runs as the image's non-root `node` user (uid 1000).
 
 `docker/docker-compose.traefik.yml` is the same service with Traefik labels. It expects an external Docker network named `traefik`.
 

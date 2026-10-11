@@ -16,7 +16,7 @@
 
 **Decision:** Direct dependencies are the current stable releases that install together: Nuxt 4.6.1, Vue 3.5.43, Vue Router 5.4.0, Nuxt UI 4.11.3, Tailwind CSS 4.3.3, Zod 4.6.6, Drizzle ORM 0.45.4, drizzle-kit 0.31.11, better-sqlite3 13.0.3, Vitest 5.0.3, `@nuxt/test-utils` 4.3.3. Drizzle ORM 1.0 betas are not used. Node.js is 24.21.0, which satisfies Nuxt 4.6 (`^22.22.3 || ^24.15.0 || >=26`) and is the active LTS line. TypeScript is 6.0.3, not 7.0.2. pnpm is 10.33.3. Versions are pinned in `pnpm-lock.yaml`. `pnpm-workspace.yaml` allows build scripts for `better-sqlite3`, `esbuild`, `unrs-resolver`, and `vue-demi`.
 
-**Reason:** The spec requires current stable versions, checked against current releases, and a lockfile. TypeScript 7.0.2 is newer, but `@typescript-eslint` 8.71 (via `@nuxt/eslint` 1.17.0) accepts only `typescript@>=4.8.4 <6.1.0`. pnpm 10 does not run dependency build scripts unless they are approved, and better-sqlite3 needs its install script.
+**Reason:** The spec requires current stable versions, checked against current releases, and a lockfile. TypeScript 7.0.2 is newer, but `@typescript-eslint` 8.71 (via `@nuxt/eslint` 1.17.0) accepts only `typescript@>=4.8.4 <6.1.0`. pnpm 10 does not run dependency build scripts unless they are approved. `esbuild`, `unrs-resolver`, and `vue-demi` need those scripts. `better-sqlite3` is left unapproved because it loads the prebuilt binaries shipped in the package; approving it runs `node-gyp`, which the slim image cannot satisfy.
 
 ## 2026-10-11 – Baseline migration and database file
 
@@ -32,6 +32,6 @@
 
 ## 2026-10-11 – Container user
 
-**Decision:** The image runs as user `bookmark`, uid 1000, gid 1000. `/data` is a volume. The image listens on port 3000.
+**Decision:** The image runs as the `node` user that ships with `node:24.21.0-bookworm-slim` (uid 1000). `/data` is owned by that user and declared as a volume. The image listens on port 3000.
 
-**Reason:** The spec requires a non-root container, a `/data` volume, and port 3000. Uid 1000 matches a typical host user when a bind mount is used later.
+**Reason:** The spec requires a non-root container, a `/data` volume, and port 3000. That base image already uses uid 1000 for `node`, so a second group with the same id cannot be created. Uid 1000 still matches a typical host user for a bind mount.
