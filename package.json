@@ -11,6 +11,7 @@
     "preview": "pnpm --dir app preview",
     "lint": "pnpm --dir app lint",
     "typecheck": "pnpm --dir app typecheck",
+    "test": "pnpm --dir app test",
     "format": "pnpm --dir app format"
   }
 }

@@ -7,6 +7,16 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
   },
+  nitro: {
+    externals: {
+      external: ['better-sqlite3'],
+    },
+  },
+  vite: {
+    optimizeDeps: {
+      exclude: ['better-sqlite3'],
+    },
+  },
   eslint: {
     config: {
       stylistic: false,

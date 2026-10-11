@@ -13,22 +13,33 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint . && prettier --check --config ../.prettierrc.json --ignore-path ../.prettierignore ..",
     "format": "eslint . --fix && prettier --write --config ../.prettierrc.json --ignore-path ../.prettierignore ..",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@nuxt/ui": "4.11.3",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4",
     "nuxt": "4.6.1",
     "tailwindcss": "4.3.3",
     "vue": "3.5.43",
-    "vue-router": "5.4.0"
+    "vue-router": "5.4.0",
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@nuxt/eslint": "1.17.0",
+    "@nuxt/test-utils": "4.3.3",
+    "@types/better-sqlite3": "9.6.0",
     "@types/node": "^24.19.2",
+    "@vue/test-utils": "2.5.1",
+    "drizzle-kit": "0.31.11",
     "eslint": "10.12.0",
     "eslint-config-prettier": "10.1.8",
+    "happy-dom": "20.14.6",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
+    "vitest": "5.0.3",
     "vue-tsc": "3.3.13"
   }
 }
