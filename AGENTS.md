@@ -33,3 +33,15 @@ It is the single source of truth; read the relevant sections before every task.
 2. How to run and verify it
 3. Deviations from the spec and why
 4. Open questions for the next milestone
+
+## Cursor Cloud specific instructions
+
+This tree is still the V1 PHP application. Cloud Agent VMs do not run systemd, so the environment `start` script launches `dockerd` itself with the `fuse-overlayfs` storage driver and the legacy iptables backend. Legacy iptables is required so containers on the Compose network can reach each other.
+
+`start` runs `docker compose -f docker-compose.dev.yml` plus an override that pins `mysql:8.0` and `--innodb-strict-mode=0`. The unpinned `mysql` image tag currently resolves to MySQL 26, which rejects `dump/*.sql` (`ROW_FORMAT=COMPACT`, error 1118).
+
+- App: http://127.0.0.1:8080
+- phpMyAdmin: http://127.0.0.1:8000
+- Database `bookmark-db`, user `bookmark`, password `bookpass` (hostname `db` on the Compose network)
+- `./www` is bind-mounted into Apache, so PHP and static edits show up without an image rebuild
+- `pnpm lint`, `pnpm typecheck`, and `pnpm test` belong to the V2 rewrite and are not on this tree
