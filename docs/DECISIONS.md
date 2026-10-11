@@ -36,9 +36,15 @@
 
 **Reason:** The spec requires a non-root container, a `/data` volume, and port 3000. That base image already uses uid 1000 for `node`, so a second group with the same id cannot be created. Uid 1000 still matches a typical host user for a bind mount.
 
+## 2026-10-11 – M1 implementation choices
+
+**Decision:** Record ids are UUIDv7. Sessions use Nuxt 4.6 `useSession`, sealed with the raw 32-byte `BOOKMARK_SECRET_KEY`. The session cookie is HttpOnly and SameSite=Lax, and Secure only when `SESSION_COOKIE_SECURE=true`. Secret values are stored as Base64 of a 12-byte IV, a 16-byte GCM tag, and the ciphertext. Passwords use argon2id with the `@node-rs/argon2` defaults (19 MiB, 2 passes, 1 thread) and must be at least 8 characters. The bootstrap admin is break-glass. Local login can be turned off with `LOCAL_LOGIN_ENABLED=false`. Trusted-header identities do not take over an existing local or OIDC username. A header user whose groups do not map becomes a viewer. Login failures are limited to 10 per 15 minutes per client IP. Unknown tag namespaces are created with the namespace name as the label, colour `#64748b`, sort 0, and the sidebar enabled. `is:` and `has:` are reserved query operators, so they are not tag namespaces; `has:link` and `has:check` are keywords rather than field keys. Scope sync updates attributes the payload manages and leaves other tags, links, fields, checks, and actions in place in every edit mode. User APIs cannot change locked entries, cannot change `field_ownership` managed paths, and cannot delete a managed entry unless its mode is `free`. Audit rows older than `AUDIT_RETENTION_DAYS` (default 365, `0` keeps everything) are deleted on startup. Icon uploads, favicon fetching, check execution, action execution, and `{{input.*}}` resolution are later milestones. `{{input.*}}` may be stored on action and check templates.
+
+**Reason:** These are the spec's open choices, or the smallest behaviour that keeps automation from deleting user-added data and keeps Nuxt 4.6's request events. `nuxt-auth-utils` 0.5 targets an older h3 event, while Nuxt 4.6 already seals cookies and accepts a 32-byte password.
+
 ## 2026-10-11 – Secret key encoding
 
-**Decision:** `BOOKMARK_SECRET_KEY` is standard Base64 (RFC 4648, with padding) that decodes to exactly 32 bytes. That decoded value is the AES-256-GCM key. M1 refuses to start when the variable is missing, blank, not valid Base64, or the wrong length. The M0 process still accepts any non-empty string until that check ships with encryption.
+**Decision:** `BOOKMARK_SECRET_KEY` is standard Base64 (RFC 4648, with padding) that decodes to exactly 32 bytes. That decoded value is the AES-256-GCM key. Startup refuses when the variable is missing, blank, not valid Base64, or the wrong length.
 
 **Reason:** AES-256-GCM needs a 32-byte key. Base64 was chosen so the env value is a single line without raw binary.
 

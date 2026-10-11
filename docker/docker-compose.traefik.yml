@@ -13,8 +13,11 @@ services:
       - '3000:3000'
     environment:
       BOOKMARK_SECRET_KEY: ${BOOKMARK_SECRET_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       DATABASE_PATH: /data/bookmark.db
       MIGRATIONS_FOLDER: /app/drizzle
+      SESSION_COOKIE_SECURE: 'true'
     volumes:
       - bookmark-data:/data
     restart: unless-stopped
