@@ -2,6 +2,7 @@
 import type { PortalEntry } from '../types/portal'
 
 const portal = usePortal()
+const clientChecks = useClientChecks()
 const drawerOpen = ref(false)
 const creating = ref(false)
 const editing = ref<PortalEntry | null>(null)
@@ -16,10 +17,12 @@ watch([portal.queryText, portal.tabParam], () => {
 onMounted(() => {
   void portal.load()
   portal.listen()
+  clientChecks.start()
   window.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
+  clientChecks.stop()
   window.removeEventListener('keydown', onKeydown)
 })
 

@@ -35,19 +35,6 @@ function onScroll() {
   scrollTop.value = scroller.value?.scrollTop ?? 0
 }
 
-function statusLabel(status: PortalEntry['status']): string {
-  if (status === 'up') {
-    return 'Up'
-  }
-  if (status === 'down') {
-    return 'Down'
-  }
-  if (status === 'unknown') {
-    return 'Unknown'
-  }
-  return 'No checks'
-}
-
 function statusClass(status: PortalEntry['status']): string {
   if (status === 'up') {
     return 'bg-emerald-500'
@@ -61,8 +48,18 @@ function statusClass(status: PortalEntry['status']): string {
   return 'bg-slate-300'
 }
 
-function letter(name: string): string {
-  return (name.trim().charAt(0) || '?').toUpperCase()
+function statusTitle(entry: PortalEntry): string {
+  if (entry.checks.length === 0) {
+    return 'No checks'
+  }
+  return entry.checks
+    .map((check) => {
+      const when = check.checkedAt ? new Date(check.checkedAt).toLocaleString() : 'not checked'
+      const latency = check.latencyMs == null ? '' : ` ${check.latencyMs} ms`
+      const who = check.reportedBy ? ` by ${check.reportedBy}` : ''
+      return `${check.name}: ${check.state ?? 'unknown'}${latency}${who} at ${when}. ${check.statusMessage}`
+    })
+    .join('\n')
 }
 
 function fieldValue(entry: PortalEntry, key: string): string {
@@ -205,13 +202,7 @@ function expandAll() {
                 @click="portal.selectedId.value = entry.id"
               >
                 <td class="px-2 py-1">
-                  <span
-                    class="inline-flex size-6 items-center justify-center rounded text-xs font-semibold text-white"
-                    :style="{ background: 'var(--portal-accent)' }"
-                    :title="entry.name"
-                  >
-                    {{ letter(entry.name) }}
-                  </span>
+                  <EntryIcon :name="entry.name" :src="entry.iconUrl" />
                 </td>
                 <td class="px-2 py-1">
                   <button
@@ -244,7 +235,7 @@ function expandAll() {
                   <span
                     class="inline-block size-2.5 rounded-full"
                     :class="statusClass(entry.status)"
-                    :title="statusLabel(entry.status)"
+                    :title="statusTitle(entry)"
                   />
                 </td>
                 <td class="max-w-xs truncate px-2 py-1 text-slate-600 dark:text-slate-300">

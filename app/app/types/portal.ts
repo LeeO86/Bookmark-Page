@@ -12,7 +12,10 @@ export interface PortalSettings {
   faviconColour: string
   allTabPublic: boolean
   hasLogo: boolean
+  clientChecksAnonymous: boolean
   auditRetentionDays?: number
+  faviconTlsVerify?: boolean
+  faviconRefreshDays?: number
   defaultScopeEditMode?: 'locked' | 'field_ownership' | 'free'
 }
 
@@ -70,6 +73,7 @@ export interface PortalLink {
   iconRef: string | null
   url: string | null
   urlError: string | null
+  iconUrl: string | null
 }
 
 export interface PortalEntryField {
@@ -93,6 +97,10 @@ export interface PortalCheck {
   linkId: string | null
   requestSpec: { method?: string; urlTemplate?: string } | null
   state: 'up' | 'down' | 'unknown' | null
+  latencyMs: number | null
+  statusMessage: string
+  checkedAt: string | null
+  reportedBy: string | null
 }
 
 export interface PortalAction {
@@ -110,6 +118,7 @@ export interface PortalEntry {
   description: string
   host: string | null
   iconRef: string | null
+  iconUrl: string | null
   sort: number
   source: string | null
   scope: string | null

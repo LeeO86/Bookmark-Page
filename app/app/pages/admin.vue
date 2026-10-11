@@ -5,6 +5,8 @@ import { apiFetch } from '../utils/api'
 interface AdminSettings extends PortalSettings {
   auditRetentionDays: number
   defaultScopeEditMode: 'locked' | 'field_ownership' | 'free'
+  faviconTlsVerify: boolean
+  faviconRefreshDays: number
 }
 interface AdminUser {
   id: string
@@ -57,6 +59,7 @@ const sections = [
   ['namespaces', 'Namespaces'],
   ['tokens', 'API tokens'],
   ['scopes', 'Ansible scopes'],
+  ['icons', 'Icons'],
 ] as const
 
 const userForm = reactive({
@@ -84,6 +87,9 @@ const namespaceForm = reactive({
 })
 const tokenForm = reactive({ name: '', scopes: ['read'] as string[] })
 const scopeForm = reactive({ name: '', editMode: 'field_ownership' as AdminScope['editMode'] })
+const iconQuery = ref('')
+const iconResults = ref<Array<{ ref: string; name: string; kind: string; url: string }>>([])
+const iconName = ref('')
 
 onMounted(async () => {
   await portal.load()
@@ -141,6 +147,9 @@ async function saveSettings() {
         allTabPublic: settings.value?.allTabPublic,
         auditRetentionDays: Number(settings.value?.auditRetentionDays),
         defaultScopeEditMode: settings.value?.defaultScopeEditMode,
+        faviconTlsVerify: settings.value?.faviconTlsVerify,
+        faviconRefreshDays: Number(settings.value?.faviconRefreshDays),
+        clientChecksAnonymous: settings.value?.clientChecksAnonymous,
       },
     })
     if (portal.settings.value) {
@@ -174,6 +183,45 @@ async function clearLogo() {
     await apiFetch('/api/v1/settings/logo', { method: 'DELETE', body: {} })
     portal.logoVersion.value += 1
   }, 'Logo removed')
+}
+
+const pendingIcon = ref<File | null>(null)
+
+function uploadIconFile(event: Event) {
+  pendingIcon.value = (event.target as HTMLInputElement).files?.[0] ?? null
+  if (pendingIcon.value && iconName.value) {
+    void uploadIcon()
+  }
+}
+
+async function searchIconLibrary() {
+  const body = await apiFetch<{
+    icons: Array<{ ref: string; name: string; kind: string; url: string }>
+  }>(`/api/v1/icons?q=${encodeURIComponent(iconQuery.value)}`)
+  iconResults.value = body.icons
+  message.value = 'Icons loaded'
+  error.value = ''
+}
+
+async function uploadIcon() {
+  const file = pendingIcon.value
+  if (!file) {
+    error.value = 'Choose an SVG, PNG, or WebP file'
+    return
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  await run(async () => {
+    await apiFetch('/api/v1/icons', {
+      method: 'POST',
+      body: { name: iconName.value, contentType: file.type, data: btoa(binary) },
+    })
+    iconName.value = ''
+    pendingIcon.value = null
+  }, 'Icon uploaded')
 }
 
 function toggleScope(scope: string) {
@@ -230,6 +278,17 @@ function toggleScope(scope: string) {
           <label class="flex items-center gap-2">
             <input v-model="settings.allTabPublic" type="checkbox" />
             All tab is visible to anonymous visitors
+          </label>
+          <label class="flex items-center gap-2">
+            <input v-model="settings.faviconTlsVerify" type="checkbox" />
+            Verify TLS certificates when fetching favicons
+          </label>
+          <UFormField label="Favicon refresh days">
+            <UInput v-model.number="settings.faviconRefreshDays" type="number" class="w-40" />
+          </UFormField>
+          <label class="flex items-center gap-2">
+            <input v-model="settings.clientChecksAnonymous" type="checkbox" />
+            Allow anonymous visitors to run browser checks
           </label>
           <UFormField label="Audit retention days">
             <UInput v-model.number="settings.auditRetentionDays" type="number" class="w-40" />
@@ -522,6 +581,51 @@ function toggleScope(scope: string) {
             >
               Delete
             </UButton>
+          </div>
+        </section>
+
+        <section v-else-if="section === 'icons'" class="space-y-3">
+          <h1 class="text-lg font-semibold">Icon library</h1>
+          <p class="text-xs text-slate-500">
+            Lucide names match the old Feather icon names. Uploaded SVGs are sanitised.
+          </p>
+          <div class="flex gap-2">
+            <UInput v-model="iconQuery" placeholder="Search" class="flex-1" />
+            <UButton type="button" size="sm" @click="searchIconLibrary">Search</UButton>
+          </div>
+          <form class="flex flex-wrap items-center gap-2" @submit.prevent="uploadIcon">
+            <UInput v-model="iconName" placeholder="name" required />
+            <input
+              type="file"
+              accept="image/svg+xml,image/png,image/webp"
+              data-testid="icon-file"
+              @change="uploadIconFile"
+            />
+          </form>
+          <div class="flex flex-wrap gap-2">
+            <div
+              v-for="icon in iconResults"
+              :key="icon.ref"
+              class="flex items-center gap-1 rounded border px-2 py-1"
+            >
+              <img :src="icon.url" alt="" class="size-5" />
+              <span>{{ icon.name }}</span>
+              <button
+                v-if="icon.kind === 'upload'"
+                type="button"
+                class="text-xs text-red-600"
+                @click="
+                  run(async () => {
+                    await apiFetch(`/api/v1/icons/${icon.ref.slice('upload:'.length)}`, {
+                      method: 'DELETE',
+                      body: {},
+                    })
+                  }, 'Icon deleted')
+                "
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </section>
 

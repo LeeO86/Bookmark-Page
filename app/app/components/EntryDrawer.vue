@@ -16,6 +16,7 @@ interface DraftLink {
   urlTemplate: string
   type: (typeof linkTypes)[number]
   isPrimary: boolean
+  iconRef: string | null
 }
 interface DraftField {
   key: string
@@ -47,6 +48,21 @@ interface DraftAction {
   urlTemplate: string
 }
 
+const iconPreview = computed(() => {
+  if (!iconRef.value) {
+    return props.entry?.iconUrl ?? null
+  }
+  if (iconRef.value.startsWith('lucide:')) {
+    return `/api/icons/lucide/${encodeURIComponent(iconRef.value.slice('lucide:'.length))}`
+  }
+  if (iconRef.value.startsWith('upload:')) {
+    return `/api/icons/upload/${encodeURIComponent(iconRef.value.slice('upload:'.length))}`
+  }
+  return null
+})
+const iconRef = ref<string | null>(null)
+const iconQuery = ref('')
+const iconChoices = ref<Array<{ ref: string; name: string; url: string }>>([])
 const name = ref('')
 const description = ref('')
 const host = ref('')
@@ -93,6 +109,7 @@ watch(
 )
 
 function blank() {
+  iconRef.value = null
   name.value = ''
   description.value = ''
   host.value = ''
@@ -113,6 +130,7 @@ function blank() {
 }
 
 function fill(entry: PortalEntry) {
+  iconRef.value = entry.iconRef
   name.value = entry.name
   description.value = entry.description
   host.value = entry.host ?? ''
@@ -127,6 +145,7 @@ function fill(entry: PortalEntry) {
         ? (link.type as (typeof linkTypes)[number])
         : 'web',
       isPrimary: link.isPrimary,
+      iconRef: link.iconRef,
     }))
   fields.value = portal.fields.value.map((field) => {
     const current = entry.fields.find((item) => item.key === field.key)
@@ -164,6 +183,21 @@ function fill(entry: PortalEntry) {
   }))
 }
 
+async function searchIcons() {
+  const body = await apiFetch<{ icons: Array<{ ref: string; name: string; url: string }> }>(
+    `/api/v1/icons?q=${encodeURIComponent(iconQuery.value)}`,
+  )
+  iconChoices.value = body.icons
+}
+
+async function refetchFavicon() {
+  if (!props.entry) {
+    return
+  }
+  await apiFetch(`/api/v1/entries/${props.entry.id}/favicon`, { method: 'POST', body: {} })
+  formError.value = 'Favicon refetch started'
+}
+
 function addTag() {
   const value = tagDraft.value.trim()
   if (!value || tags.value.includes(value)) {
@@ -184,7 +218,13 @@ function removeTag(label: string) {
 function addLink() {
   links.value = [
     ...links.value,
-    { label: 'Link', urlTemplate: 'https://', type: 'web', isPrimary: links.value.length === 0 },
+    {
+      label: 'Link',
+      urlTemplate: 'https://',
+      type: 'web',
+      isPrimary: links.value.length === 0,
+      iconRef: null,
+    },
   ]
 }
 
@@ -283,10 +323,11 @@ function buildBody(confirmDuplicates: boolean) {
   return {
     name: name.value,
     description: description.value,
+    iconRef: iconRef.value,
     host: host.value,
     sort: Number(sort.value) || 0,
     tags: tags.value,
-    links: links.value.map((link, index) => ({ ...link, sort: index, iconRef: null })),
+    links: links.value.map((link, index) => ({ ...link, sort: index, iconRef: link.iconRef })),
     fields: fields.value.flatMap((field) => {
       if (field.type === 'secret') {
         return field.dirty ? [{ key: field.key, value: field.value }] : []
@@ -443,9 +484,46 @@ function diffText(diff: Record<string, unknown>): string {
           Managed by scope {{ entry.scope
           }}<span v-if="entry.externalKey"> · {{ entry.externalKey }}</span>
         </p>
-        <p class="text-xs text-slate-500">
-          Icons are letter avatars until the icon library is available.
-        </p>
+        <div>
+          <h3 class="mb-1 font-medium">Icon</h3>
+          <div class="mb-2 flex items-center gap-2">
+            <EntryIcon :name="name || 'Entry'" :src="iconPreview" />
+            <button
+              type="button"
+              class="text-xs underline"
+              :disabled="locked('iconRef')"
+              @click="iconRef = null"
+            >
+              Letter or favicon
+            </button>
+            <button v-if="entry" type="button" class="text-xs underline" @click="refetchFavicon">
+              Refetch favicon
+            </button>
+          </div>
+          <div class="flex gap-1">
+            <UInput
+              v-model="iconQuery"
+              class="flex-1"
+              placeholder="Search icons"
+              :disabled="locked('iconRef')"
+            />
+            <UButton type="button" size="sm" color="neutral" variant="outline" @click="searchIcons"
+              >Search</UButton
+            >
+          </div>
+          <div class="mt-2 flex flex-wrap gap-1">
+            <button
+              v-for="choice in iconChoices"
+              :key="choice.ref"
+              type="button"
+              class="rounded border border-slate-200 p-1 dark:border-slate-700"
+              :title="choice.name"
+              @click="iconRef = choice.ref"
+            >
+              <img :src="choice.url" alt="" class="size-5" />
+            </button>
+          </div>
+        </div>
 
         <UFormField label="Name">
           <UInput
@@ -626,7 +704,12 @@ function diffText(diff: Record<string, unknown>): string {
               >Add check</UButton
             >
           </div>
-          <p class="mb-1 text-xs text-slate-500">Checks are stored here. Nothing runs them yet.</p>
+          <p class="mb-1 text-xs text-slate-500">
+            Server checks run on a schedule. Browser checks only see whether a request starts: they
+            cannot read status codes, an HTTPS page cannot probe http:// targets, and untrusted
+            certificates make the result unreliable. ICMP needs CAP_NET_RAW on the server; otherwise
+            those checks stay unknown.
+          </p>
           <div
             v-for="(check, index) in checks"
             :key="index"
