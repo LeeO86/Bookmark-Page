@@ -3,6 +3,7 @@ import type { EditMode } from '../../shared/contracts'
 import { getDatabase, type Db } from '../db/client'
 import { now } from '../db/ids'
 import { settings } from '../db/schema'
+import { badRequest } from '../http/errors'
 
 const defaults = {
   site_title: 'Bookmark-Page',
@@ -54,7 +55,93 @@ export function publicSettings(db: Db = getDatabase()) {
     accentColour: values.accent_colour,
     faviconColour: values.favicon_colour,
     allTabPublic: values.all_tab_public,
+    hasLogo: logoRecord(db) !== null,
   }
+}
+
+const logoLimit = 512 * 1024
+
+export function saveLogo(
+  contentType: string,
+  dataBase64: string,
+  actorId: string | null,
+  db: Db = getDatabase(),
+): void {
+  if (contentType !== 'image/png' && contentType !== 'image/webp') {
+    throw badRequest('Logo must be a PNG or WebP image')
+  }
+  const normalized = dataBase64.replace(/\s/g, '')
+  const bytes = Buffer.from(normalized, 'base64')
+  if (bytes.length === 0 || bytes.length > logoLimit || bytes.toString('base64') !== normalized) {
+    throw badRequest('Logo must be standard Base64 up to 512 KB')
+  }
+  if (contentType === 'image/png' && !isPng(bytes)) {
+    throw badRequest('Logo content is not a PNG image')
+  }
+  if (contentType === 'image/webp' && !isWebp(bytes)) {
+    throw badRequest('Logo content is not a WebP image')
+  }
+  const timestamp = now()
+  db.insert(settings)
+    .values({
+      key: 'logo',
+      value: { contentType, data: normalized },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      updatedBy: actorId,
+    })
+    .onConflictDoUpdate({
+      target: settings.key,
+      set: { value: { contentType, data: normalized }, updatedAt: timestamp, updatedBy: actorId },
+    })
+    .run()
+}
+
+export function clearLogo(db: Db = getDatabase()): void {
+  db.delete(settings).where(eq(settings.key, 'logo')).run()
+}
+
+export function readLogo(db: Db = getDatabase()): { contentType: string; bytes: Buffer } | null {
+  const record = logoRecord(db)
+  if (!record) {
+    return null
+  }
+  return { contentType: record.contentType, bytes: Buffer.from(record.data, 'base64') }
+}
+
+function logoRecord(db: Db): { contentType: string; data: string } | null {
+  const row = db.select().from(settings).where(eq(settings.key, 'logo')).get()
+  const value = row?.value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  if (!('contentType' in value) || !('data' in value)) {
+    return null
+  }
+  const contentType = value.contentType
+  const data = value.data
+  if (typeof contentType !== 'string' || typeof data !== 'string') {
+    return null
+  }
+  return { contentType, data }
+}
+
+function isPng(bytes: Buffer): boolean {
+  return (
+    bytes.length > 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  )
+}
+
+function isWebp(bytes: Buffer): boolean {
+  return (
+    bytes.length > 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+  )
 }
 
 export function adminSettings(db: Db = getDatabase()) {

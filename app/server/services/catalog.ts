@@ -246,6 +246,58 @@ export function createFilter(
   })
 }
 
+export function updateFilter(
+  actor: Actor,
+  id: string,
+  input: Partial<{
+    name: string
+    query: string
+    columns: string[]
+    groupBy: string | null
+    sort: number
+    icon: string | null
+    isPublic: boolean
+  }>,
+) {
+  if (input.query !== undefined) {
+    assertQuery(input.query)
+  }
+  return transaction((db) => {
+    const current = must(
+      db.select().from(filters).where(eq(filters.id, id)).get(),
+      'Filter not found',
+    )
+    if (actor.role !== 'admin' && current.ownerUserId !== actor.userId) {
+      throw forbidden()
+    }
+    if (input.isPublic !== undefined && actor.role !== 'admin') {
+      throw forbidden('Only an admin can change public visibility')
+    }
+    if (input.isPublic === true && current.ownerUserId !== null) {
+      throw badRequest('Only a global filter can be public')
+    }
+    const timestamp = now()
+    db.update(filters)
+      .set({
+        name: input.name ?? current.name,
+        query: input.query ?? current.query,
+        columns: input.columns ?? current.columns,
+        groupBy: input.groupBy === undefined ? current.groupBy : input.groupBy,
+        sort: input.sort ?? current.sort,
+        icon: input.icon === undefined ? current.icon : input.icon,
+        isPublic: input.isPublic ?? current.isPublic,
+        updatedAt: timestamp,
+        updatedBy: actor.userId,
+      })
+      .where(eq(filters.id, id))
+      .run()
+    writeAudit(actor, 'filter.update', 'filter', id, { name: input.name ?? current.name }, db)
+    return presentFilter(
+      must(db.select().from(filters).where(eq(filters.id, id)).get(), 'Filter not found'),
+    )
+  })
+}
+
 export function deleteFilter(actor: Actor, id: string): void {
   transaction((db) => {
     const current = must(
@@ -407,6 +459,51 @@ export async function createUser(
       })
       .run()
     writeAudit(actor, 'user.create', 'user', id, { username: input.username, role: input.role }, db)
+    return presentUser(
+      must(db.select().from(users).where(eq(users.id, id)).get(), 'User not found'),
+    )
+  })
+}
+
+export async function updateUser(
+  actor: Actor,
+  id: string,
+  input: {
+    email?: string | null
+    password?: string
+    role?: StoredRole
+    breakGlass?: boolean
+  },
+) {
+  const passwordHash = input.password ? await hashPassword(input.password) : undefined
+  return transaction((db) => {
+    const current = must(db.select().from(users).where(eq(users.id, id)).get(), 'User not found')
+    if (input.role && input.role !== 'admin' && current.role === 'admin') {
+      const admins = db.select().from(users).where(eq(users.role, 'admin')).all()
+      if (admins.length <= 1) {
+        throw forbidden('The last admin cannot be demoted')
+      }
+    }
+    const timestamp = now()
+    db.update(users)
+      .set({
+        email: input.email === undefined ? current.email : input.email,
+        role: input.role ?? current.role,
+        breakGlass: input.breakGlass ?? current.breakGlass,
+        passwordHash: passwordHash ?? current.passwordHash,
+        updatedAt: timestamp,
+        updatedBy: actor.userId,
+      })
+      .where(eq(users.id, id))
+      .run()
+    writeAudit(
+      actor,
+      'user.update',
+      'user',
+      id,
+      { username: current.username, role: input.role ?? current.role },
+      db,
+    )
     return presentUser(
       must(db.select().from(users).where(eq(users.id, id)).get(), 'User not found'),
     )

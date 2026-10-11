@@ -13,9 +13,11 @@ import {
   entryPatchSchema,
   entryWriteSchema,
   fieldDefinitionSchema,
+  filterPatchSchema,
   filterWriteSchema,
   iconWriteSchema,
   loginSchema,
+  logoWriteSchema,
   namespaceWriteSchema,
   scopeWriteSchema,
   settingsPatchSchema,
@@ -23,11 +25,13 @@ import {
   syncEntrySchema,
   tagWriteSchema,
   tokenWriteSchema,
+  userPatchSchema,
   userWriteSchema,
 } from '../../../shared/contracts'
 import { authenticateLocal } from '../../auth/login'
 import { completeOidcLogin, authorizationRedirect, newOidcTransaction } from '../../auth/oidc'
-import { peerIp } from '../../auth/resolve'
+import { authOptions, authStatus } from '../../auth/status'
+import { peerIp, resolveActor } from '../../auth/resolve'
 import { sessionConfig, type AppSession } from '../../auth/session'
 import { requireAdmin, requireRead, requireRole, requireWrite } from '../../auth/permissions'
 import { getRuntimeEnv } from '../../config/env'
@@ -35,7 +39,7 @@ import { getDatabase } from '../../db/client'
 import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { run } from '../../http/api'
-import { badRequest, notFound } from '../../http/errors'
+import { badRequest, HttpError, notFound } from '../../http/errors'
 import { openApiDocument, openApiHtml } from '../../openapi'
 import {
   createFieldDefinition,
@@ -54,6 +58,8 @@ import {
   deleteTag,
   deleteToken,
   deleteUser,
+  updateFilter,
+  updateUser,
   listFieldDefinitions,
   listFilters,
   listIcons,
@@ -73,18 +79,28 @@ import {
   deleteEntry,
   getEntry,
   listEntries,
+  listEntryHistory,
+  restoreEntry,
   revealField,
   updateEntry,
   upsertManagedEntry,
 } from '../../services/entries'
+import { publishLive, subscribeLive } from '../../services/live'
+import { clearLogo, readLogo, saveLogo } from '../../services/settings'
+import { writeAudit } from '../../services/audit'
 import { syncScope } from '../../services/sync'
 
-export default defineEventHandler((event) =>
-  run(event, async (actor) => {
-    const url = getRequestURL(event)
-    const path = url.pathname.replace(/\/$/, '') || '/'
-    const method = event.req.method.toUpperCase()
-
+export default defineEventHandler(async (event) => {
+  const url = getRequestURL(event)
+  const path = url.pathname.replace(/\/$/, '') || '/'
+  const method = event.req.method.toUpperCase()
+  if (method === 'GET' && path === '/api/v1/events') {
+    return liveResponse(event)
+  }
+  if (method === 'GET' && path === '/api/v1/logo') {
+    return logoResponse(event)
+  }
+  return run(event, async (actor) => {
     if (method === 'GET' && path === '/api/v1/openapi.json') {
       return openApiDocument()
     }
@@ -105,6 +121,13 @@ export default defineEventHandler((event) =>
     }
     if (method === 'GET' && path === '/api/v1/auth/session') {
       return { actor: publicActor(actor) }
+    }
+    if (method === 'GET' && path === '/api/v1/auth/options') {
+      return authOptions()
+    }
+    if (method === 'GET' && path === '/api/v1/auth/status') {
+      requireAdmin(actor)
+      return authStatus()
     }
     if (method === 'GET' && path === '/api/v1/auth/oidc/start') {
       const env = getRuntimeEnv()
@@ -165,6 +188,19 @@ export default defineEventHandler((event) =>
       deleteEntry(actor, decodeURIComponent(entryId))
       return { ok: true }
     }
+    const historyId = match(path, /^\/api\/v1\/entries\/([^/]+)\/history$/)
+    if (historyId && method === 'GET') {
+      return { history: listEntryHistory(actor, decodeURIComponent(historyId)) }
+    }
+    const restore = matchAll(path, /^\/api\/v1\/entries\/([^/]+)\/history\/([^/]+)\/restore$/)
+    if (restore && method === 'POST') {
+      requireWrite(actor)
+      return restoreEntry(
+        actor,
+        decodeURIComponent(restore[0] ?? ''),
+        decodeURIComponent(restore[1] ?? ''),
+      )
+    }
     const reveal = matchAll(path, /^\/api\/v1\/entries\/([^/]+)\/fields\/([^/]+)\/reveal$/)
     if (reveal && method === 'POST') {
       requireRead(actor)
@@ -176,7 +212,6 @@ export default defineEventHandler((event) =>
     }
 
     if (method === 'GET' && path === '/api/v1/namespaces') {
-      requireRead(actor)
       return { namespaces: listNamespaces() }
     }
     if (method === 'POST' && path === '/api/v1/namespaces') {
@@ -223,6 +258,14 @@ export default defineEventHandler((event) =>
       return createFilter(actor, filterWriteSchema.parse(await readBody(event)))
     }
     const filterId = match(path, /^\/api\/v1\/filters\/([^/]+)$/)
+    if (filterId && method === 'PATCH') {
+      requireRole(actor, 'viewer')
+      return updateFilter(
+        actor,
+        decodeURIComponent(filterId),
+        filterPatchSchema.parse(await readBody(event)),
+      )
+    }
     if (filterId && method === 'DELETE') {
       requireRole(actor, 'viewer')
       deleteFilter(actor, decodeURIComponent(filterId))
@@ -270,6 +313,14 @@ export default defineEventHandler((event) =>
       return createUser(actor, userWriteSchema.parse(await readBody(event)))
     }
     const userId = match(path, /^\/api\/v1\/users\/([^/]+)$/)
+    if (userId && method === 'PATCH') {
+      requireAdmin(actor)
+      return updateUser(
+        actor,
+        decodeURIComponent(userId),
+        userPatchSchema.parse(await readBody(event)),
+      )
+    }
     if (userId && method === 'DELETE') {
       requireAdmin(actor)
       deleteUser(actor, decodeURIComponent(userId))
@@ -318,6 +369,9 @@ export default defineEventHandler((event) =>
       ensureScope(scope, actor)
       const body = syncEntrySchema.parse({ ...((await readBody(event)) as object), externalKey })
       const status = upsertManagedEntry(scope, body, actor)
+      if (status !== 'unchanged') {
+        publishLive({ type: 'entries' })
+      }
       return { status, externalKey }
     }
     const sync = match(path, /^\/api\/v1\/scopes\/([^/]+)\/sync$/)
@@ -333,6 +387,19 @@ export default defineEventHandler((event) =>
       requireAdmin(actor)
       return patchSettings(actor, settingsPatchSchema.parse(await readBody(event)))
     }
+    if (method === 'POST' && path === '/api/v1/settings/logo') {
+      requireAdmin(actor)
+      const body = logoWriteSchema.parse(await readBody(event))
+      saveLogo(body.contentType, body.data, actor.userId)
+      writeAudit(actor, 'settings.update', 'settings', null, { logo: body.contentType })
+      return readSettings(actor)
+    }
+    if (method === 'DELETE' && path === '/api/v1/settings/logo') {
+      requireAdmin(actor)
+      clearLogo()
+      writeAudit(actor, 'settings.update', 'settings', null, { logo: null })
+      return readSettings(actor)
+    }
     if (method === 'GET' && path === '/api/v1/audit') {
       requireAdmin(actor)
       return readAudit(actor.role)
@@ -340,8 +407,82 @@ export default defineEventHandler((event) =>
 
     setResponseStatus(event, 404)
     return { error: { code: 'not_found', message: 'Not found' } }
-  }),
-)
+  })
+})
+
+async function liveResponse(event: Parameters<typeof resolveActor>[0]) {
+  try {
+    await resolveActor(event)
+  } catch (error) {
+    if (error instanceof HttpError) {
+      setResponseStatus(event, error.statusCode)
+      return { error: { code: error.code, message: error.message } }
+    }
+    throw error
+  }
+  const encoder = new TextEncoder()
+  let unsubscribe = () => {}
+  let timer: ReturnType<typeof setInterval> | undefined
+  const stream = new ReadableStream({
+    start(controller) {
+      const cleanup = () => {
+        if (timer) {
+          clearInterval(timer)
+        }
+        timer = undefined
+        unsubscribe()
+        unsubscribe = () => {}
+        try {
+          controller.close()
+        } catch {
+          // The client already went away.
+        }
+      }
+      const send = (name: string, data: string) => {
+        try {
+          controller.enqueue(encoder.encode(`event: ${name}\ndata: ${data}\n\n`))
+        } catch {
+          cleanup()
+        }
+      }
+      unsubscribe = subscribeLive((payload) => {
+        send(payload.type, JSON.stringify({ type: payload.type }))
+      })
+      timer = setInterval(() => {
+        send('ping', '{}')
+      }, 15_000)
+      event.req.signal.addEventListener('abort', cleanup)
+      send('ready', '{}')
+    },
+    cancel() {
+      if (timer) {
+        clearInterval(timer)
+      }
+      unsubscribe()
+      unsubscribe = () => {}
+    },
+  })
+  return new Response(stream, {
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+    },
+  })
+}
+
+function logoResponse(event: Parameters<typeof resolveActor>[0]) {
+  const logo = readLogo()
+  if (!logo) {
+    setResponseStatus(event, 404)
+    return { error: { code: 'not_found', message: 'Logo not found' } }
+  }
+  return new Response(new Uint8Array(logo.bytes), {
+    headers: {
+      'content-type': logo.contentType,
+      'cache-control': 'no-cache',
+    },
+  })
+}
 
 function match(path: string, pattern: RegExp): string | null {
   return pattern.exec(path)?.[1] ?? null

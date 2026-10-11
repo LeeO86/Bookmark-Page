@@ -16,7 +16,7 @@ export async function run(
   } catch (error) {
     if (error instanceof HttpError) {
       setResponseStatus(event, error.statusCode)
-      return { error: { code: error.code, message: error.message } }
+      return { error: { code: error.code, message: error.message, ...error.details } }
     }
     if (error instanceof ZodError) {
       setResponseStatus(event, 400)

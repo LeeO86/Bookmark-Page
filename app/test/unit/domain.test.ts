@@ -22,10 +22,13 @@ import {
   createEntry,
   getEntry,
   listEntries,
+  listEntryHistory,
+  restoreEntry,
   revealField,
   updateEntry,
   upsertManagedEntry,
 } from '../../server/services/entries'
+import { readLogo, saveLogo } from '../../server/services/settings'
 import { listAudit } from '../../server/services/audit'
 import { syncScope } from '../../server/services/sync'
 import { HttpError } from '../../server/http/errors'
@@ -130,7 +133,7 @@ describe('entries, visibility, secrets, and sync', () => {
     )
     createEntry(
       admin,
-      entry('Camera', 'type:video', { note: 'cam', password: 'x', serial: 'SN-2' }),
+      entry('Camera', 'type:video', { note: 'cam', password: 'x', serial: 'SN-2' }, '10.0.0.6'),
     )
 
     const anonymousList = listEntries(anonymous, 'type:audio OR type:video')
@@ -235,6 +238,89 @@ describe('entries, visibility, secrets, and sync', () => {
   })
 })
 
+describe('duplicate confirmation, restore, and logo', () => {
+  it('does not store a duplicate until it is confirmed', async () => {
+    await boot()
+    createEntry(admin, entry('Mixer', 'type:audio', {}, '10.0.0.8'))
+    expect(() => createEntry(admin, entry('Mixer', 'type:video', {}, '10.0.0.9'))).toThrow(
+      HttpError,
+    )
+    try {
+      createEntry(admin, entry('Mixer', 'type:video', {}, '10.0.0.9'))
+    } catch (error) {
+      expect(error).toMatchObject({ statusCode: 409, code: 'confirm_duplicate' })
+    }
+    expect(listEntries(admin, '').entries).toHaveLength(1)
+    createEntry(admin, { ...entry('Mixer', 'type:video', {}, '10.0.0.9'), confirmDuplicates: true })
+    expect(listEntries(admin, '').entries).toHaveLength(2)
+
+    const original = listEntries(admin, 'type:audio').entries[0]
+    expect(() => updateEntry(admin, original?.id ?? '', { host: '10.0.0.9' })).toThrow(HttpError)
+    expect(getEntry(admin, original?.id ?? '').host).toBe('10.0.0.8')
+    updateEntry(admin, original?.id ?? '', { host: '10.0.0.9', confirmDuplicates: true })
+    expect(getEntry(admin, original?.id ?? '').host).toBe('10.0.0.9')
+  })
+
+  it('keeps secret values when a version is restored or a field is omitted', async () => {
+    await boot()
+    await createFieldDefinition(admin, {
+      key: 'note',
+      label: 'Note',
+      type: 'text',
+      minRoleToView: 'viewer',
+      searchable: true,
+      showAsColumnDefault: false,
+      sort: 0,
+    })
+    await createFieldDefinition(admin, {
+      key: 'password',
+      label: 'Password',
+      type: 'secret',
+      minRoleToView: 'viewer',
+      searchable: false,
+      showAsColumnDefault: false,
+      sort: 1,
+    })
+    const created = createEntry(
+      admin,
+      entry('Mixer', 'type:audio', { note: 'first', password: 'secret-pass' }, '10.1.1.1'),
+    )
+    updateEntry(admin, created.entry.id, { description: 'edited' })
+    updateEntry(admin, created.entry.id, { fields: [{ key: 'note', value: 'changed' }] })
+    expect(revealField(admin, created.entry.id, 'password').value).toBe('secret-pass')
+    expect(
+      getEntry(admin, created.entry.id).fields.find((field) => field.key === 'note')?.value,
+    ).toBe('changed')
+
+    const history = listEntryHistory(admin, created.entry.id)
+    const createdRow = history.find((row) => row.action === 'entry.create')
+    expect(createdRow?.restorable).toBe(true)
+    expect(JSON.stringify(history)).not.toContain('secret-pass')
+    restoreEntry(admin, created.entry.id, createdRow?.id ?? '')
+    expect(getEntry(admin, created.entry.id).description).toBe('')
+    expect(revealField(admin, created.entry.id, 'password').value).toBe('secret-pass')
+    expect(JSON.stringify(listEntryHistory(admin, created.entry.id))).not.toContain('[redacted]')
+  })
+
+  it('accepts PNG and WebP logos and rejects other content', async () => {
+    await boot()
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    saveLogo('image/png', png, null)
+    expect(readLogo()?.contentType).toBe('image/png')
+    const webp = Buffer.alloc(16)
+    webp.write('RIFF', 0)
+    webp.writeUInt32LE(8, 4)
+    webp.write('WEBP', 8)
+    saveLogo('image/webp', webp.toString('base64'), null)
+    expect(readLogo()?.contentType).toBe('image/webp')
+    expect(() =>
+      saveLogo('image/svg+xml', Buffer.from('<svg></svg>').toString('base64'), null),
+    ).toThrow(HttpError)
+    expect(() => saveLogo('image/png', webp.toString('base64'), null)).toThrow(HttpError)
+  })
+})
+
 describe('crypto, proxy, and rate limit', () => {
   it('round-trips secrets and matches proxy CIDRs', async () => {
     await boot()
@@ -264,11 +350,11 @@ async function boot(): Promise<void> {
   })
 }
 
-function entry(name: string, tag: string, fields: Record<string, string>) {
+function entry(name: string, tag: string, fields: Record<string, string>, host = '10.0.0.5') {
   return {
     name,
     description: '',
-    host: '10.0.0.5',
+    host,
     iconRef: null,
     sort: 0,
     tags: [tag],

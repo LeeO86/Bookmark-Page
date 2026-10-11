@@ -4,6 +4,7 @@ import { getDatabase, transaction } from '../db/client'
 import { badRequest } from '../http/errors'
 import { deleteManagedEntries, upsertManagedEntry } from './entries'
 import { ensureScope } from './catalog'
+import { publishLive } from './live'
 
 export interface SyncResult {
   created: Array<{ externalKey: string; name: string }>
@@ -35,7 +36,9 @@ export function syncScope(
     return result
   }
   if (!input.dryRun) {
-    return transaction(run)
+    const result = transaction(run)
+    publishLive({ type: 'entries' })
+    return result
   }
   const sqlite = getDatabase().$client
   sqlite.exec('BEGIN')

@@ -77,6 +77,7 @@ export const entryWriteSchema = z.object({
   fields: z.array(fieldValueInputSchema).default([]),
   checks: z.array(checkInputSchema).default([]),
   actions: z.array(actionInputSchema).default([]),
+  confirmDuplicates: z.boolean().optional().default(false),
 })
 
 export const entryPatchSchema = z.object({
@@ -90,6 +91,7 @@ export const entryPatchSchema = z.object({
   fields: z.array(fieldValueInputSchema).optional(),
   checks: z.array(checkInputSchema).optional(),
   actions: z.array(actionInputSchema).optional(),
+  confirmDuplicates: z.boolean().optional(),
 })
 
 export const syncEntrySchema = z.object({
@@ -191,6 +193,20 @@ export const scopeWriteSchema = z.object({
     .trim()
     .regex(/^[a-z][a-z0-9_-]{0,63}$/),
   editMode: z.enum(editModes).optional(),
+})
+
+export const filterPatchSchema = filterWriteSchema.omit({ global: true }).partial()
+
+export const userPatchSchema = z.object({
+  email: z.string().trim().email().nullable().optional(),
+  password: z.string().min(8).max(500).optional(),
+  role: z.enum(['viewer', 'editor', 'admin']).optional(),
+  breakGlass: z.boolean().optional(),
+})
+
+export const logoWriteSchema = z.object({
+  contentType: z.enum(['image/png', 'image/webp']),
+  data: z.string().min(1).max(800_000),
 })
 
 export const settingsPatchSchema = z.object({

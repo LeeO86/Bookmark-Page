@@ -3,6 +3,7 @@ export class HttpError extends Error {
     readonly statusCode: number,
     message: string,
     readonly code: string,
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message)
   }
@@ -22,4 +23,13 @@ export function forbidden(message = 'Forbidden'): HttpError {
 
 export function notFound(message = 'Not found'): HttpError {
   return new HttpError(404, message, 'not_found')
+}
+
+export function confirmDuplicate(warnings: unknown): HttpError {
+  return new HttpError(
+    409,
+    'Confirm the duplicate name or host before saving',
+    'confirm_duplicate',
+    { warnings },
+  )
 }

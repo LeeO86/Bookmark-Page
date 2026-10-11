@@ -1,13 +1,14 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
-import type {
-  ActionInput,
-  CheckInput,
-  EditMode,
-  EntryPatch,
-  EntryWrite,
-  FieldValueInput,
-  LinkInput,
-  SyncEntry,
+import {
+  entryPatchSchema,
+  type ActionInput,
+  type CheckInput,
+  type EditMode,
+  type EntryPatch,
+  type EntryWrite,
+  type FieldValueInput,
+  type LinkInput,
+  type SyncEntry,
 } from '../../shared/contracts'
 import { parseQuery } from '../../shared/query'
 import { roleAtLeast, type Role } from '../../shared/roles'
@@ -19,7 +20,9 @@ import { compileQuery, visibilitySql } from '../db/query-sql'
 import {
   actions,
   ansibleScopes,
+  auditLog,
   checks,
+  checkStatus,
   entries,
   entryTags,
   fieldDefinitions,
@@ -29,7 +32,8 @@ import {
   tags,
   tagNamespaces,
 } from '../db/schema'
-import { badRequest, forbidden, notFound } from '../http/errors'
+import { badRequest, confirmDuplicate, forbidden, notFound } from '../http/errors'
+import { publishLive } from './live'
 import { writeAudit } from './audit'
 import { assertKnownPlaceholders, resolveLinkUrl } from './placeholders'
 import { allTabPublic } from './settings'
@@ -73,6 +77,11 @@ interface LoadedCheck {
   port: number | null
   linkId: string | null
   requestSpec: Record<string, unknown> | null
+  state: 'up' | 'down' | 'unknown' | null
+  latencyMs: number | null
+  statusMessage: string
+  checkedAt: string | null
+  reportedBy: string | null
 }
 
 interface LoadedAction {
@@ -142,7 +151,11 @@ export function getEntry(actor: Actor, id: string) {
 }
 
 export function createEntry(actor: Actor, input: EntryWrite) {
-  return transaction((db) => {
+  const existing = duplicateWarningsFor(getDatabase(), input.name, emptyToNull(input.host), null)
+  if (existing.length > 0 && !input.confirmDuplicates) {
+    throw confirmDuplicate(existing)
+  }
+  const result = transaction((db) => {
     const timestamp = now()
     const id = newId()
     validateChildren(db, input.links, input.fields, input.checks, input.actions)
@@ -164,35 +177,58 @@ export function createEntry(actor: Actor, input: EntryWrite) {
       })
       .run()
     replaceChildren(db, id, input, actor.userId, timestamp)
-    writeAudit(actor, 'entry.create', 'entry', id, { name: input.name }, db)
     const created = mustLoad(db, id)
-    return { entry: present(created, actor.role), warnings: duplicateWarnings(db, created) }
+    writeAudit(
+      actor,
+      'entry.create',
+      'entry',
+      id,
+      { name: input.name, snapshot: entrySnapshot(created) },
+      db,
+    )
+    return { entry: present(created, actor.role), warnings: existing }
   })
+  publishLive({ type: 'entries' })
+  return result
 }
 
 export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
-  return transaction((db) => {
+  const currentPreview = mustLoad(getDatabase(), id)
+  const nextName = patch.name ?? currentPreview.name
+  const nextHost = patch.host !== undefined ? emptyToNull(patch.host) : currentPreview.host
+  const warnings = duplicateWarningsFor(getDatabase(), nextName, nextHost, id)
+  if (warnings.length > 0 && patch.confirmDuplicates !== true) {
+    throw confirmDuplicate(warnings)
+  }
+  const result = transaction((db) => {
     const current = mustLoad(db, id)
-    const paths = changedPaths(current, patch)
+    const effective = withKeptSecrets(current, patch)
+    const paths = changedPaths(current, effective)
     assertMutable(current, paths, false)
     const timestamp = now()
     db.update(entries)
       .set({
-        name: patch.name ?? current.name,
-        description: patch.description ?? current.description,
-        host: patch.host !== undefined ? emptyToNull(patch.host) : current.host,
-        iconRef: patch.iconRef !== undefined ? emptyToNull(patch.iconRef) : current.iconRef,
-        sort: patch.sort ?? current.sort,
+        name: effective.name ?? current.name,
+        description: effective.description ?? current.description,
+        host: effective.host !== undefined ? emptyToNull(effective.host) : current.host,
+        iconRef: effective.iconRef !== undefined ? emptyToNull(effective.iconRef) : current.iconRef,
+        sort: effective.sort ?? current.sort,
         updatedAt: timestamp,
         updatedBy: actor.userId,
       })
       .where(eq(entries.id, id))
       .run()
-    if (patch.links || patch.tags || patch.fields || patch.checks || patch.actions) {
+    if (
+      effective.links ||
+      effective.tags ||
+      effective.fields ||
+      effective.checks ||
+      effective.actions
+    ) {
       validateChildren(
         db,
-        patch.links ?? current.links.map(linkToInput),
-        patch.fields ??
+        effective.links ?? current.links.map(linkToInput),
+        effective.fields ??
           current.fields.map((field) => ({
             key: field.key,
             value:
@@ -200,31 +236,33 @@ export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
                 ? decryptSecret(field.valueSecret ?? '')
                 : (field.valueText ?? ''),
           })),
-        patch.checks ?? current.checks.map(checkToInput),
-        patch.actions ?? current.actions.map(actionToInput),
+        effective.checks ?? checksToInput(current),
+        effective.actions ?? current.actions.map(actionToInput),
       )
     }
-    if (patch.tags) {
-      replaceTags(db, id, patch.tags, timestamp)
+    if (effective.tags) {
+      replaceTags(db, id, effective.tags, timestamp)
     }
-    if (patch.links) {
-      replaceLinks(db, id, patch.links, actor.userId, timestamp)
+    if (effective.links) {
+      replaceLinks(db, id, effective.links, actor.userId, timestamp)
     }
-    if (patch.fields) {
-      replaceFields(db, id, patch.fields, actor.userId, timestamp)
+    if (effective.fields) {
+      replaceFields(db, id, effective.fields, actor.userId, timestamp)
     }
-    if (patch.checks || patch.links) {
-      const linkRows = patch.links ? patch.links : current.links.map(linkToInput)
-      const checkRows = patch.checks ?? current.checks.map(checkToInput)
+    if (effective.checks || effective.links) {
+      const linkRows = effective.links ? effective.links : current.links.map(linkToInput)
+      const checkRows = effective.checks ?? checksToInput(current)
       replaceChecks(db, id, checkRows, linkRows, actor.userId, timestamp)
     }
-    if (patch.actions) {
-      replaceActions(db, id, patch.actions, actor.userId, timestamp)
+    if (effective.actions) {
+      replaceActions(db, id, effective.actions, actor.userId, timestamp)
     }
-    writeAudit(actor, 'entry.update', 'entry', id, { paths }, db)
     const updated = mustLoad(db, id)
-    return { entry: present(updated, actor.role), warnings: duplicateWarnings(db, updated) }
+    writeAudit(actor, 'entry.update', 'entry', id, { paths, snapshot: entrySnapshot(updated) }, db)
+    return { entry: present(updated, actor.role), warnings }
   })
+  publishLive({ type: 'entries' })
+  return result
 }
 
 export function deleteEntry(actor: Actor, id: string): void {
@@ -232,8 +270,16 @@ export function deleteEntry(actor: Actor, id: string): void {
     const current = mustLoad(db, id)
     assertMutable(current, ['entry'], true)
     db.delete(entries).where(eq(entries.id, id)).run()
-    writeAudit(actor, 'entry.delete', 'entry', id, { name: current.name }, db)
+    writeAudit(
+      actor,
+      'entry.delete',
+      'entry',
+      id,
+      { name: current.name, snapshot: entrySnapshot(current) },
+      db,
+    )
   })
+  publishLive({ type: 'entries' })
 }
 
 export function revealField(actor: Actor, entryId: string, key: string) {
@@ -249,6 +295,75 @@ export function revealField(actor: Actor, entryId: string, key: string) {
   }
   writeAudit(actor, 'field.reveal', 'field', entryId, { key }, db)
   return { key, value: decryptSecret(field.valueSecret) }
+}
+
+export function listEntryHistory(actor: Actor, id: string) {
+  const db = getDatabase()
+  assertVisible(db, actor.role, id)
+  return db
+    .select()
+    .from(auditLog)
+    .all()
+    .filter(
+      (row) => row.targetId === id && (row.targetType === 'entry' || row.targetType === 'field'),
+    )
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .map((row) => ({
+      id: row.id,
+      action: row.action,
+      actorLabel: row.actorLabel,
+      actorType: row.actorType,
+      createdAt: row.createdAt.toISOString(),
+      diff: row.diff,
+      restorable: hasSnapshot(row.diff),
+    }))
+}
+
+export function restoreEntry(actor: Actor, entryId: string, auditId: string) {
+  const db = getDatabase()
+  assertVisible(db, actor.role, entryId)
+  const row = db.select().from(auditLog).where(eq(auditLog.id, auditId)).get()
+  if (!row || row.targetId !== entryId || row.targetType !== 'entry' || !hasSnapshot(row.diff)) {
+    throw badRequest('This version cannot be restored')
+  }
+  const snapshot = row.diff.snapshot as ReturnType<typeof entrySnapshot>
+  const patch = entryPatchSchema.parse({
+    name: snapshot.name,
+    description: snapshot.description,
+    host: snapshot.host,
+    iconRef: snapshot.iconRef,
+    sort: snapshot.sort,
+    tags: snapshot.tags,
+    links: snapshot.links,
+    checks: snapshot.checks,
+    actions: snapshot.actions,
+    confirmDuplicates: true,
+  })
+  updateEntry(actor, entryId, patch)
+  restorePlainFields(actor, entryId, snapshot.fields)
+  return getEntry(actor, entryId)
+}
+
+function restorePlainFields(
+  actor: Actor,
+  entryId: string,
+  fields: Array<{ key: string; value: string }>,
+): void {
+  const current = mustLoad(getDatabase(), entryId)
+  const secrets = current.fields
+    .filter((field) => field.type === 'secret')
+    .map((field) => ({
+      key: field.key,
+      value: field.valueSecret ? decryptSecret(field.valueSecret) : '',
+    }))
+  updateEntry(actor, entryId, {
+    fields: [...fields, ...secrets],
+    confirmDuplicates: true,
+  })
+}
+
+function hasSnapshot(diff: unknown): diff is { snapshot: ReturnType<typeof entrySnapshot> } {
+  return Boolean(diff && typeof diff === 'object' && 'snapshot' in diff && diff.snapshot)
 }
 
 export function upsertManagedEntry(
@@ -357,7 +472,15 @@ function insertManaged(db: Db, scope: string, input: SyncEntry, actor: Actor): v
     actor.userId,
     timestamp,
   )
-  writeAudit(actor, 'entry.create', 'entry', id, { name: input.name, scope }, db)
+  const created = mustLoad(db, id)
+  writeAudit(
+    actor,
+    'entry.create',
+    'entry',
+    id,
+    { name: input.name, scope, snapshot: entrySnapshot(created) },
+    db,
+  )
 }
 
 function mergeManaged(db: Db, current: LoadedEntry, input: SyncEntry, actor: Actor): void {
@@ -400,7 +523,15 @@ function mergeManaged(db: Db, current: LoadedEntry, input: SyncEntry, actor: Act
   if (input.actions) {
     mergeActions(db, current, input.actions, previous, actor.userId, timestamp)
   }
-  writeAudit(actor, 'entry.sync', 'entry', current.id, { paths: [...next] }, db)
+  const synced = mustLoad(db, current.id)
+  writeAudit(
+    actor,
+    'entry.sync',
+    'entry',
+    current.id,
+    { paths: [...next], snapshot: entrySnapshot(synced) },
+    db,
+  )
 }
 
 function changedPaths(current: LoadedEntry, patch: EntryPatch): string[] {
@@ -1062,6 +1193,7 @@ function present(entry: LoadedEntry, role: Role) {
       masked: field.type === 'secret',
     })),
     checks: entry.checks,
+    status: entryStatus(entry.checks),
     actions: entry.actions,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
@@ -1103,6 +1235,13 @@ function hydrate(db: Db, rows: Array<typeof entries.$inferSelect>): LoadedEntry[
       .map((definition) => [definition.id, definition]),
   )
   const checkRows = db.select().from(checks).where(inArray(checks.entryId, ids)).all()
+  const statusRows = new Map(
+    db
+      .select()
+      .from(checkStatus)
+      .all()
+      .map((status) => [status.checkId, status]),
+  )
   const actionRows = db.select().from(actions).where(inArray(actions.entryId, ids)).all()
   return rows.map((row) => ({
     id: row.id,
@@ -1163,6 +1302,11 @@ function hydrate(db: Db, rows: Array<typeof entries.$inferSelect>): LoadedEntry[
         port: check.port,
         linkId: check.linkId,
         requestSpec: check.requestSpec,
+        state: statusRows.get(check.id)?.state ?? null,
+        latencyMs: statusRows.get(check.id)?.latencyMs ?? null,
+        statusMessage: statusRows.get(check.id)?.message ?? '',
+        checkedAt: statusRows.get(check.id)?.checkedAt?.toISOString() ?? null,
+        reportedBy: statusRows.get(check.id)?.reportedBy ?? null,
       })),
     actions: actionRows
       .filter((action) => action.entryId === row.id)
@@ -1189,27 +1333,80 @@ function mustLoad(db: Db, id: string): LoadedEntry {
   return entry
 }
 
-function duplicateWarnings(db: Db, entry: LoadedEntry): EntryWarning[] {
+function duplicateWarningsFor(
+  db: Db,
+  name: string,
+  host: string | null,
+  excludeId: string | null,
+): EntryWarning[] {
   const warnings: EntryWarning[] = []
-  const nameClash = db
-    .select()
-    .from(entries)
-    .where(and(eq(entries.name, entry.name), ne(entries.id, entry.id)))
-    .get()
-  if (nameClash) {
+  const nameWhere = excludeId
+    ? and(eq(entries.name, name), ne(entries.id, excludeId))
+    : eq(entries.name, name)
+  if (db.select().from(entries).where(nameWhere).get()) {
     warnings.push({ code: 'duplicate_name', message: 'Another entry already uses this name' })
   }
-  if (entry.host) {
-    const hostClash = db
-      .select()
-      .from(entries)
-      .where(and(eq(entries.host, entry.host), ne(entries.id, entry.id)))
-      .get()
-    if (hostClash) {
+  if (host) {
+    const hostWhere = excludeId
+      ? and(eq(entries.host, host), ne(entries.id, excludeId))
+      : eq(entries.host, host)
+    if (db.select().from(entries).where(hostWhere).get()) {
       warnings.push({ code: 'duplicate_host', message: 'Another entry already uses this host' })
     }
   }
   return warnings
+}
+
+function entryStatus(rows: LoadedCheck[]): 'up' | 'down' | 'unknown' | null {
+  if (rows.length === 0) {
+    return null
+  }
+  if (rows.some((check) => check.state === 'down')) {
+    return 'down'
+  }
+  if (rows.every((check) => check.state === 'up')) {
+    return 'up'
+  }
+  return 'unknown'
+}
+
+function withKeptSecrets(current: LoadedEntry, patch: EntryPatch): EntryPatch {
+  if (!patch.fields) {
+    return patch
+  }
+  const presentKeys = new Set(patch.fields.map((field) => field.key))
+  const kept = current.fields
+    .filter((field) => field.type === 'secret' && !presentKeys.has(field.key))
+    .map((field) => ({
+      key: field.key,
+      value: field.valueSecret ? decryptSecret(field.valueSecret) : '',
+    }))
+  return { ...patch, fields: [...patch.fields, ...kept] }
+}
+
+function checksToInput(entry: LoadedEntry): CheckInput[] {
+  const labels = new Map(entry.links.map((link) => [link.id, link.label]))
+  return entry.checks.map((check) => ({
+    ...checkToInput(check),
+    linkLabel: check.linkId ? (labels.get(check.linkId) ?? null) : null,
+  }))
+}
+
+function entrySnapshot(entry: LoadedEntry) {
+  return {
+    name: entry.name,
+    description: entry.description,
+    host: entry.host,
+    iconRef: entry.iconRef,
+    sort: entry.sort,
+    tags: entry.tags.map((tag) => formatTag(tag.namespaceName, tag.value)),
+    links: entry.links.map(linkToInput),
+    fields: entry.fields
+      .filter((field) => field.type !== 'secret')
+      .map((field) => ({ key: field.key, value: field.valueText ?? '' })),
+    checks: checksToInput(entry),
+    actions: entry.actions.map(actionToInput),
+  }
 }
 
 function managedPaths(input: SyncEntry): string[] {

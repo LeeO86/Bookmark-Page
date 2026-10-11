@@ -3,14 +3,17 @@ import {
   entryPatchSchema,
   entryWriteSchema,
   fieldDefinitionSchema,
+  filterPatchSchema,
   filterWriteSchema,
   loginSchema,
+  logoWriteSchema,
   namespaceWriteSchema,
   requestSpecSchema,
   scopeWriteSchema,
   settingsPatchSchema,
   syncBodySchema,
   tokenWriteSchema,
+  userPatchSchema,
   userWriteSchema,
 } from '../shared/contracts'
 
@@ -18,6 +21,8 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/auth/login': { post: { summary: 'Log in with a local account' } },
   '/api/v1/auth/logout': { post: { summary: 'Clear the session cookie' } },
   '/api/v1/auth/session': { get: { summary: 'Return the current actor' } },
+  '/api/v1/auth/options': { get: { summary: 'Return the enabled sign-in methods' } },
+  '/api/v1/auth/status': { get: { summary: 'Return auth configuration without secrets' } },
   '/api/v1/auth/oidc/start': { get: { summary: 'Start an OIDC authorization code flow' } },
   '/api/v1/auth/oidc/callback': { get: { summary: 'Finish the OIDC authorization code flow' } },
   '/api/v1/entries': {
@@ -32,6 +37,12 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/entries/{id}/fields/{key}/reveal': {
     post: { summary: 'Reveal a secret field and audit it' },
   },
+  '/api/v1/entries/{id}/history': { get: { summary: 'Read an entry change history' } },
+  '/api/v1/entries/{id}/history/{auditId}/restore': {
+    post: { summary: 'Restore an entry version from the audit log' },
+  },
+  '/api/v1/events': { get: { summary: 'Subscribe to entry and status changes' } },
+  '/api/v1/logo': { get: { summary: 'Read the site logo' } },
   '/api/v1/namespaces': {
     get: { summary: 'List tag namespaces' },
     post: { summary: 'Create a tag namespace' },
@@ -46,7 +57,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
     get: { summary: 'List visible filters' },
     post: { summary: 'Create a filter' },
   },
-  '/api/v1/filters/{id}': { delete: { summary: 'Delete a filter' } },
+  '/api/v1/filters/{id}': {
+    patch: { summary: 'Update a filter' },
+    delete: { summary: 'Delete a filter' },
+  },
   '/api/v1/fields': {
     get: { summary: 'List field definitions' },
     post: { summary: 'Create a field definition' },
@@ -58,7 +72,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   },
   '/api/v1/icons/{id}': { delete: { summary: 'Delete icon metadata' } },
   '/api/v1/users': { get: { summary: 'List users' }, post: { summary: 'Create a local user' } },
-  '/api/v1/users/{id}': { delete: { summary: 'Delete a user' } },
+  '/api/v1/users/{id}': {
+    patch: { summary: 'Update a user' },
+    delete: { summary: 'Delete a user' },
+  },
   '/api/v1/tokens': {
     get: { summary: 'List API tokens' },
     post: { summary: 'Create an API token' },
@@ -74,6 +91,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   },
   '/api/v1/scopes/{scope}/sync': { post: { summary: 'Declarative scope sync' } },
   '/api/v1/settings': { get: { summary: 'Read settings' }, patch: { summary: 'Update settings' } },
+  '/api/v1/settings/logo': {
+    post: { summary: 'Upload a PNG or WebP logo' },
+    delete: { summary: 'Remove the logo' },
+  },
   '/api/v1/audit': { get: { summary: 'Read the audit log' } },
   '/api/v1/openapi.json': { get: { summary: 'OpenAPI document' } },
 }
@@ -97,6 +118,9 @@ export function openApiDocument(): Record<string, unknown> {
         NamespaceWrite: jsonSchema(namespaceWriteSchema),
         FieldDefinition: jsonSchema(fieldDefinitionSchema),
         FilterWrite: jsonSchema(filterWriteSchema),
+        FilterPatch: jsonSchema(filterPatchSchema),
+        UserPatch: jsonSchema(userPatchSchema),
+        LogoWrite: jsonSchema(logoWriteSchema),
         ScopeWrite: jsonSchema(scopeWriteSchema),
         SettingsPatch: jsonSchema(settingsPatchSchema),
         SyncBody: jsonSchema(syncBodySchema),
