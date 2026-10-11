@@ -8,7 +8,6 @@ dist
 pnpm-lock.yaml
 coverage
 docs/SPEC.md
-README.md
 *.db
 *.db-journal
 *.db-wal
