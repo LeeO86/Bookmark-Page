@@ -6,13 +6,14 @@ import { fileURLToPath } from 'node:url'
 import { $fetch, fetch, setup, useTestContext } from '@nuxt/test-utils/e2e'
 import { describe, expect, it } from 'vitest'
 import { healthResponseSchema } from '../../shared/health'
+import { testSecretKey } from '../secret'
 
 const rootDir = fileURLToPath(new URL('../..', import.meta.url))
 const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
 
 describe('application', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'bookmark-e2e-'))
-  process.env.BOOKMARK_SECRET_KEY = 'test-secret'
+  process.env.BOOKMARK_SECRET_KEY = testSecretKey
   process.env.DATABASE_PATH = join(directory, 'bookmark.db')
   process.env.MIGRATIONS_FOLDER = migrationsFolder
 

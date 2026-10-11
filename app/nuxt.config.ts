@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   },
   nitro: {
     externals: {
-      external: ['better-sqlite3'],
+      external: ['better-sqlite3', '@node-rs/argon2'],
     },
   },
   vite: {

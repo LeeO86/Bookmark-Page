@@ -18,11 +18,14 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.2",
     "@nuxt/ui": "4.11.3",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.4",
     "nuxt": "4.6.1",
+    "openid-client": "6.8.8",
     "tailwindcss": "4.3.3",
+    "uuid": "14.0.3",
     "vue": "3.5.43",
     "vue-router": "5.4.0",
     "zod": "4.6.6"

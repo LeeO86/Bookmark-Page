@@ -5,17 +5,20 @@ import {
   setDatabase,
   type AppDatabase,
 } from './client'
-import { assertSecretKey, type AppSettings } from './settings'
+import { bootstrap } from '../services/bootstrap'
+import { installSecretKey } from './keys'
+import type { AppSettings } from './settings'
 
-export function bootApplication(settings: AppSettings): void {
+export async function bootApplication(settings: AppSettings): Promise<void> {
   let database: AppDatabase | undefined
   try {
-    assertSecretKey(settings.secretKey)
+    installSecretKey(settings.secretKey)
     closeDatabase()
     database = openDatabase(settings.databasePath)
     migrateDatabase(database, settings.migrationsFolder)
     setDatabase(database)
     database = undefined
+    await bootstrap()
   } catch (error) {
     database?.$client.close()
     const message = error instanceof Error ? error.message : 'Startup failed'

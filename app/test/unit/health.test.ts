@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { bootApplication } from '../../server/db/boot'
+import { clearSecretKey } from '../../server/db/keys'
+import { testSecretKey } from '../secret'
 import { closeDatabase, getDatabase } from '../../server/db/client'
 import { handleHealth, pingDatabase } from '../../server/db/health'
 
@@ -11,6 +13,7 @@ const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url)
 const directories: string[] = []
 
 afterEach(() => {
+  clearSecretKey()
   closeDatabase()
   for (const directory of directories.splice(0)) {
     rmSync(directory, { recursive: true, force: true })
@@ -18,11 +21,11 @@ afterEach(() => {
 })
 
 describe('handleHealth', () => {
-  it('returns 200 when the database answers', () => {
+  it('returns 200 when the database answers', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'bookmark-health-'))
     directories.push(directory)
-    bootApplication({
-      secretKey: 'test-secret',
+    await bootApplication({
+      secretKey: testSecretKey,
       databasePath: join(directory, 'bookmark.db'),
       migrationsFolder,
     })
@@ -33,11 +36,11 @@ describe('handleHealth', () => {
     })
   })
 
-  it('returns 503 when the database is closed or missing', () => {
+  it('returns 503 when the database is closed or missing', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'bookmark-health-'))
     directories.push(directory)
-    bootApplication({
-      secretKey: 'test-secret',
+    await bootApplication({
+      secretKey: testSecretKey,
       databasePath: join(directory, 'bookmark.db'),
       migrationsFolder,
     })

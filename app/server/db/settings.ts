@@ -18,9 +18,3 @@ export function readSettings(env: NodeJS.ProcessEnv, cwd = process.cwd()): AppSe
     migrationsFolder,
   }
 }
-
-export function assertSecretKey(value: string | undefined): void {
-  if (value === undefined || value.trim() === '') {
-    throw new Error('BOOKMARK_SECRET_KEY is required')
-  }
-}

@@ -10,15 +10,22 @@ export type AppDatabase = BetterSQLite3Database & {
 
 let current: AppDatabase | undefined
 
+export type Db = Pick<AppDatabase, 'select' | 'insert' | 'update' | 'delete'>
+
 export function openDatabase(databasePath: string): AppDatabase {
   mkdirSync(dirname(databasePath), { recursive: true })
   const sqlite = new Database(databasePath)
+  sqlite.pragma('foreign_keys = ON')
   const journalMode: unknown = sqlite.pragma('journal_mode = WAL', { simple: true })
   if (journalMode !== 'wal') {
     sqlite.close()
     throw new Error(`SQLite journal mode is ${String(journalMode)}`)
   }
   return drizzle(sqlite)
+}
+
+export function transaction<T>(fn: (db: Db) => T): T {
+  return getDatabase().transaction((tx) => fn(tx))
 }
 
 export function migrateDatabase(database: AppDatabase, migrationsFolder: string): void {
