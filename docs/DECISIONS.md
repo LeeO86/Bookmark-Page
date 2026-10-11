@@ -59,3 +59,9 @@
 **Decision:** The entry editor treats a duplicate name or host as a confirmation step. The first save does not write when another entry already uses that name or host. The editor asks the user to confirm, and only the confirmed save is stored. Creating a public filter does not ask for a second confirmation.
 
 **Reason:** A duplicate should be a deliberate choice, not a note beside a save that already happened. A public filter is already an explicit admin choice, so an extra dialog is not required.
+
+## 2026-10-11 – Portal save, live updates, and logo
+
+**Decision:** A duplicate name or host is HTTP 409 `confirm_duplicate` and does not write. The editor sends the same body again with `confirmDuplicates: true` only after the user confirms. Secret fields left out of a user update stay as they are, so a save or a history restore cannot replace a secret with `[redacted]`. `GET /api/v1/events` sends `entries` and `status` signals and no entry payload; the client refetches through the list endpoint, which still applies visibility, and it keeps the query, scroll position, and open editor. The logo is PNG or WebP, at most 512 KB. SVG uploads wait for the M3 sanitiser. The table uses letter avatars and the stored check status. Namespace rows are readable without signing in so a public sidebar can show labels and colours. `GET /api/v1/auth/options` reports whether local login and OpenID Connect are enabled, and does not include secrets.
+
+**Reason:** Confirmation has to happen before the write. The editor does not have secret plaintext unless the user reveals it. A live-update event must not reveal an entry the list would hide. Icon files, favicon fetching, and check execution belong to later milestones.
