@@ -1,9 +1,11 @@
 # Bookmark-Page
 
+![A quiet control room at dusk, with transmission towers beyond the window and status lights on the desk](docs/images/readme-banner.jpg)
+
 V2 of Bookmark-Page, a device portal for broadcast engineering labs.
 
 - V1 (legacy) is on branch `v1`. The legacy image is `adihilber/bookmark-page`.
-- V2 images are published to `ghcr.io/leeo86/bookmark-page`. This milestone builds the image locally and in CI. The release workflow that pushes tags comes later.
+- V2 images are published to `ghcr.io/leeo86/bookmark-page`. A git tag `v2.x.y` publishes `2.x.y`, `2.x`, `2`, and `latest`.
 
 ## Requirements
 
