@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { PortalLink } from '../types/portal'
-import { copyableLink, linkIcon } from '../utils/links'
+import { copyableLink } from '../utils/links'
 
-defineProps<{ links: PortalLink[] }>()
+const props = defineProps<{ links: PortalLink[]; labelled?: boolean }>()
+const ordered = computed(() =>
+  [...props.links].sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary)),
+)
 const toast = useToast()
 
 async function copy(url: string, label: string) {
@@ -13,7 +16,7 @@ async function copy(url: string, label: string) {
 
 <template>
   <div class="flex flex-wrap items-center gap-1">
-    <span v-for="link in links" :key="link.id" class="inline-flex items-center">
+    <span v-for="link in ordered" :key="link.id" class="inline-flex items-center">
       <a
         v-if="link.url"
         :href="link.url"
@@ -26,8 +29,8 @@ async function copy(url: string, label: string) {
         "
         @click.stop
       >
-        <img :src="linkIcon(link)" alt="" class="size-4 object-contain" />
-        <span class="sr-only">{{ link.label }}</span>
+        <LinkGlyph :link="link" />
+        <span :class="labelled ? 'px-1 text-xs' : 'sr-only'">{{ link.label }}</span>
       </a>
       <span v-else class="px-1 text-xs text-muted" :title="link.urlError ?? 'Unresolved link'">
         {{ link.label }}

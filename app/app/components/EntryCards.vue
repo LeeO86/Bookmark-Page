@@ -1,33 +1,20 @@
 <script setup lang="ts">
 import type { PortalEntry } from '../types/portal'
+import { primaryLink, statusTooltip } from '../utils/links'
 
-const props = defineProps<{ dense: boolean }>()
+defineProps<{ entries: PortalEntry[] }>()
+defineEmits<{
+  edit: [entry: PortalEntry]
+  history: [entry: PortalEntry]
+  drag: [entry: PortalEntry]
+  drop: [entry: PortalEntry]
+}>()
 const portal = usePortal()
-const emit = defineEmits<{ edit: [entry: PortalEntry] }>()
-const grid = ref<HTMLElement | HTMLElement[] | null>(null)
+const menu = useEntryMenu()
 
-function measure() {
-  const element = Array.isArray(grid.value) ? grid.value[0] : grid.value
-  if (!element) {
-    portal.columnCount.value = 1
-    return
-  }
-  const columns = getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean)
-  portal.columnCount.value = Math.max(1, columns.length)
+function href(entry: PortalEntry): string | null {
+  return primaryLink(entry)?.url ?? null
 }
-
-onMounted(() => {
-  measure()
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
-watch(
-  () => portal.visibleEntries.value.length,
-  async () => {
-    await nextTick()
-    measure()
-  },
-)
 
 function fieldOf(entry: PortalEntry, key: string) {
   return entry.fields.find((field) => field.key === key)
@@ -35,79 +22,84 @@ function fieldOf(entry: PortalEntry, key: string) {
 </script>
 
 <template>
-  <div class="min-h-0 flex-1 overflow-auto p-3">
-    <section v-for="group in portal.groups.value" :key="group.key" class="mb-4">
-      <button
-        v-if="portal.groupBy.value"
-        type="button"
-        class="mb-2 flex items-center gap-2 text-sm font-medium"
-        :aria-expanded="!portal.collapsed.value.includes(group.key)"
-        @click="
-          portal.collapsed.value = portal.collapsed.value.includes(group.key)
-            ? portal.collapsed.value.filter((item) => item !== group.key)
-            : [...portal.collapsed.value, group.key]
-        "
-      >
-        {{ group.label }}
-        <span class="text-xs text-muted">({{ group.entries.length }})</span>
-      </button>
-      <div
-        v-show="!portal.groupBy.value || !portal.collapsed.value.includes(group.key)"
-        ref="grid"
-        class="grid gap-3"
-        :class="
-          props.dense
-            ? 'grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]'
-            : 'grid-cols-[repeat(auto-fill,minmax(18rem,1fr))]'
-        "
-      >
-        <article
-          v-for="entry in group.entries"
-          :key="entry.id"
-          class="rounded-md border border-default bg-elevated p-3"
-          :class="[
-            portal.selectedId.value === entry.id ? 'ring-2 ring-primary' : '',
-            entry.status === 'down' ? 'bg-error/10' : '',
-            props.dense ? 'space-y-1' : 'space-y-2',
-          ]"
-          :data-selected="portal.selectedId.value === entry.id"
-          @click="portal.selectedId.value = entry.id"
-        >
-          <div class="flex items-start gap-2">
-            <EntryTitle :entry="entry">
-              <EntryIcon :name="entry.name" :src="entry.iconUrl" />
-            </EntryTitle>
-            <div class="min-w-0 flex-1">
-              <EntryTitle :entry="entry" tabbable class="block" />
-              <p v-if="entry.host" class="truncate text-xs text-muted">{{ entry.host }}</p>
-            </div>
-            <StatusMark :status="entry.status" :checks="entry.checks" />
-            <EntryMenu :entry="entry" @edit="emit('edit', entry)" />
-          </div>
-          <EntryTitle
-            v-if="entry.description"
-            :entry="entry"
-            class="block text-sm font-normal text-toned"
-          >
-            {{ entry.description }}
-          </EntryTitle>
-          <LinkButtons :links="entry.links" />
-          <dl v-if="portal.columns.value.length > 0" class="space-y-1 text-xs">
-            <div v-for="field in portal.columns.value" :key="field.key" class="flex gap-2">
-              <dt class="text-muted">{{ field.label }}</dt>
-              <dd>
-                <SecretValue
-                  v-if="fieldOf(entry, field.key)?.type === 'secret'"
-                  :entry-id="entry.id"
-                  :field-key="field.key"
-                />
-                <span v-else>{{ fieldOf(entry, field.key)?.value }}</span>
-              </dd>
-            </div>
-          </dl>
-          <EntryTags :tags="entry.tags" />
-        </article>
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+    <article
+      v-for="entry in entries"
+      :key="entry.id"
+      class="group relative flex flex-col gap-3 rounded-2xl border border-default bg-default p-4 shadow-sm"
+      :class="portal.selectedId.value === entry.id ? 'ring-2 ring-primary' : ''"
+      :draggable="portal.editMode.value"
+      @click="portal.selectedId.value = entry.id"
+      @click.capture="menu.pressClick"
+      @contextmenu.prevent="menu.open(entry.id)"
+      @pointerdown="menu.pressStart(entry.id, $event)"
+      @pointerup="menu.pressEnd"
+      @pointercancel="menu.pressEnd"
+      @pointerleave="menu.pressEnd"
+      @dragstart="$emit('drag', entry)"
+      @dragover.prevent
+      @drop="$emit('drop', entry)"
+    >
+      <a
+        v-if="href(entry)"
+        :href="href(entry) ?? undefined"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="absolute inset-0 rounded-2xl"
+        :aria-label="entry.name"
+        :title="statusTooltip(entry)"
+        data-testid="entry-link"
+      />
+      <div class="relative flex items-start gap-3">
+        <EntryIcon
+          :name="entry.name"
+          :icon-ref="entry.iconRef"
+          :src="entry.iconUrl"
+          :status="entry.status"
+          size="card"
+        />
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-base font-semibold text-highlighted">{{ entry.name }}</p>
+          <p v-if="entry.host" class="truncate font-mono text-xs text-muted">{{ entry.host }}</p>
+        </div>
+        <EntryMenu
+          class="relative z-10 focus-within:opacity-100"
+          :class="
+            portal.editMode.value ? 'opacity-100' : 'opacity-0 transition group-hover:opacity-100'
+          "
+          :entry="entry"
+          :editing="portal.editMode.value"
+          :open="menu.menuId.value === entry.id"
+          @update:open="menu.onOpen(entry.id, $event)"
+          @edit="$emit('edit', entry)"
+          @history="$emit('history', entry)"
+        />
       </div>
-    </section>
+      <p v-if="entry.description" class="relative line-clamp-2 text-sm text-toned">
+        {{ entry.description }}
+      </p>
+      <div class="relative z-10">
+        <LinkButtons :links="entry.links" labelled />
+      </div>
+      <dl v-if="portal.columns.value.length" class="relative z-10 space-y-1 text-xs">
+        <div v-for="field in portal.columns.value" :key="field.key" class="flex gap-2">
+          <dt class="text-muted">{{ field.label }}</dt>
+          <dd>
+            <SecretValue
+              v-if="fieldOf(entry, field.key)?.type === 'secret'"
+              :entry-id="entry.id"
+              :field-key="field.key"
+            />
+            <span v-else>{{ fieldOf(entry, field.key)?.value }}</span>
+          </dd>
+        </div>
+      </dl>
+      <div class="relative flex flex-wrap items-center gap-1">
+        <EntryTags :tags="entry.tags.slice(0, 3)" />
+        <span v-if="entry.tags.length > 3" class="text-xs text-muted"
+          >+{{ entry.tags.length - 3 }}</span
+        >
+      </div>
+    </article>
   </div>
 </template>

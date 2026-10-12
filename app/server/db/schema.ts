@@ -202,6 +202,10 @@ export const userPreferences = sqliteTable('user_preferences', {
     .$type<Record<string, 'list' | 'cards' | 'tiles'>>()
     .notNull()
     .default({}),
+  facetsOpen: integer('facets_open', { mode: 'boolean' }).notNull().default(false),
+  tileSize: text('tile_size', { enum: ['regular', 'large'] })
+    .notNull()
+    .default('regular'),
   createdAt,
   updatedAt,
 })

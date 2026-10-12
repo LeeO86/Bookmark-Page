@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from '@nuxt/ui'
 import { isColourMode } from '#shared/theme'
 import type { PortalEntry } from '../types/portal'
 import { apiFetch } from '../utils/api'
@@ -12,6 +13,7 @@ const drawerOpen = ref(false)
 const creating = ref(false)
 const editing = ref<PortalEntry | null>(null)
 const commandOpen = ref(false)
+const historyOnly = ref(false)
 let ignoreColour = true
 
 watch([portal.queryText, portal.tabParam], () => {
@@ -30,28 +32,6 @@ watch(
   },
 )
 
-watch(
-  () => portal.queryError.value,
-  (message) => {
-    if (message) {
-      toast.add({ title: 'Query', description: message, color: 'warning' })
-    }
-  },
-)
-
-watch(
-  () => colorMode.preference,
-  (value) => {
-    if (ignoreColour || !isColourMode(value)) {
-      return
-    }
-    document.cookie = `bp-color-mode=${value}; Path=/; SameSite=Lax`
-    if (portal.actor.value.userId) {
-      void apiFetch('/api/v1/preferences', { method: 'PATCH', body: { colourMode: value } })
-    }
-  },
-)
-
 onMounted(() => {
   ignoreColour = false
   void portal.load()
@@ -65,7 +45,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
 })
 
-function openEntry(entry: PortalEntry) {
+function openEntry(entry: PortalEntry, history = false) {
+  historyOnly.value = history && !portal.editMode.value
   creating.value = false
   editing.value = entry
   drawerOpen.value = true
@@ -73,9 +54,20 @@ function openEntry(entry: PortalEntry) {
 }
 
 function openNew() {
+  historyOnly.value = false
   creating.value = true
   editing.value = null
   drawerOpen.value = true
+}
+
+function openAddLink() {
+  const entry =
+    portal.visibleEntries.value.find((item) => item.id === portal.selectedId.value) ??
+    portal.visibleEntries.value[0]
+  if (!entry) {
+    return
+  }
+  openEntry(entry)
 }
 
 function onSaved(entry: PortalEntry) {
@@ -85,6 +77,64 @@ function onSaved(entry: PortalEntry) {
   void portal.reloadEntries()
   void portal.refreshTags()
 }
+
+const menuItems = computed<DropdownMenuItem[][]>(() => {
+  const items: DropdownMenuItem[][] = [
+    [
+      {
+        label: 'Light',
+        type: 'checkbox' as const,
+        checked: colorMode.value === 'light',
+        onSelect: () => {
+          colorMode.preference = 'light'
+        },
+      },
+      {
+        label: 'Dark',
+        type: 'checkbox' as const,
+        checked: colorMode.value === 'dark',
+        onSelect: () => {
+          colorMode.preference = 'dark'
+        },
+      },
+      {
+        label: 'System',
+        type: 'checkbox' as const,
+        checked: colorMode.value === 'system',
+        onSelect: () => {
+          colorMode.preference = 'system'
+        },
+      },
+    ],
+  ]
+  if (portal.canWrite.value) {
+    items.push([
+      {
+        label: portal.editMode.value ? 'Leave edit mode' : 'Edit mode',
+        icon: 'i-lucide-pencil',
+        onSelect: () => portal.setEditMode(!portal.editMode.value),
+      },
+    ])
+  }
+  if (portal.canAdmin.value) {
+    items.push([{ label: 'Admin', icon: 'i-lucide-settings', to: '/admin' }])
+  }
+  if (portal.actor.value.role !== 'anonymous') {
+    items.push([{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: () => portal.logout() }])
+  }
+  return items
+})
+
+watch(
+  () => colorMode.preference,
+  (value) => {
+    if (ignoreColour || !isColourMode(value) || !portal.actor.value.userId) {
+      return
+    }
+    document.cookie = `bp-color-mode=${value}; Path=/; SameSite=Lax`
+    void apiFetch('/api/v1/preferences', { method: 'PATCH', body: { colourMode: value } })
+  },
+)
 
 function onKeydown(event: KeyboardEvent) {
   const target = event.target
@@ -105,6 +155,11 @@ function onKeydown(event: KeyboardEvent) {
     document.querySelector<HTMLInputElement>('[data-testid="query-input"]')?.focus()
     return
   }
+  if (event.shiftKey && event.key.toLowerCase() === 'e' && !typing && portal.canWrite.value) {
+    event.preventDefault()
+    portal.setEditMode(!portal.editMode.value)
+    return
+  }
   if (
     event.key === 'Escape' &&
     !drawerOpen.value &&
@@ -115,7 +170,7 @@ function onKeydown(event: KeyboardEvent) {
     void portal.setQuery('')
     return
   }
-  if (event.key === 'e' && !typing && !drawerOpen.value) {
+  if (event.key === 'e' && !event.shiftKey && !typing && portal.editMode.value) {
     const entry = portal.visibleEntries.value.find((item) => item.id === portal.selectedId.value)
     if (entry) {
       event.preventDefault()
@@ -129,16 +184,8 @@ function onKeydown(event: KeyboardEvent) {
       return
     }
     event.preventDefault()
-    const step = portal.columnCount.value
-    if (event.key === 'ArrowDown') {
-      portal.moveSelection(step)
-    } else if (event.key === 'ArrowUp') {
-      portal.moveSelection(-step)
-    } else if (event.key === 'ArrowRight') {
-      portal.moveSelection(1)
-    } else {
-      portal.moveSelection(-1)
-    }
+    const step = portal.viewMode.value === 'list' ? 1 : portal.columnCount.value
+    portal.moveSelection(event.key === 'ArrowDown' || event.key === 'ArrowRight' ? step : -step)
     return
   }
   if (event.key === 'Enter' && !event.shiftKey && (!typing || queryFocused)) {
@@ -156,101 +203,128 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <UDashboardGroup class="h-dvh">
-    <a
-      href="#entries"
-      class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-default focus:px-2 focus:py-1"
-    >
+  <div class="flex min-h-dvh flex-col px-4 py-6 md:px-6">
+    <a href="#devices" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2">
       Skip to devices
     </a>
-    <UDashboardSidebar
-      id="tags"
-      collapsible
-      resizable
-      :default-size="18"
-      :min-size="12"
-      :max-size="32"
-    >
-      <template #header="{ collapsed }">
-        <span v-if="!collapsed" class="text-xs font-semibold tracking-wide text-muted uppercase">
-          Tags
-        </span>
-      </template>
-      <TagSidebar />
-    </UDashboardSidebar>
-    <UDashboardPanel id="portal">
-      <UDashboardNavbar :title="portal.settings.value?.siteTitle ?? 'Bookmark-Page'">
-        <template #leading>
-          <img
-            v-if="portal.settings.value?.hasLogo"
-            :src="`/api/v1/logo?v=${portal.logoVersion.value}`"
-            alt=""
-            class="h-8 w-8 object-contain"
-          />
-        </template>
-        <template #right>
-          <p
-            v-if="portal.settings.value?.siteClaim"
-            class="hidden truncate text-xs text-muted md:block"
-          >
+    <header class="flex w-full items-start justify-between gap-4">
+      <div class="flex min-w-0 items-center gap-4">
+        <img
+          v-if="portal.settings.value?.hasLogo"
+          :src="`/api/v1/logo?v=${portal.logoVersion.value}`"
+          alt=""
+          class="size-14 object-contain"
+        />
+        <div class="min-w-0">
+          <h1 class="page-title truncate text-highlighted">
+            {{ portal.settings.value?.siteTitle || 'Bookmark-Page' }}
+          </h1>
+          <p v-if="portal.settings.value?.siteClaim" class="mt-1 truncate text-base text-muted">
             {{ portal.settings.value.siteClaim }}
           </p>
-          <UButton
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-search"
-            @click="commandOpen = true"
-          >
-            Search
-          </UButton>
-          <UColorModeButton />
-          <UButton v-if="portal.canWrite.value" size="sm" data-testid="new-entry" @click="openNew">
-            New entry
-          </UButton>
-          <NuxtLink v-if="portal.canAdmin.value" to="/admin" class="text-sm text-accent"
-            >Admin</NuxtLink
-          >
-          <UButton
-            v-if="
-              portal.actor.value.role === 'anonymous' &&
-              (portal.authOptions.value.localLoginEnabled || portal.authOptions.value.oidcEnabled)
-            "
-            size="sm"
-            color="neutral"
-            variant="outline"
-            data-testid="login-button"
-            @click="portal.loginOpen.value = true"
-          >
-            Sign in
-          </UButton>
-          <UButton
-            v-else-if="portal.actor.value.role !== 'anonymous'"
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            @click="portal.logout()"
-          >
-            {{ portal.actor.value.label }}
-          </UButton>
-        </template>
-      </UDashboardNavbar>
-      <div class="border-b border-default px-3 py-2">
-        <QueryBar />
+        </div>
       </div>
-      <TabBar />
-      <main id="entries" class="flex min-h-0 flex-1 flex-col">
-        <EntryViews @edit="openEntry" />
-      </main>
-    </UDashboardPanel>
+      <UDropdownMenu v-if="portal.actor.value.role !== 'anonymous'" :items="menuItems">
+        <UButton color="neutral" variant="ghost" icon="i-lucide-circle-user" size="lg">
+          {{ portal.actor.value.label }}
+        </UButton>
+      </UDropdownMenu>
+      <UButton
+        v-else-if="
+          portal.authOptions.value.localLoginEnabled || portal.authOptions.value.oidcEnabled
+        "
+        data-testid="login-button"
+        color="neutral"
+        variant="outline"
+        @click="portal.loginOpen.value = true"
+      >
+        Sign in
+      </UButton>
+    </header>
+
+    <div class="mx-auto mt-8 w-full max-w-3xl">
+      <div class="flex items-start gap-2">
+        <QueryBar class="flex-1" @command="commandOpen = true" />
+        <UButton
+          color="neutral"
+          :variant="portal.facetsOpen.value ? 'soft' : 'outline'"
+          data-testid="filters"
+          :aria-pressed="portal.facetsOpen.value"
+          @click="portal.setFacetsOpen(!portal.facetsOpen.value)"
+        >
+          Filters
+        </UButton>
+      </div>
+      <TabBar class="mt-4" />
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <UButton
+          v-for="mode in ['tiles', 'cards', 'list'] as const"
+          :key="mode"
+          size="xs"
+          :color="portal.viewMode.value === mode ? 'primary' : 'neutral'"
+          :variant="portal.viewMode.value === mode ? 'soft' : 'ghost'"
+          :data-testid="`view-${mode}`"
+          @click="portal.setView(mode)"
+        >
+          {{ mode }}
+        </UButton>
+        <UButton
+          v-if="portal.viewMode.value === 'tiles'"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          @click="portal.setTileSize(portal.tileSize.value === 'large' ? 'regular' : 'large')"
+        >
+          {{ portal.tileSize.value === 'large' ? 'Large tiles' : 'Regular tiles' }}
+        </UButton>
+        <UButton v-if="portal.editMode.value" size="xs" data-testid="new-entry" @click="openNew">
+          New entry
+        </UButton>
+        <UButton
+          v-if="portal.editMode.value"
+          size="xs"
+          color="neutral"
+          variant="outline"
+          @click="openAddLink"
+        >
+          Add link
+        </UButton>
+      </div>
+    </div>
+
+    <p
+      v-if="portal.editMode.value"
+      class="mt-4 w-full rounded-lg bg-primary/15 px-3 py-2 text-sm text-accent"
+      data-testid="edit-banner"
+    >
+      Edit mode is on. Shift+E leaves it. Clicks on a device still open its link.
+    </p>
+
+    <main id="devices" class="mt-8 w-full flex-1">
+      <EntryViews @edit="openEntry($event)" @history="openEntry($event, true)" />
+    </main>
+
+    <footer class="mx-auto mt-10 text-xs text-muted">Bookmark-Page 2.0.0</footer>
+
+    <USlideover
+      :open="portal.facetsOpen.value"
+      title="Filters"
+      description="Click a facet to add it. Shift adds OR. Alt adds NOT."
+      @update:open="portal.setFacetsOpen"
+    >
+      <template #body>
+        <TagSidebar />
+      </template>
+    </USlideover>
     <EntryDrawer
       :open="drawerOpen"
       :creating="creating"
       :entry="editing"
+      :show-history="historyOnly"
       @close="drawerOpen = false"
       @saved="onSaved"
     />
     <LoginDialog />
     <PortalCommand v-model:open="commandOpen" @edit="openEntry" />
-  </UDashboardGroup>
+  </div>
 </template>

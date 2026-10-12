@@ -1,5 +1,22 @@
 import type { PortalEntry, PortalLink } from '../types/portal'
 
+export function statusTooltip(entry: PortalEntry): string {
+  if (entry.status === 'down') {
+    const when = entry.checks.find((check) => check.state === 'down')?.checkedAt
+    if (!when) {
+      return 'Offline'
+    }
+    return `Offline since ${new Date(when).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  }
+  if (entry.status === 'unknown') {
+    return 'Status unknown'
+  }
+  if (entry.status === 'up') {
+    return 'Online'
+  }
+  return entry.name
+}
+
 const typeIcons: Record<string, string> = {
   web: 'globe',
   api: 'braces',

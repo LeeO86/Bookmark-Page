@@ -3,26 +3,21 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import type { PortalEntry } from '../types/portal'
 import { primaryLink } from '../utils/links'
 
-const props = defineProps<{ entry: PortalEntry }>()
-const emit = defineEmits<{ edit: [] }>()
+const props = defineProps<{ entry: PortalEntry; editing?: boolean }>()
+const open = defineModel<boolean>('open', { default: false })
+const emit = defineEmits<{ edit: []; history: [] }>()
+const portal = usePortal()
 const toast = useToast()
 const href = computed(() => primaryLink(props.entry)?.url ?? null)
 
-const items = computed<DropdownMenuItem[][]>(() => [
-  [
-    { label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => emit('edit') },
+const items = computed<DropdownMenuItem[][]>(() => {
+  const actions: DropdownMenuItem[] = []
+  if (portal.canWrite.value) {
+    actions.push({ label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => emit('edit') })
+  }
+  actions.push(
     {
-      label: 'Open primary link',
-      icon: 'i-lucide-external-link',
-      disabled: !href.value,
-      onSelect: () => {
-        if (href.value) {
-          window.open(href.value, '_blank', 'noopener,noreferrer')
-        }
-      },
-    },
-    {
-      label: 'Copy primary link',
+      label: 'Copy link',
       icon: 'i-lucide-copy',
       disabled: !href.value,
       onSelect: () => {
@@ -34,13 +29,27 @@ const items = computed<DropdownMenuItem[][]>(() => [
         })
       },
     },
-  ],
-])
+    {
+      label: 'Open all links',
+      icon: 'i-lucide-external-link',
+      onSelect: () => {
+        for (const link of props.entry.links) {
+          if (link.url) {
+            window.open(link.url, '_blank', 'noopener,noreferrer')
+          }
+        }
+      },
+    },
+    { label: 'History', icon: 'i-lucide-history', onSelect: () => emit('history') },
+  )
+  return [actions]
+})
 </script>
 
 <template>
   <div class="inline-flex items-center" @click.stop>
     <UButton
+      v-if="editing && portal.canWrite.value"
       type="button"
       size="xs"
       color="neutral"
@@ -50,7 +59,7 @@ const items = computed<DropdownMenuItem[][]>(() => [
       data-testid="edit-entry"
       @click="emit('edit')"
     />
-    <UDropdownMenu :items="items">
+    <UDropdownMenu v-model:open="open" :items="items">
       <UButton
         type="button"
         size="xs"

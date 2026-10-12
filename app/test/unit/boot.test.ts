@@ -34,7 +34,7 @@ describe('bootApplication', () => {
     const rows: unknown = database.all(sql`select id from __drizzle_migrations`)
     expect(Array.isArray(rows)).toBe(true)
     if (Array.isArray(rows)) {
-      expect(rows).toHaveLength(5)
+      expect(rows).toHaveLength(6)
     }
   })
 

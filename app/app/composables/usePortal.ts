@@ -1,5 +1,5 @@
 import { combineQueries, queryChips } from '#shared/query-chips'
-import { isViewMode, type ViewMode } from '#shared/theme'
+import { isTileSize, isViewMode, type TileSize, type ViewMode } from '#shared/theme'
 import type {
   AuthOptions,
   PortalActor,
@@ -52,6 +52,9 @@ export function usePortal() {
   const viewOverrides = useState<Record<string, ViewMode>>('bp-view-modes', () => ({}))
   const columnCount = useState('portal-column-count', () => 1)
   const density = useState<'comfortable' | 'compact'>('portal-density', () => 'compact')
+  const facetsOpen = useState('portal-facets', () => false)
+  const tileSize = useState<TileSize>('portal-tile-size', () => 'regular')
+  const editMode = useState('portal-edit-mode', () => false)
 
   const routeQuery = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
   const queryText = computed(() => queryOverride.value ?? routeQuery.value)
@@ -104,7 +107,7 @@ export function usePortal() {
     if (isViewMode(routeView.value)) {
       return routeView.value
     }
-    return viewOverrides.value[activeTab.value] ?? activeFilter.value?.viewMode ?? 'list'
+    return viewOverrides.value[activeTab.value] ?? activeFilter.value?.viewMode ?? 'tiles'
   })
   const canWrite = computed(() => actor.value.role === 'editor' || actor.value.role === 'admin')
   const canAdmin = computed(() => actor.value.role === 'admin')
@@ -160,10 +163,25 @@ export function usePortal() {
       namespaces.value = namespaceBody.namespaces
       fields.value = fieldBody.fields
       if (sessionBody.actor.userId) {
-        const preferences = await apiFetch<{ viewModes: Record<string, ViewMode> }>(
-          '/api/v1/preferences',
-        )
+        const preferences = await apiFetch<{
+          viewModes: Record<string, ViewMode>
+          facetsOpen: boolean
+          tileSize: TileSize
+        }>('/api/v1/preferences')
         viewOverrides.value = { ...viewOverrides.value, ...preferences.viewModes }
+        facetsOpen.value = preferences.facetsOpen
+        if (isTileSize(preferences.tileSize)) {
+          tileSize.value = preferences.tileSize
+        }
+      } else if (import.meta.client) {
+        facetsOpen.value = document.cookie.includes('bp-facets=1')
+      }
+      if (
+        import.meta.client &&
+        sessionStorage.getItem('bp-edit-mode') === '1' &&
+        (sessionBody.actor.role === 'editor' || sessionBody.actor.role === 'admin')
+      ) {
+        editMode.value = true
       }
       await ensureTab()
       await reloadEntries()
@@ -216,6 +234,28 @@ export function usePortal() {
     const fallback = allVisible.value ? 'all' : (globalFilters.value[0]?.id ?? 'all')
     if (fallback !== 'all' || current) {
       await router.replace({ query: queryState(queryText.value, fallback) })
+    }
+  }
+
+  async function setFacetsOpen(open: boolean) {
+    facetsOpen.value = open
+    document.cookie = `bp-facets=${open ? '1' : '0'}; Path=/; SameSite=Lax`
+    if (actor.value.userId) {
+      await apiFetch('/api/v1/preferences', { method: 'PATCH', body: { facetsOpen: open } })
+    }
+  }
+
+  async function setTileSize(size: TileSize) {
+    tileSize.value = size
+    if (actor.value.userId) {
+      await apiFetch('/api/v1/preferences', { method: 'PATCH', body: { tileSize: size } })
+    }
+  }
+
+  function setEditMode(enabled: boolean) {
+    editMode.value = enabled ? canWrite.value : false
+    if (import.meta.client) {
+      sessionStorage.setItem('bp-edit-mode', editMode.value ? '1' : '0')
     }
   }
 
@@ -319,6 +359,9 @@ export function usePortal() {
     viewMode,
     columnCount,
     density,
+    facetsOpen,
+    tileSize,
+    editMode,
     canWrite,
     canAdmin,
     setQuery,
@@ -326,6 +369,9 @@ export function usePortal() {
     load,
     reloadEntries,
     refreshTags,
+    setFacetsOpen,
+    setTileSize,
+    setEditMode,
     setView,
     moveSelection,
     toggleSort,

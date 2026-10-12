@@ -1,183 +1,141 @@
 <script setup lang="ts">
-import type { TableColumn } from '@nuxt/ui'
 import type { PortalEntry } from '../types/portal'
+import { primaryLink, statusTooltip } from '../utils/links'
 
-interface TableRow {
-  id: string
-  kind: 'group' | 'entry'
-  entry: PortalEntry | null
-  label: string
-  count: number
-  groupKey: string
-}
-
+defineProps<{ entries: PortalEntry[] }>()
+defineEmits<{
+  edit: [entry: PortalEntry]
+  history: [entry: PortalEntry]
+  drag: [entry: PortalEntry]
+  drop: [entry: PortalEntry]
+}>()
 const portal = usePortal()
-const emit = defineEmits<{ edit: [entry: PortalEntry] }>()
+const menu = useEntryMenu()
 
-const rows = computed<TableRow[]>(() => {
-  if (!portal.groupBy.value) {
-    return portal.sortedEntries.value.map((entry) => entryRow(entry))
-  }
-  return portal.groups.value.flatMap((group) => {
-    const header: TableRow = {
-      id: `group:${group.key}`,
-      kind: 'group',
-      entry: null,
-      label: group.label,
-      count: group.entries.length,
-      groupKey: group.key,
-    }
-    if (portal.collapsed.value.includes(group.key)) {
-      return [header]
-    }
-    return [header, ...group.entries.map((entry) => entryRow(entry))]
-  })
-})
-
-const columns = computed<TableColumn<TableRow>[]>(() => [
-  { id: 'icon', header: '' },
-  { id: 'name', header: 'Name' },
-  { id: 'links', header: 'Links' },
-  { id: 'status', header: 'Status' },
-  { id: 'description', header: 'Description' },
-  ...portal.columns.value.map((field) => ({ id: `field:${field.key}`, header: field.label })),
-  { id: 'tags', header: 'Tags' },
-  { id: 'actions', header: '' },
-])
-
-function entryRow(entry: PortalEntry): TableRow {
-  return {
-    id: entry.id,
-    kind: 'entry',
-    entry,
-    label: entry.name,
-    count: 0,
-    groupKey: '',
-  }
+function href(entry: PortalEntry): string | null {
+  return primaryLink(entry)?.url ?? null
 }
 
 function fieldOf(entry: PortalEntry, key: string) {
   return entry.fields.find((field) => field.key === key)
 }
 
-function toggleGroup(key: string) {
-  portal.collapsed.value = portal.collapsed.value.includes(key)
-    ? portal.collapsed.value.filter((item) => item !== key)
-    : [...portal.collapsed.value, key]
-}
-
-function onSelect(_event: Event, row: { original: TableRow }) {
-  if (row.original.entry) {
-    portal.selectedId.value = row.original.entry.id
+function mark(key: string): string {
+  if (portal.sortKey.value !== key) {
+    return ''
   }
+  return portal.sortDirection.value === 'asc' ? ' ↑' : ' ↓'
 }
 </script>
 
 <template>
-  <UTable
-    :data="rows"
-    :columns="columns"
-    sticky="header"
-    :virtualize="{ estimateSize: 44, overscan: 12 }"
-    class="h-full"
-    :meta="{
-      class: {
-        tr: (row: { original: TableRow }) =>
-          row.original.entry && portal.selectedId.value === row.original.entry.id
-            ? 'bg-primary/10'
-            : row.original.kind === 'group'
-              ? 'bg-muted'
-              : row.original.entry?.status === 'down'
-                ? 'bg-error/10'
-                : '',
-      },
-    }"
-    @select="onSelect"
-  >
-    <template #icon-cell="{ row }">
-      <EntryTitle v-if="row.original.entry" :entry="row.original.entry">
-        <EntryIcon :name="row.original.entry.name" :src="row.original.entry.iconUrl" />
-      </EntryTitle>
-    </template>
-    <template #name-header>
-      <button type="button" class="font-medium" @click="portal.toggleSort('name')">Name</button>
-    </template>
-    <template #name-cell="{ row }">
-      <button
-        v-if="row.original.kind === 'group'"
-        type="button"
-        class="font-medium"
-        :aria-expanded="!portal.collapsed.value.includes(row.original.groupKey)"
-        @click="toggleGroup(row.original.groupKey)"
-      >
-        {{ row.original.label }}
-        <span class="text-xs text-muted">({{ row.original.count }})</span>
-      </button>
-      <template v-else-if="row.original.entry">
-        <EntryTitle :entry="row.original.entry" tabbable>
-          {{ row.original.entry.name }}
-        </EntryTitle>
-        <div v-if="row.original.entry.host" class="text-xs text-muted">
-          {{ row.original.entry.host }}
-        </div>
-      </template>
-    </template>
-    <template #links-cell="{ row }">
-      <LinkButtons v-if="row.original.entry" :links="row.original.entry.links" />
-    </template>
-    <template #status-header>
-      <button type="button" class="font-medium" @click="portal.toggleSort('status')">Status</button>
-    </template>
-    <template #status-cell="{ row }">
-      <StatusMark
-        v-if="row.original.entry"
-        :status="row.original.entry.status"
-        :checks="row.original.entry.checks"
-      />
-    </template>
-    <template #description-cell="{ row }">
-      <EntryTitle
-        v-if="row.original.entry?.description"
-        :entry="row.original.entry"
-        class="block max-w-xs truncate text-sm font-normal text-toned"
-      >
-        {{ row.original.entry.description }}
-      </EntryTitle>
-    </template>
-    <template
-      v-for="field in portal.columns.value"
-      :key="field.key"
-      #[`field:${field.key}-cell`]="{ row }"
-    >
-      <SecretValue
-        v-if="row.original.entry && fieldOf(row.original.entry, field.key)?.type === 'secret'"
-        :entry-id="row.original.entry.id"
-        :field-key="field.key"
-      />
-      <span v-else-if="row.original.entry">{{
-        fieldOf(row.original.entry, field.key)?.value
-      }}</span>
-    </template>
-    <template #tags-cell="{ row }">
-      <div v-if="row.original.entry" class="flex max-w-xs flex-wrap gap-1">
-        <UBadge
-          v-for="tag in row.original.entry.tags"
-          :key="tag.label"
-          :style="{
-            background: portal.namespaces.value.find((item) => item.name === tag.namespace)?.colour,
-          }"
-          class="text-inverted"
+  <div class="overflow-x-auto rounded-xl border border-default bg-default shadow-sm">
+    <table class="w-full border-collapse text-sm">
+      <thead class="sticky top-0 bg-default text-left text-xs font-medium text-muted">
+        <tr :class="portal.density.value === 'compact' ? 'h-8' : 'h-9'">
+          <th class="px-2 font-medium">
+            <button type="button" @click="portal.toggleSort('name')">Name{{ mark('name') }}</button>
+          </th>
+          <th class="px-2 font-medium">Links</th>
+          <th class="px-2 font-medium">
+            <button type="button" @click="portal.toggleSort('description')">
+              Description{{ mark('description') }}
+            </button>
+          </th>
+          <th v-for="field in portal.columns.value" :key="field.key" class="px-2 font-medium">
+            <button type="button" @click="portal.toggleSort(`field:${field.key}`)">
+              {{ field.label }}{{ mark(`field:${field.key}`) }}
+            </button>
+          </th>
+          <th class="px-2 font-medium">Tags</th>
+          <th class="w-16 px-2" />
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="entry in entries"
+          :key="entry.id"
+          class="group border-t border-default"
+          :class="[
+            portal.density.value === 'compact' ? 'h-8' : 'h-9',
+            portal.selectedId.value === entry.id ? 'bg-primary/10' : '',
+          ]"
+          :draggable="portal.editMode.value"
+          @click="portal.selectedId.value = entry.id"
+          @click.capture="menu.pressClick"
+          @contextmenu.prevent="menu.open(entry.id)"
+          @pointerdown="menu.pressStart(entry.id, $event)"
+          @pointerup="menu.pressEnd"
+          @pointercancel="menu.pressEnd"
+          @pointerleave="menu.pressEnd"
+          @dragstart="$emit('drag', entry)"
+          @dragover.prevent
+          @drop="$emit('drop', entry)"
         >
-          {{ tag.label }}
-        </UBadge>
-      </div>
-    </template>
-    <template #actions-cell="{ row }">
-      <EntryMenu
-        v-if="row.original.entry"
-        :entry="row.original.entry"
-        @edit="emit('edit', row.original.entry)"
-      />
-    </template>
-  </UTable>
+          <td class="px-2">
+            <a
+              v-if="href(entry)"
+              :href="href(entry) ?? undefined"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2"
+              data-testid="entry-link"
+              :title="statusTooltip(entry)"
+            >
+              <EntryIcon
+                :name="entry.name"
+                :icon-ref="entry.iconRef"
+                :src="entry.iconUrl"
+                :status="entry.status"
+                size="list"
+              />
+              <span class="min-w-0 truncate">
+                <span class="font-medium text-highlighted">{{ entry.name }}</span>
+                <span v-if="entry.host" class="font-mono text-xs text-muted">
+                  {{ entry.host }}</span
+                >
+              </span>
+            </a>
+            <span v-else class="flex items-center gap-2">
+              <EntryIcon
+                :name="entry.name"
+                :icon-ref="entry.iconRef"
+                :src="entry.iconUrl"
+                :status="entry.status"
+                size="list"
+              />
+              <span class="truncate font-medium">{{ entry.name }}</span>
+            </span>
+          </td>
+          <td class="px-2"><LinkButtons :links="entry.links" /></td>
+          <td class="max-w-xs truncate px-2 text-toned">{{ entry.description }}</td>
+          <td v-for="field in portal.columns.value" :key="field.key" class="px-2">
+            <SecretValue
+              v-if="fieldOf(entry, field.key)?.type === 'secret'"
+              :entry-id="entry.id"
+              :field-key="field.key"
+            />
+            <span v-else>{{ fieldOf(entry, field.key)?.value }}</span>
+          </td>
+          <td class="px-2"><EntryTags :tags="entry.tags" /></td>
+          <td class="px-2">
+            <EntryMenu
+              class="focus-within:opacity-100"
+              :class="
+                portal.editMode.value
+                  ? 'opacity-100'
+                  : 'opacity-0 transition group-hover:opacity-100'
+              "
+              :entry="entry"
+              :editing="portal.editMode.value"
+              :open="menu.menuId.value === entry.id"
+              @update:open="menu.onOpen(entry.id, $event)"
+              @edit="$emit('edit', entry)"
+              @history="$emit('history', entry)"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </template>

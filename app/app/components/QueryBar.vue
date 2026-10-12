@@ -120,25 +120,39 @@ function onBlur() {
   }, 150)
 }
 
+const emit = defineEmits<{ command: [] }>()
 defineExpose({ focus: () => input.value?.focus() })
+void emit
 </script>
 
 <template>
-  <div class="relative min-w-0 flex-1">
+  <div
+    class="relative min-w-0 flex-1 rounded-2xl border border-default bg-default px-3 py-2 shadow-sm"
+  >
     <label class="sr-only" for="portal-query">Query</label>
-    <input
-      id="portal-query"
-      ref="input"
-      data-testid="query-input"
-      :value="portal.queryText.value"
-      class="w-full rounded-md border border-default bg-default px-2 py-1 text-sm outline-none focus:border-primary"
-      placeholder="Query, or press /"
-      autocomplete="off"
-      @input="onInput"
-      @keydown="onKeydown"
-      @focus="onFocus"
-      @blur="onBlur"
-    />
+    <div class="flex items-center gap-2">
+      <input
+        id="portal-query"
+        ref="input"
+        data-testid="query-input"
+        :value="portal.queryText.value"
+        class="w-full bg-transparent text-base outline-none"
+        placeholder="Where do you want to go?"
+        autocomplete="off"
+        @input="onInput"
+        @keydown="onKeydown"
+        @focus="onFocus"
+        @blur="onBlur"
+      />
+      <button
+        type="button"
+        class="shrink-0 rounded-md border border-default px-2 py-0.5 text-xs text-muted"
+        @click="emit('command')"
+      >
+        ⌘K
+      </button>
+      <span class="text-xs text-muted">/</span>
+    </div>
     <p v-if="parsed.error" class="mt-1 text-xs text-error">{{ parsed.error.message }}</p>
     <div v-if="parsed.chips.length > 0" class="mt-1 flex flex-wrap gap-1">
       <span

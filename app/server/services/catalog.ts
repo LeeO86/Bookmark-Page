@@ -234,7 +234,7 @@ export function createFilter(
         sort: input.sort,
         icon: input.icon ?? null,
         isPublic: global && input.isPublic,
-        viewMode: input.viewMode ?? 'list',
+        viewMode: input.viewMode ?? 'tiles',
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: actor.userId,

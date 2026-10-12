@@ -37,6 +37,8 @@ function compileNode(node: QueryNode, role: Role): SQL {
       return tagSql(node.namespace ?? '', node.value, node.wildcard)
     case 'is':
       return statusSql(node.value)
+    case 'state':
+      return stateSql(node.value)
     case 'has':
       return hasSql(node.value)
     case 'text':
@@ -94,6 +96,21 @@ function statusSql(value: StatusTerm): SQL {
     inner join check_status s on s.check_id = c.id
     where c.entry_id = ${entries.id}
       and s.state = ${value}
+  )`
+}
+
+function stateSql(value: 'online' | 'offline' | 'unknown'): SQL {
+  if (value === 'online') {
+    return statusSql('up')
+  }
+  if (value === 'offline') {
+    return statusSql('down')
+  }
+  return sql`exists (
+    select 1 from checks c
+    left join check_status s on s.check_id = c.id
+    where c.entry_id = ${entries.id}
+      and (s.state is null or s.state = 'unknown')
   )`
 }
 

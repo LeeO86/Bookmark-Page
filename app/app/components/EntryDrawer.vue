@@ -4,7 +4,12 @@ import type { ActionPrompt, HistoryRow, PortalEntry } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 import { isPathLocked } from '../utils/view'
 
-const props = defineProps<{ open: boolean; entry: PortalEntry | null; creating: boolean }>()
+const props = defineProps<{
+  open: boolean
+  entry: PortalEntry | null
+  creating: boolean
+  showHistory?: boolean
+}>()
 const emit = defineEmits<{ close: []; saved: [entry: PortalEntry] }>()
 const portal = usePortal()
 
@@ -95,7 +100,9 @@ const dragIndex = ref<number | null>(null)
 
 const locked = (path: string) =>
   props.entry ? isPathLocked(props.entry.editMode, props.entry.managedFields, path) : false
-const editable = computed(() => props.creating || props.entry?.editMode !== 'locked')
+const editable = computed(
+  () => portal.canWrite.value && (props.creating || props.entry?.editMode !== 'locked'),
+)
 const canDelete = computed(
   () =>
     !props.creating &&
@@ -105,7 +112,7 @@ const canDelete = computed(
 const tagSuggestions = computed(() => portal.tags.value.map((tag) => tag.label))
 
 watch(
-  () => [props.open, props.entry?.id, props.creating] as const,
+  () => [props.open, props.entry?.id, props.creating, props.showHistory] as const,
   () => {
     if (!props.open) {
       return
@@ -119,6 +126,11 @@ watch(
     }
     fill(props.entry)
     void loadHistory(props.entry.id)
+    if (props.showHistory) {
+      void nextTick(() => {
+        document.getElementById('entry-history')?.scrollIntoView({ block: 'start' })
+      })
+    }
   },
 )
 
@@ -478,7 +490,9 @@ function diffText(diff: Record<string, unknown>): string {
   <USlideover
     :open="open"
     :title="creating ? 'New entry' : (entry?.name ?? 'Entry')"
-    description="Edit the bookmark, its links, and its history."
+    :description="
+      showHistory ? 'Changes to this device.' : 'Edit the bookmark, its links, and its history.'
+    "
     :ui="{ content: 'max-w-xl' }"
     @update:open="
       (value: boolean) => {
@@ -817,7 +831,7 @@ function diffText(diff: Record<string, unknown>): string {
           </div>
         </div>
 
-        <div v-if="entry">
+        <div v-if="entry" id="entry-history">
           <h3 class="mb-1 font-medium">History</h3>
           <ul class="space-y-2">
             <li v-for="row in history" :key="row.id" class="rounded border border-default p-2">

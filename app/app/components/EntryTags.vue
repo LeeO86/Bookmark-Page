@@ -20,6 +20,7 @@ function colour(namespace: string | null): string | undefined {
       :key="tag.label"
       color="neutral"
       variant="subtle"
+      :title="tag.label"
       :style="
         colour(tag.namespace)
           ? {

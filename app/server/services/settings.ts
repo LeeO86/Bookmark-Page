@@ -3,10 +3,12 @@ import type { EditMode } from '../../shared/contracts'
 import {
   accentPresets,
   isAccentPreset,
+  isBackgroundStyle,
   isColourMode,
   isNeutralPalette,
   presetSeed,
   type AccentPreset,
+  type BackgroundStyle,
   type ColourMode,
   type NeutralPalette,
 } from '../../shared/theme'
@@ -22,6 +24,7 @@ const defaults = {
   accent_preset: 'custom' as AccentPreset,
   neutral_palette: 'slate' as NeutralPalette,
   default_colour_mode: 'system' as ColourMode,
+  background: 'gradient' as 'gradient' | 'tint' | 'plain',
   favicon_colour: '#0f766e',
   all_tab_public: false,
   audit_retention_days: 365,
@@ -72,6 +75,7 @@ export function publicSettings(db: Db = getDatabase()) {
     accentPreset: storedPreset(values.accent_preset),
     neutralPalette: storedNeutral(values.neutral_palette),
     defaultColourMode: storedColourMode(values.default_colour_mode),
+    background: storedBackground(values.background),
     faviconColour: values.favicon_colour,
     allTabPublic: values.all_tab_public,
     hasLogo: imageRecord(db, 'logo') !== null,
@@ -204,6 +208,7 @@ export function writeSettings(
     accentPreset: AccentPreset
     neutralPalette: NeutralPalette
     defaultColourMode: ColourMode
+    background: 'gradient' | 'tint' | 'plain'
     allTabPublic: boolean
     auditRetentionDays: number
     defaultScopeEditMode: EditMode
@@ -221,6 +226,7 @@ export function writeSettings(
     accentPreset: 'accent_preset',
     neutralPalette: 'neutral_palette',
     defaultColourMode: 'default_colour_mode',
+    background: 'background',
     faviconColour: 'favicon_colour',
     allTabPublic: 'all_tab_public',
     auditRetentionDays: 'audit_retention_days',
@@ -313,4 +319,8 @@ function storedNeutral(value: unknown): NeutralPalette {
 
 function storedColourMode(value: unknown): ColourMode {
   return typeof value === 'string' && isColourMode(value) ? value : 'system'
+}
+
+function storedBackground(value: unknown): BackgroundStyle {
+  return typeof value === 'string' && isBackgroundStyle(value) ? value : 'gradient'
 }

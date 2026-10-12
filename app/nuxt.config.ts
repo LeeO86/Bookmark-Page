@@ -2,7 +2,10 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-11',
   devtools: { enabled: true },
-  modules: ['@nuxt/ui', '@nuxt/eslint'],
+  modules: ['@nuxt/ui', '@nuxt/fonts', '@nuxt/eslint'],
+  fonts: {
+    families: [{ name: 'Inter Variable', provider: 'npm', global: true }],
+  },
   css: ['~/assets/css/main.css'],
   typescript: {
     strict: true,

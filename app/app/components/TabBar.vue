@@ -115,14 +115,11 @@ function canEdit(filter: PortalFilter): boolean {
 </script>
 
 <template>
-  <nav
-    class="flex items-center gap-1 overflow-x-auto border-b border-default px-2 py-1"
-    aria-label="Filters"
-  >
+  <nav class="flex items-center gap-2 overflow-x-auto" aria-label="Filters">
     <button
       v-if="portal.allVisible.value"
       type="button"
-      class="shrink-0 rounded px-2 py-1 text-sm"
+      class="shrink-0 rounded-full px-3 py-1 text-sm"
       :class="portal.activeTab.value === 'all' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
       @click="portal.setTab('all')"
     >
@@ -135,7 +132,7 @@ function canEdit(filter: PortalFilter): boolean {
     >
       <button
         type="button"
-        class="rounded px-2 py-1 text-sm"
+        class="rounded-full px-3 py-1 text-sm"
         :class="
           portal.activeTab.value === filter.id ? 'bg-primary text-inverted' : 'hover:bg-elevated'
         "
@@ -160,7 +157,7 @@ function canEdit(filter: PortalFilter): boolean {
     >
       <button
         type="button"
-        class="rounded border border-dashed border-default px-2 py-1 text-sm"
+        class="rounded-full border border-dashed border-default px-3 py-1 text-sm"
         :class="portal.activeTab.value === filter.id ? 'bg-primary text-inverted' : ''"
         @click="portal.setTab(filter.id)"
       >
@@ -182,7 +179,7 @@ function canEdit(filter: PortalFilter): boolean {
       class="shrink-0 rounded px-2 py-1 text-sm text-toned hover:bg-elevated"
       @click="openSave"
     >
-      Save query
+      + Save as tab
     </button>
 
     <UModal v-model:open="saveOpen" title="Save query as a tab">

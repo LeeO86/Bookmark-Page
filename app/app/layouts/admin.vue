@@ -50,21 +50,12 @@ onMounted(() => {
       </nav>
     </UDashboardSidebar>
     <UDashboardPanel id="admin-panel">
-      <nav
-        aria-label="Admin sections"
-        class="flex gap-2 overflow-x-auto border-b border-default p-2 lg:hidden"
-      >
-        <NuxtLink
-          v-for="link in links"
-          :key="`compact-${link.to}`"
-          :to="link.to"
-          class="shrink-0 rounded px-2 py-1 text-sm hover:bg-elevated"
-          exact-active-class="bg-primary text-inverted"
-        >
-          {{ link.label }}
-        </NuxtLink>
-      </nav>
-      <slot />
+      <template #header>
+        <UDashboardNavbar title="Admin" />
+      </template>
+      <template #body>
+        <slot />
+      </template>
     </UDashboardPanel>
   </UDashboardGroup>
 </template>

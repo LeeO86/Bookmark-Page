@@ -6,6 +6,7 @@ export type QueryNode =
   | { type: 'not'; child: QueryNode }
   | { type: 'tag'; namespace: string | null; value: string; wildcard: boolean }
   | { type: 'is'; value: StatusTerm }
+  | { type: 'state'; value: 'online' | 'offline' | 'unknown' }
   | { type: 'has'; value: string }
   | { type: 'text'; value: string }
 
@@ -148,6 +149,13 @@ function termFromWord(token: Extract<Token, { type: 'word' }>): QueryNode {
       throw new ParseError(`Unknown is: term "${rest}"`, token.position)
     }
     return { type: 'is', value }
+  }
+  if (name.toLowerCase() === 'state') {
+    const value = rest.toLowerCase()
+    if (value !== 'online' && value !== 'offline' && value !== 'unknown') {
+      throw new ParseError(`Unknown state: term "${rest}"`, token.position)
+    }
+    return { type: 'state', value }
   }
   if (name.toLowerCase() === 'has') {
     if (rest.length === 0) {

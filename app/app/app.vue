@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { themeStylesheet, type NeutralPalette } from '#shared/theme'
+import {
+  themeStylesheet,
+  type AccentPreset,
+  type BackgroundStyle,
+  type NeutralPalette,
+} from '#shared/theme'
 import type { PortalSettings } from './types/portal'
 
 const settings = useState<PortalSettings | null>('portal-settings', () => null)
@@ -11,7 +16,12 @@ watch(
     if (!value) {
       return
     }
-    themeCss.value = themeStylesheet(value.accentColour, value.neutralPalette as NeutralPalette)
+    themeCss.value = themeStylesheet(
+      value.accentColour,
+      value.neutralPalette as NeutralPalette,
+      value.accentPreset as AccentPreset,
+      (value.background ?? 'gradient') as BackgroundStyle,
+    )
   },
   { immediate: true },
 )

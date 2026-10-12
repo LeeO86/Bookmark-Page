@@ -10,6 +10,7 @@ import { bootApplication } from '../../server/db/boot'
 import { closeDatabase } from '../../server/db/client'
 import { decryptSecret, encryptSecret } from '../../server/db/crypto'
 import { clearSecretKey } from '../../server/db/keys'
+import { writeStatus } from '../../server/checks/run'
 import { parseQuery } from '../../shared/query'
 import {
   createFieldDefinition,
@@ -82,6 +83,9 @@ describe('parseQuery', () => {
     const phrase = parseQuery('"studio 1"')
     expect(phrase.ok && phrase.ast).toEqual({ type: 'text', value: 'studio 1' })
     expect(parseQuery('is:UP').ok).toBe(true)
+    const state = parseQuery('state:offline')
+    expect(state.ok && state.ast).toEqual({ type: 'state', value: 'offline' })
+    expect(parseQuery('state:sideways').ok).toBe(false)
     expect(parseQuery('type:*').ok).toBe(true)
     expect(parseQuery('(a').ok).toBe(false)
     expect(parseQuery('"open').ok).toBe(false)
@@ -423,6 +427,57 @@ describe('field definitions and sync idempotence', () => {
     ).toBe('updated')
   })
 })
+
+describe('state query', () => {
+  it('keeps entries with no check out of state:unknown', async () => {
+    await boot()
+    const up = createEntry(admin, {
+      ...entry('Up', 'type:audio', {}, '10.1.0.1'),
+      checks: [ping('Up ping')],
+    })
+    const down = createEntry(admin, {
+      ...entry('Down', 'type:audio', {}, '10.1.0.2'),
+      checks: [ping('Down ping')],
+    })
+    const unclear = createEntry(admin, {
+      ...entry('Unclear', 'type:audio', {}, '10.1.0.3'),
+      checks: [ping('Unclear ping')],
+    })
+    createEntry(admin, entry('Quiet', 'type:audio', {}, '10.1.0.4'))
+    writeStatus(checkId(up.entry.id), { state: 'up', latencyMs: 1, message: 'ok' }, 'test')
+    writeStatus(checkId(down.entry.id), { state: 'down', latencyMs: 2, message: 'down' }, 'test')
+    writeStatus(
+      checkId(unclear.entry.id),
+      { state: 'unknown', latencyMs: null, message: 'unknown' },
+      'test',
+    )
+    expect(names('state:online')).toEqual(['Up'])
+    expect(names('state:offline')).toEqual(['Down'])
+    expect(names('state:unknown')).toEqual(['Unclear'])
+    expect(names('is:unknown')).toEqual(['Quiet', 'Unclear'])
+  })
+})
+
+function checkId(entryId: string): string {
+  return getEntry(admin, entryId).checks[0]?.id ?? ''
+}
+
+function names(query: string): string[] {
+  return listEntries(admin, query)
+    .entries.map((entry) => entry.name)
+    .sort()
+}
+
+function ping(name: string) {
+  return {
+    name,
+    kind: 'icmp' as const,
+    executor: 'server' as const,
+    intervalSeconds: 60,
+    timeoutMs: 1000,
+    tlsVerify: false,
+  }
+}
 
 async function boot(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), 'bookmark-domain-'))

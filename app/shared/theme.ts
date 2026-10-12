@@ -4,6 +4,8 @@ export type ColourMode = 'system' | 'light' | 'dark'
 export type NeutralPalette = 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone'
 export type ViewMode = 'list' | 'cards' | 'tiles'
 export type AccentPreset = 'red' | 'yellow' | 'pink' | 'green' | 'cyan' | 'blue' | 'grey' | 'custom'
+export type BackgroundStyle = 'gradient' | 'tint' | 'plain'
+export type TileSize = 'regular' | 'large'
 
 export const colourModes = ['system', 'light', 'dark'] as const
 export const viewModes = ['list', 'cards', 'tiles'] as const
@@ -20,19 +22,143 @@ export const accentPresetNames = [
 ] as const
 
 export const plainTagColour = '#64748b'
+export const backgroundStyles = ['gradient', 'tint', 'plain'] as const
+export const tileSizes = ['regular', 'large'] as const
 
-/** V1 swatches. Page backgrounds in V1 were darker companions of these seeds. */
+/** Vivid Tailwind scales. Yellow uses amber so the preset stays bright. */
 export const accentPresets: Record<
   Exclude<AccentPreset, 'custom'>,
-  { label: string; seed: string }
+  { label: string; seed: string; scale: keyof typeof vividScales }
 > = {
-  red: { label: 'Red', seed: '#804040' },
-  yellow: { label: 'Yellow', seed: '#808040' },
-  pink: { label: 'Pink', seed: '#804080' },
-  green: { label: 'Green', seed: '#408040' },
-  cyan: { label: 'Cyan', seed: '#408080' },
-  blue: { label: 'Blue', seed: '#404080' },
-  grey: { label: 'Grey', seed: '#6c757d' },
+  red: { label: 'Red', seed: '#ef4444', scale: 'red' },
+  yellow: { label: 'Yellow', seed: '#f59e0b', scale: 'amber' },
+  pink: { label: 'Pink', seed: '#ec4899', scale: 'pink' },
+  green: { label: 'Green', seed: '#22c55e', scale: 'green' },
+  cyan: { label: 'Cyan', seed: '#06b6d4', scale: 'cyan' },
+  blue: { label: 'Blue', seed: '#3b82f6', scale: 'blue' },
+  grey: { label: 'Grey', seed: '#64748b', scale: 'slate' },
+}
+
+const vividScales = {
+  red: scale(
+    'oklch(97.1% 0.013 17.38)',
+    'oklch(93.6% 0.032 17.717)',
+    'oklch(88.5% 0.062 18.334)',
+    'oklch(80.8% 0.114 19.571)',
+    'oklch(70.4% 0.191 22.216)',
+    'oklch(63.7% 0.237 25.331)',
+    'oklch(57.7% 0.245 27.325)',
+    'oklch(50.5% 0.213 27.518)',
+    'oklch(44.4% 0.177 26.899)',
+    'oklch(39.6% 0.141 25.723)',
+    'oklch(25.8% 0.092 26.042)',
+  ),
+  amber: scale(
+    'oklch(98.7% 0.022 95.277)',
+    'oklch(96.2% 0.059 95.617)',
+    'oklch(92.4% 0.12 95.746)',
+    'oklch(87.9% 0.169 91.605)',
+    'oklch(82.8% 0.189 84.429)',
+    'oklch(76.9% 0.188 70.08)',
+    'oklch(66.6% 0.179 58.318)',
+    'oklch(55.5% 0.163 48.998)',
+    'oklch(47.3% 0.137 46.201)',
+    'oklch(41.4% 0.112 45.904)',
+    'oklch(27.9% 0.077 45.635)',
+  ),
+  pink: scale(
+    'oklch(97.1% 0.014 343.198)',
+    'oklch(94.8% 0.028 342.258)',
+    'oklch(89.9% 0.061 343.231)',
+    'oklch(82.3% 0.12 346.018)',
+    'oklch(71.8% 0.202 349.761)',
+    'oklch(65.6% 0.241 354.308)',
+    'oklch(59.2% 0.249 0.584)',
+    'oklch(52.5% 0.223 3.958)',
+    'oklch(45.9% 0.187 3.815)',
+    'oklch(40.8% 0.153 2.432)',
+    'oklch(28.4% 0.109 3.907)',
+  ),
+  green: scale(
+    'oklch(98.2% 0.018 155.826)',
+    'oklch(96.2% 0.044 156.743)',
+    'oklch(92.5% 0.084 155.995)',
+    'oklch(87.1% 0.15 154.449)',
+    'oklch(79.2% 0.209 151.711)',
+    'oklch(72.3% 0.219 149.579)',
+    'oklch(62.7% 0.194 149.214)',
+    'oklch(52.7% 0.154 150.069)',
+    'oklch(44.8% 0.119 151.328)',
+    'oklch(39.3% 0.095 152.535)',
+    'oklch(26.6% 0.065 152.934)',
+  ),
+  cyan: scale(
+    'oklch(98.4% 0.019 200.873)',
+    'oklch(95.6% 0.045 203.388)',
+    'oklch(91.7% 0.08 205.041)',
+    'oklch(86.5% 0.127 207.078)',
+    'oklch(78.9% 0.154 211.53)',
+    'oklch(71.5% 0.143 215.221)',
+    'oklch(60.9% 0.126 221.723)',
+    'oklch(52% 0.105 223.128)',
+    'oklch(45% 0.085 224.283)',
+    'oklch(39.8% 0.07 227.392)',
+    'oklch(30.2% 0.056 229.695)',
+  ),
+  blue: scale(
+    'oklch(97% 0.014 254.604)',
+    'oklch(93.2% 0.032 255.585)',
+    'oklch(88.2% 0.059 254.128)',
+    'oklch(80.9% 0.105 251.813)',
+    'oklch(70.7% 0.165 254.624)',
+    'oklch(62.3% 0.214 259.815)',
+    'oklch(54.6% 0.245 262.881)',
+    'oklch(48.8% 0.243 264.376)',
+    'oklch(42.4% 0.199 265.638)',
+    'oklch(37.9% 0.146 265.522)',
+    'oklch(28.2% 0.091 267.935)',
+  ),
+  slate: scale(
+    'oklch(98.4% 0.003 247.858)',
+    'oklch(96.8% 0.007 247.896)',
+    'oklch(92.9% 0.013 255.508)',
+    'oklch(86.9% 0.022 252.894)',
+    'oklch(70.4% 0.04 256.788)',
+    'oklch(55.4% 0.046 257.417)',
+    'oklch(44.6% 0.043 257.281)',
+    'oklch(37.2% 0.044 257.287)',
+    'oklch(27.9% 0.041 260.031)',
+    'oklch(20.8% 0.042 265.755)',
+    'oklch(12.9% 0.042 264.695)',
+  ),
+} as const
+
+function scale(
+  s50: string,
+  s100: string,
+  s200: string,
+  s300: string,
+  s400: string,
+  s500: string,
+  s600: string,
+  s700: string,
+  s800: string,
+  s900: string,
+  s950: string,
+): Record<Shade, string> {
+  return {
+    50: s50,
+    100: s100,
+    200: s200,
+    300: s300,
+    400: s400,
+    500: s500,
+    600: s600,
+    700: s700,
+    800: s800,
+    900: s900,
+    950: s950,
+  }
 }
 
 const neutralScales: Record<NeutralPalette, Record<Shade, string>> = {
@@ -174,17 +300,48 @@ export function neutralBackground(palette: NeutralPalette, shade: Shade): string
   return neutralScales[palette][shade]
 }
 
-export function themeStylesheet(accent: string, palette: NeutralPalette): string {
-  const seed = normalizeHex(accent)
-  const darkBackground = neutralBackground(palette, 900)
-  const lightPrimary = passingColour(seed, '#ffffff')
-  const darkPrimary = passingColour(seed, darkBackground)
-  const scale = shadeScale(seed, lightPrimary, darkPrimary)
+export function isBackgroundStyle(value: string): value is BackgroundStyle {
+  return (backgroundStyles as readonly string[]).includes(value)
+}
+
+export function isTileSize(value: string): value is TileSize {
+  return value === 'regular' || value === 'large'
+}
+
+export function letterColour(name: string): string {
+  let hash = 0
+  for (const char of name) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  }
+  return oklchToHex(0.55, 0.14, hash % 360)
+}
+
+export function themeStylesheet(
+  accent: string,
+  palette: NeutralPalette,
+  preset: AccentPreset = 'custom',
+  background: BackgroundStyle = 'gradient',
+): string {
+  const colours =
+    preset === 'custom' ? customScale(accent) : vividScales[accentPresets[preset].scale]
+  const neutral = neutralScales[palette]
+  const lightPrimary = firstContrast(colours, '#ffffff', [600, 700, 800, 900])
+  const darkPrimary = firstContrast(colours, neutral[900], [400, 300, 200, 500])
+  const lightAccentText = firstContrastAll(
+    colours,
+    [colours[100], neutral[50]],
+    [800, 900, 950, 700],
+  )
+  const darkAccentText = firstContrastAll(
+    colours,
+    [colours[950], neutral[950]],
+    [200, 300, 100, 400],
+  )
   const primaryLines = shadeSteps
-    .map((shade) => `--ui-color-primary-${shade}: ${scale[shade]};`)
+    .map((shade) => `--ui-color-primary-${shade}: ${colours[shade]};`)
     .join('\n')
   const neutralLines = shadeSteps
-    .map((shade) => `--ui-color-neutral-${shade}: ${neutralScales[palette][shade]};`)
+    .map((shade) => `--ui-color-neutral-${shade}: ${neutral[shade]};`)
     .join('\n')
   const chips = (Object.entries(chipColours) as Array<[keyof typeof chipColours, string]>)
     .map(
@@ -192,7 +349,77 @@ export function themeStylesheet(accent: string, palette: NeutralPalette): string
         `--bp-chip-${name}: ${colour};\n--bp-chip-${name}-fg: ${contrastingForeground(colour)};`,
     )
     .join('\n')
-  return `html {\n${primaryLines}\n${neutralLines}\n--ui-primary: ${lightPrimary};\n--bp-accent-text: ${lightPrimary};\n--bp-status-up: ${statusColours.up};\n--bp-status-down: ${statusColours.down};\n--bp-status-unknown: ${statusColours.unknown};\n--bp-status-none: ${statusColours.none};\n${chips}\n}\nhtml.dark {\n--ui-primary: ${darkPrimary};\n--bp-accent-text: ${darkPrimary};\n}\n`
+  const canvas = canvasValue(background, 'light')
+  const darkCanvas = canvasValue(background, 'dark')
+  return `html {\n${primaryLines}\n${neutralLines}\n--ui-primary: ${lightPrimary};\n--bp-accent-text: ${lightAccentText};\n--bp-canvas: ${canvas};\n--bp-icon-plate: #ffffff;\n--bp-status-up: ${statusColours.up};\n--bp-status-down: ${statusColours.down};\n--bp-status-unknown: ${statusColours.unknown};\n--bp-status-none: ${statusColours.none};\n${chips}\n}\nhtml.dark {\n--ui-primary: ${darkPrimary};\n--bp-accent-text: ${darkAccentText};\n--bp-canvas: ${darkCanvas};\n}\n`
+}
+
+function canvasValue(background: BackgroundStyle, mode: 'light' | 'dark'): string {
+  if (background === 'plain') {
+    return 'var(--ui-bg)'
+  }
+  if (background === 'tint') {
+    return mode === 'light' ? 'var(--ui-color-primary-100)' : 'var(--ui-color-primary-950)'
+  }
+  return mode === 'light'
+    ? 'linear-gradient(180deg, var(--ui-color-primary-100), var(--ui-color-neutral-50))'
+    : 'linear-gradient(180deg, var(--ui-color-primary-950), var(--ui-color-neutral-950))'
+}
+
+function firstContrast(
+  colours: Record<Shade, string>,
+  background: string,
+  order: readonly Shade[],
+): string {
+  return firstContrastAll(colours, [background], order)
+}
+
+function firstContrastAll(
+  colours: Record<Shade, string>,
+  backgrounds: readonly string[],
+  order: readonly Shade[],
+): string {
+  for (const shade of order) {
+    if (backgrounds.every((background) => contrastRatio(colours[shade], background) >= 4.5)) {
+      return colours[shade]
+    }
+  }
+  return colours[order[order.length - 1] ?? 700]
+}
+
+function customScale(seed: string): Record<Shade, string> {
+  const source = hexToOklch(normalizeHex(seed))
+  const targets: Record<Shade, number> = {
+    50: 0.97,
+    100: 0.93,
+    200: 0.86,
+    300: 0.77,
+    400: 0.68,
+    500: Math.min(0.62, Math.max(0.42, source.l)),
+    600: 0.5,
+    700: 0.42,
+    800: 0.34,
+    900: 0.27,
+    950: 0.2,
+  }
+  const chroma: Record<Shade, number> = {
+    50: 0.25,
+    100: 0.4,
+    200: 0.6,
+    300: 0.8,
+    400: 0.95,
+    500: 1,
+    600: 1,
+    700: 0.9,
+    800: 0.75,
+    900: 0.6,
+    950: 0.45,
+  }
+  const built = {} as Record<Shade, string>
+  for (const shade of shadeSteps) {
+    built[shade] = oklchToHex(targets[shade], Math.max(source.c, 0.04) * chroma[shade], source.h)
+  }
+  return built
 }
 
 export function passingColour(seed: string, background: string): string {
@@ -227,49 +454,6 @@ export function passingColour(seed: string, background: string): string {
 export function bookmarkGlyph(fill: string): string {
   const colour = normalizeHex(fill)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="${colour}" d="M8 3h16a2 2 0 0 1 2 2v24l-10-6-10 6V5a2 2 0 0 1 2-2z"/></svg>`
-}
-
-function shadeScale(
-  seed: string,
-  lightPrimary: string,
-  darkPrimary: string,
-): Record<Shade, string> {
-  const source = hexToOklch(seed)
-  const light = hexToOklch(lightPrimary)
-  const dark = hexToOklch(darkPrimary)
-  const targets: Record<Shade, number> = {
-    50: 0.97,
-    100: 0.94,
-    200: 0.89,
-    300: Math.min(0.86, dark.l + 0.08),
-    400: dark.l,
-    500: light.l,
-    600: Math.max(0.18, light.l - 0.07),
-    700: Math.max(0.15, light.l - 0.13),
-    800: Math.max(0.13, light.l - 0.19),
-    900: Math.max(0.11, light.l - 0.25),
-    950: Math.max(0.09, light.l - 0.31),
-  }
-  const chromaScale: Record<Shade, number> = {
-    50: 0.2,
-    100: 0.35,
-    200: 0.55,
-    300: 0.75,
-    400: 1,
-    500: 1,
-    600: 0.9,
-    700: 0.75,
-    800: 0.6,
-    900: 0.45,
-    950: 0.35,
-  }
-  const scale = {} as Record<Shade, string>
-  for (const shade of shadeSteps) {
-    scale[shade] = oklchToHex(targets[shade], source.c * chromaScale[shade], source.h)
-  }
-  scale[400] = darkPrimary
-  scale[500] = lightPrimary
-  return scale
 }
 
 interface Oklch {

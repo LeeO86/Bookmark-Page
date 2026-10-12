@@ -197,6 +197,7 @@ async function saveSettings() {
         faviconTlsVerify: settings.value?.faviconTlsVerify,
         faviconRefreshDays: Number(settings.value?.faviconRefreshDays),
         clientChecksAnonymous: settings.value?.clientChecksAnonymous,
+        background: settings.value?.background,
       },
     })
     if (portal.settings.value) {
@@ -325,11 +326,6 @@ function toggleScope(scope: string) {
       <NuxtLink to="/" class="text-accent">Back to the portal</NuxtLink>
     </div>
     <template v-else>
-      <nav aria-label="Admin pages" class="flex flex-wrap gap-2">
-        <NuxtLink to="/admin/backup" class="text-accent">Backup</NuxtLink>
-        <NuxtLink to="/admin/csv" class="text-accent">CSV import</NuxtLink>
-        <NuxtLink to="/admin/audit" class="text-accent">Audit log</NuxtLink>
-      </nav>
       <main class="min-w-0 flex-1 space-y-4">
         <p v-if="message" class="text-success">{{ message }}</p>
         <p v-if="error" class="text-error">{{ error }}</p>
@@ -375,6 +371,17 @@ function toggleScope(scope: string) {
             <USelect
               v-model="settings.defaultColourMode"
               :items="['system', 'light', 'dark']"
+              class="w-48"
+            />
+          </UFormField>
+          <UFormField label="Background">
+            <USelect
+              v-model="settings.background"
+              :items="[
+                { label: 'Gradient', value: 'gradient' },
+                { label: 'Tint', value: 'tint' },
+                { label: 'Plain', value: 'plain' },
+              ]"
               class="w-48"
             />
           </UFormField>

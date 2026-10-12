@@ -116,6 +116,9 @@ export function suggestQuery(
     'is:unknown',
     'is:managed',
     'is:unmanaged',
+    'state:online',
+    'state:offline',
+    'state:unknown',
     'has:link',
     'has:check',
     ...fieldKeys.map((key) => `has:${key}`),
@@ -219,7 +222,7 @@ export function chipKind(text: string): QueryChipKind {
     return 'text'
   }
   const lower = term.toLowerCase()
-  if (lower.startsWith('is:')) {
+  if (lower.startsWith('is:') || lower.startsWith('state:')) {
     return 'is'
   }
   if (lower.startsWith('has:')) {

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
-import type { ColourMode, ViewMode } from '../../shared/theme'
-import { isColourMode, isViewMode } from '../../shared/theme'
+import type { ColourMode, TileSize, ViewMode } from '../../shared/theme'
+import { isColourMode, isTileSize, isViewMode } from '../../shared/theme'
 import { getDatabase, type Db } from '../db/client'
 import { now } from '../db/ids'
 import { userPreferences } from '../db/schema'
@@ -8,6 +8,8 @@ import { userPreferences } from '../db/schema'
 export interface PreferenceRecord {
   colourMode: ColourMode | null
   viewModes: Record<string, ViewMode>
+  facetsOpen: boolean
+  tileSize: TileSize
 }
 
 export function readPreferences(userId: string, db: Db = getDatabase()): PreferenceRecord {
@@ -15,12 +17,19 @@ export function readPreferences(userId: string, db: Db = getDatabase()): Prefere
   return {
     colourMode: row?.colourMode && isColourMode(row.colourMode) ? row.colourMode : null,
     viewModes: cleanViewModes(row?.viewModes),
+    facetsOpen: row?.facetsOpen === true,
+    tileSize: row?.tileSize && isTileSize(row.tileSize) ? row.tileSize : 'regular',
   }
 }
 
 export function writePreferences(
   userId: string,
-  patch: { colourMode?: ColourMode | null; viewModes?: Record<string, ViewMode> },
+  patch: {
+    colourMode?: ColourMode | null
+    viewModes?: Record<string, ViewMode>
+    facetsOpen?: boolean
+    tileSize?: TileSize
+  },
   db: Db = getDatabase(),
 ): PreferenceRecord {
   const current = readPreferences(userId, db)
@@ -29,6 +38,8 @@ export function writePreferences(
     viewModes: patch.viewModes
       ? { ...current.viewModes, ...cleanViewModes(patch.viewModes) }
       : current.viewModes,
+    facetsOpen: patch.facetsOpen === undefined ? current.facetsOpen : patch.facetsOpen,
+    tileSize: patch.tileSize === undefined ? current.tileSize : patch.tileSize,
   }
   const timestamp = now()
   db.insert(userPreferences)
@@ -36,6 +47,8 @@ export function writePreferences(
       userId,
       colourMode: next.colourMode,
       viewModes: next.viewModes,
+      facetsOpen: next.facetsOpen,
+      tileSize: next.tileSize,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -44,6 +57,8 @@ export function writePreferences(
       set: {
         colourMode: next.colourMode,
         viewModes: next.viewModes,
+        facetsOpen: next.facetsOpen,
+        tileSize: next.tileSize,
         updatedAt: timestamp,
       },
     })

@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { accentPresetNames, colourModes, neutralPalettes, viewModes } from './theme'
+import {
+  accentPresetNames,
+  backgroundStyles,
+  colourModes,
+  neutralPalettes,
+  tileSizes,
+  viewModes,
+} from './theme'
 
 export const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
 export const fieldTypes = ['text', 'url', 'number', 'secret'] as const
@@ -208,7 +215,7 @@ export const filterWriteSchema = z.object({
   icon: z.string().max(200).nullable().optional(),
   isPublic: z.boolean().default(false),
   global: z.boolean().default(false),
-  viewMode: z.enum(viewModes).default('list'),
+  viewMode: z.enum(viewModes).default('tiles'),
 })
 
 export const checkReportSchema = z.object({
@@ -269,11 +276,14 @@ export const settingsPatchSchema = z.object({
   accentPreset: z.enum(accentPresetNames).optional(),
   neutralPalette: z.enum(neutralPalettes).optional(),
   defaultColourMode: z.enum(colourModes).optional(),
+  background: z.enum(backgroundStyles).optional(),
 })
 
 export const preferencesPatchSchema = z.object({
   colourMode: z.enum(colourModes).nullable().optional(),
   viewModes: z.record(z.string().min(1).max(80), z.enum(viewModes)).optional(),
+  facetsOpen: z.boolean().optional(),
+  tileSize: z.enum(tileSizes).optional(),
 })
 
 export type ActionPrompt = z.infer<typeof actionPromptSchema>

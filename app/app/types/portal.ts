@@ -12,6 +12,7 @@ export interface PortalSettings {
   accentPreset: 'red' | 'yellow' | 'pink' | 'green' | 'cyan' | 'blue' | 'grey' | 'custom'
   neutralPalette: 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone'
   defaultColourMode: 'system' | 'light' | 'dark'
+  background: 'gradient' | 'tint' | 'plain'
   faviconColour: string
   allTabPublic: boolean
   hasLogo: boolean

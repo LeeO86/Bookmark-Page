@@ -54,7 +54,12 @@ export default defineNitroPlugin((nitroApp) => {
         cookie,
       )
       event.context.bookmarkTheme = {
-        css: themeStylesheet(settings.accentColour, settings.neutralPalette),
+        css: themeStylesheet(
+          settings.accentColour,
+          settings.neutralPalette,
+          settings.accentPreset,
+          settings.background,
+        ),
         mode,
         viewModes,
       }
