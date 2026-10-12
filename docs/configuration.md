@@ -35,4 +35,6 @@ The server reads these variables from the environment. A blank value is treated 
 | `BOOKMARK_MONITORS`           | enabled                                                                  | Set `0` to skip the server check scheduler.                                                              |
 | `LUCIDE_ICONS_DIR`            | the installed `lucide-static` icons directory                            | Override the Lucide SVG directory.                                                                       |
 
+`pnpm seed:demo` writes a local studio catalogue. It uses `DATABASE_PATH` when that variable is set, and otherwise `data/bookmark-demo.db`. Running it again replaces the previous demo entries and tabs.
+
 Favicon TLS verification, the favicon refresh period, the site title, the claim, and whether the All tab is public are admin settings stored in the database, not environment variables. The same settings hold the accent preset, custom accent hex, neutral palette (`slate`, `gray`, `zinc`, `neutral`, `stone`), and the default colour mode (`system`, `light`, or `dark`). A signed-in user can override the colour mode and the view mode of each tab. Anonymous visitors keep those choices in the `bp-color-mode` and `bp-theme` cookies. The browser-tab icon is the accent bookmark glyph, or a PNG/WebP uploaded next to the logo.

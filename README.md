@@ -32,6 +32,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` to create the first break-glass admin. SQLite data for local development is `app/data/bookmark.db` when `DATABASE_PATH` is left as in `.env.example`.
 
+`pnpm seed:demo` fills `data/bookmark-demo.db` with a studio start page (about 40 devices, two public tabs). Set `DATABASE_PATH` first if the demo should land in another file. Without `BOOKMARK_SECRET_KEY` the command uses a local demo key and prints that fact.
+
 The HTTP API is under `/api/v1`. `GET /api/v1/openapi.json` is the OpenAPI document and `/api/v1/docs` lists the routes. Authentication is a session cookie, `Authorization: Bearer`, or trusted proxy headers. See `.env.example`.
 
 The portal is the home page. Icons come from Lucide, an upload, a fetched favicon, or a letter. Server checks and browser checks update the status dot. Actions run on the server from the entry drawer, including templates whose query matches the entry. `GET /metrics` exposes Prometheus text. The query bar, the active tab, and the view (`list`, `cards`, or `tiles`) are stored in the URL. Tag shortcuts add `AND` (click), `OR` (Shift-click), or `NOT` (Alt-click). `/` focuses the query, `Esc` clears it, the arrow keys move the selection, Enter opens the primary link, `e` edits the selection, and Ctrl/Cmd+K opens the command palette. The name is a real link. Saving an entry that reuses a name or host asks for confirmation before the write. Admins open `/admin` for the title, claim, logo, theme presets, users, field definitions, tag namespaces, API tokens, Ansible scopes, backup, CSV import, and the audit log. Logos and the optional browser-tab icon are PNG or WebP, up to 512 KB. `GET /api/v1/events` is the live-update stream.
@@ -52,6 +54,7 @@ The collection `leeo86.bookmarks` is in `ansible_collections/leeo86/bookmarks`. 
 - `docs/auth-keycloak.md`
 - `docs/auth-header-proxy.md`
 - `docs/checks-and-actions.md`
+- `docs/design.md`
 
 Admins download a backup from `/admin/backup` and import CSV from `/admin/csv`. A backup includes secret values only when a passphrase is set. Restore can merge or replace, and it can preview the change first. The audit log is `/admin/audit`. Secret values there are redacted.
 
