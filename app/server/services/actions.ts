@@ -377,6 +377,7 @@ function presentTemplate(row: typeof actionTemplates.$inferSelect) {
     query: row.query,
     method: typeof spec.method === 'string' ? spec.method : 'GET',
     urlTemplate: typeof spec.urlTemplate === 'string' ? spec.urlTemplate : '',
+    requestSpec: row.requestSpec,
     confirm: row.confirm,
     minRole: row.minRole,
     inputs: row.inputs ?? [],

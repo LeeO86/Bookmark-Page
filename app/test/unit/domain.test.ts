@@ -14,12 +14,15 @@ import { parseQuery } from '../../shared/query'
 import {
   createFieldDefinition,
   createFilter,
+  updateFieldDefinition,
   ensureScope,
   listScopes,
   updateScope,
 } from '../../server/services/catalog'
 import {
   createEntry,
+  deleteEntry,
+  deleteManagedEntry,
   getEntry,
   listEntries,
   listEntryHistory,
@@ -337,6 +340,87 @@ describe('crypto, proxy, and rate limit', () => {
       expect(consumeRateLimit('login:test', 10, 1000)).toBe(true)
     }
     expect(consumeRateLimit('login:test', 10, 1000)).toBe(false)
+  })
+})
+
+describe('field definitions and sync idempotence', () => {
+  it('updates a field definition and refuses a new key', async () => {
+    await boot()
+    const created = createFieldDefinition(admin, {
+      key: 'note',
+      label: 'Note',
+      type: 'text',
+      minRoleToView: 'viewer',
+      searchable: true,
+      showAsColumnDefault: false,
+      sort: 0,
+    })
+    const updated = updateFieldDefinition(admin, created.id, {
+      label: 'Notes',
+      showAsColumnDefault: true,
+    })
+    expect(updated).toMatchObject({ key: 'note', label: 'Notes', showAsColumnDefault: true })
+    expect(() => updateFieldDefinition(admin, created.id, { key: 'other' })).toThrow(HttpError)
+    const secret = updateFieldDefinition(admin, created.id, { type: 'secret', searchable: true })
+    expect(secret).toMatchObject({ type: 'secret', searchable: false })
+  })
+
+  it('does not rewrite an unchanged managed entry', async () => {
+    await boot()
+    await createFieldDefinition(admin, {
+      key: 'password',
+      label: 'Password',
+      type: 'secret',
+      minRoleToView: 'viewer',
+      searchable: false,
+      showAsColumnDefault: false,
+      sort: 0,
+    })
+    const payload = {
+      externalKey: 'mixer-1',
+      name: 'Mixer',
+      host: '10.0.0.8',
+      description: 'Lawo',
+      tags: ['type:audio'],
+      fields: [{ key: 'password', value: 'secret-pass' }],
+      checks: [
+        {
+          name: 'Ping',
+          kind: 'icmp' as const,
+          executor: 'server' as const,
+          intervalSeconds: 60,
+          timeoutMs: 5000,
+          tlsVerify: false,
+        },
+      ],
+    }
+    ensureScope('studio', admin)
+    expect(upsertManagedEntry('studio', payload, admin)).toBe('created')
+    const managed = listEntries(admin, 'type:audio').entries[0]
+    expect(() => deleteEntry(admin, managed?.id ?? '')).toThrow(HttpError)
+    deleteManagedEntry('studio', 'mixer-1', admin)
+    expect(listEntries(admin, 'type:audio').entries).toHaveLength(0)
+    expect(upsertManagedEntry('studio', payload, admin)).toBe('created')
+    const created = listEntries(admin, 'type:audio').entries[0]
+    expect(upsertManagedEntry('studio', payload, admin)).toBe('unchanged')
+    const again = listEntries(admin, 'type:audio').entries[0]
+    expect(again?.checks[0]?.id).toBe(created?.checks[0]?.id)
+    expect(again?.updatedAt).toBe(created?.updatedAt)
+    expect(upsertManagedEntry('studio', { ...payload, host: '10.0.0.9' }, admin)).toBe('updated')
+    expect(
+      upsertManagedEntry(
+        'studio',
+        { ...payload, host: '10.0.0.9', fields: [{ key: 'password', value: 'secret-pass' }] },
+        admin,
+      ),
+    ).toBe('unchanged')
+    expect(
+      upsertManagedEntry(
+        'studio',
+        { ...payload, host: '10.0.0.9', fields: [{ key: 'password', value: 'next-secret' }] },
+        admin,
+      ),
+    ).toBe('updated')
   })
 })
 

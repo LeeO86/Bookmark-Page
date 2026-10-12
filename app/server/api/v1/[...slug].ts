@@ -55,6 +55,7 @@ import {
   createToken,
   createUser,
   deleteFieldDefinition,
+  updateFieldDefinition,
   deleteFilter,
   deleteIcon,
   deleteNamespace,
@@ -79,6 +80,7 @@ import {
 import {
   createEntry,
   deleteEntry,
+  deleteManagedEntry,
   getEntry,
   listEntries,
   refreshEntryFavicons,
@@ -315,6 +317,14 @@ export default defineEventHandler(async (event) => {
       return createFieldDefinition(actor, fieldDefinitionSchema.parse(await readBody(event)))
     }
     const fieldId = match(path, /^\/api\/v1\/fields\/([^/]+)$/)
+    if (fieldId && method === 'PATCH') {
+      requireAdmin(actor)
+      return updateFieldDefinition(
+        actor,
+        decodeURIComponent(fieldId),
+        fieldDefinitionSchema.partial().parse(await readBody(event)),
+      )
+    }
     if (fieldId && method === 'DELETE') {
       requireAdmin(actor)
       deleteFieldDefinition(actor, decodeURIComponent(fieldId))
@@ -413,6 +423,15 @@ export default defineEventHandler(async (event) => {
         publishLive({ type: 'entries' })
       }
       return { status, externalKey }
+    }
+    if (upsert && method === 'DELETE') {
+      requireWrite(actor)
+      deleteManagedEntry(
+        decodeURIComponent(upsert[0] ?? ''),
+        decodeURIComponent(upsert[1] ?? ''),
+        actor,
+      )
+      return { ok: true }
     }
     const sync = match(path, /^\/api\/v1\/scopes\/([^/]+)\/sync$/)
     if (sync && method === 'POST') {

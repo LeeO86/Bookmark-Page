@@ -77,7 +77,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
     get: { summary: 'List field definitions' },
     post: { summary: 'Create a field definition' },
   },
-  '/api/v1/fields/{id}': { delete: { summary: 'Delete a field definition' } },
+  '/api/v1/fields/{id}': {
+    patch: { summary: 'Update a field definition' },
+    delete: { summary: 'Delete a field definition' },
+  },
   '/api/v1/icons': {
     get: { summary: 'Search Lucide icons and uploads' },
     post: { summary: 'Upload a sanitised icon' },
@@ -100,6 +103,7 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/scopes/{id}': { patch: { summary: 'Change a scope edit mode' } },
   '/api/v1/scopes/{scope}/entries/{externalKey}': {
     put: { summary: 'Upsert an entry by external key' },
+    delete: { summary: 'Delete one entry owned by an Ansible scope' },
   },
   '/api/v1/scopes/{scope}/sync': { post: { summary: 'Declarative scope sync' } },
   '/api/v1/settings': { get: { summary: 'Read settings' }, patch: { summary: 'Update settings' } },

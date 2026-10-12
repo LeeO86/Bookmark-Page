@@ -368,6 +368,52 @@ export function createFieldDefinition(
   })
 }
 
+export function updateFieldDefinition(
+  actor: Actor,
+  id: string,
+  input: Partial<{
+    key: string
+    label: string
+    type: 'text' | 'url' | 'number' | 'secret'
+    minRoleToView: Role
+    searchable: boolean
+    showAsColumnDefault: boolean
+    sort: number
+  }>,
+) {
+  return transaction((db) => {
+    const current = must(
+      db.select().from(fieldDefinitions).where(eq(fieldDefinitions.id, id)).get(),
+      'Field not found',
+    )
+    if (input.key && input.key !== current.key) {
+      throw badRequest('Field keys cannot be changed')
+    }
+    const type = input.type ?? current.type
+    const timestamp = now()
+    db.update(fieldDefinitions)
+      .set({
+        label: input.label ?? current.label,
+        type,
+        minRoleToView: input.minRoleToView ?? current.minRoleToView,
+        searchable: type === 'secret' ? false : (input.searchable ?? current.searchable),
+        showAsColumnDefault: input.showAsColumnDefault ?? current.showAsColumnDefault,
+        sort: input.sort ?? current.sort,
+        updatedAt: timestamp,
+        updatedBy: actor.userId,
+      })
+      .where(eq(fieldDefinitions.id, id))
+      .run()
+    writeAudit(actor, 'field_definition.update', 'field_definition', id, { key: current.key }, db)
+    return presentField(
+      must(
+        db.select().from(fieldDefinitions).where(eq(fieldDefinitions.id, id)).get(),
+        'Field not found',
+      ),
+    )
+  })
+}
+
 export function deleteFieldDefinition(actor: Actor, id: string): void {
   transaction((db) => {
     const current = must(

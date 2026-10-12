@@ -412,9 +412,28 @@ export function upsertManagedEntry(
     return 'created'
   }
   const before = mustLoad(db, existing.id)
+  if (managedMatches(before, input)) {
+    return 'unchanged'
+  }
   mergeManaged(db, before, input, actor)
-  const after = mustLoad(db, existing.id)
-  return sameEntry(before, after) ? 'unchanged' : 'updated'
+  return 'updated'
+}
+
+export function deleteManagedEntry(scope: string, externalKey: string, actor: Actor): void {
+  const source = `ansible:${scope}`
+  transaction((db) => {
+    const row = db
+      .select()
+      .from(entries)
+      .where(and(eq(entries.source, source), eq(entries.externalKey, externalKey)))
+      .get()
+    if (!row) {
+      throw notFound('Entry not found')
+    }
+    db.delete(entries).where(eq(entries.id, row.id)).run()
+    writeAudit(actor, 'entry.delete', 'entry', row.id, { name: row.name, scope }, db)
+  })
+  publishLive({ type: 'entries' })
 }
 
 export function deleteManagedEntries(
@@ -1315,7 +1334,12 @@ function present(
       value: field.type === 'secret' ? null : field.valueText,
       masked: field.type === 'secret',
     })),
-    checks: entry.checks,
+    checks: entry.checks.map((check) => ({
+      ...check,
+      linkLabel: check.linkId
+        ? (entry.links.find((link) => link.id === check.linkId)?.label ?? null)
+        : null,
+    })),
     status: entryStatus(entry.checks),
     actions: entry.actions
       .filter((action) => roleAtLeast(role, action.minRole))
@@ -1575,8 +1599,155 @@ function managedPaths(input: SyncEntry): string[] {
   return paths
 }
 
-function sameEntry(before: LoadedEntry, after: LoadedEntry): boolean {
-  return JSON.stringify(present(before, 'admin')) === JSON.stringify(present(after, 'admin'))
+function managedMatches(current: LoadedEntry, input: SyncEntry): boolean {
+  if (current.name !== input.name) {
+    return false
+  }
+  if (input.description !== undefined && current.description !== input.description) {
+    return false
+  }
+  if (input.host !== undefined && current.host !== emptyToNull(input.host)) {
+    return false
+  }
+  if (input.iconRef !== undefined && current.iconRef !== emptyToNull(input.iconRef)) {
+    return false
+  }
+  if (input.sort !== undefined && current.sort !== input.sort) {
+    return false
+  }
+  if (input.tags && !tagsMatch(current, input.tags)) {
+    return false
+  }
+  if (input.links && !linksMatch(current, input.links)) {
+    return false
+  }
+  if (input.fields && !fieldsMatch(current, input.fields)) {
+    return false
+  }
+  if (input.checks && !checksMatch(current, input.checks)) {
+    return false
+  }
+  if (input.actions && !actionsMatch(current, input.actions)) {
+    return false
+  }
+  return true
+}
+
+function managedPrefix(current: LoadedEntry, prefix: string): string[] {
+  return current.managedFields
+    .filter((path) => path.startsWith(prefix))
+    .map((path) => path.slice(prefix.length))
+}
+
+function tagsMatch(current: LoadedEntry, tags: string[]): boolean {
+  const desired = new Set(tags.map((tag) => formatTag(...pair(parseTag(tag)))))
+  const present = new Set(current.tags.map((tag) => formatTag(tag.namespaceName, tag.value)))
+  for (const label of managedPrefix(current, 'tags:')) {
+    if (!desired.has(label)) {
+      return false
+    }
+  }
+  for (const label of desired) {
+    if (!present.has(label) || !current.managedFields.includes(`tags:${label}`)) {
+      return false
+    }
+  }
+  return true
+}
+
+function linksMatch(current: LoadedEntry, links: LinkInput[]): boolean {
+  const desired = new Map(links.map((link) => [link.label, link]))
+  for (const label of managedPrefix(current, 'links:')) {
+    if (!desired.has(label)) {
+      return false
+    }
+  }
+  return links.every((link) => {
+    const existing = current.links.find((item) => item.label === link.label)
+    return (
+      existing !== undefined &&
+      current.managedFields.includes(`links:${link.label}`) &&
+      existing.urlTemplate === link.urlTemplate &&
+      existing.type === link.type &&
+      existing.isPrimary === link.isPrimary &&
+      existing.sort === link.sort &&
+      existing.iconRef === (link.iconRef ?? null)
+    )
+  })
+}
+
+function fieldsMatch(current: LoadedEntry, fields: FieldValueInput[]): boolean {
+  const desired = new Map(fields.map((field) => [field.key, field.value]))
+  for (const key of managedPrefix(current, 'fields:')) {
+    if (!desired.has(key)) {
+      return false
+    }
+  }
+  return fields.every((field) => {
+    const existing = current.fields.find((item) => item.key === field.key)
+    return (
+      existing !== undefined &&
+      current.managedFields.includes(`fields:${field.key}`) &&
+      fieldValue(existing) === field.value
+    )
+  })
+}
+
+function checksMatch(current: LoadedEntry, checks: CheckInput[]): boolean {
+  const desired = new Map(checks.map((check) => [check.name, check]))
+  for (const name of managedPrefix(current, 'checks:')) {
+    if (!desired.has(name)) {
+      return false
+    }
+  }
+  return checks.every((check) => checkMatches(current, check))
+}
+
+function checkMatches(current: LoadedEntry, check: CheckInput): boolean {
+  const existing = current.checks.find((item) => item.name === check.name)
+  if (existing === undefined || !current.managedFields.includes(`checks:${check.name}`)) {
+    return false
+  }
+  const linkLabel = existing.linkId
+    ? (current.links.find((link) => link.id === existing.linkId)?.label ?? null)
+    : null
+  const incomingSpec = check.requestSpec ? normalizeRequest(check.requestSpec) : null
+  return (
+    existing.kind === check.kind &&
+    existing.executor === check.executor &&
+    existing.intervalSeconds === check.intervalSeconds &&
+    existing.timeoutMs === check.timeoutMs &&
+    existing.tlsVerify === check.tlsVerify &&
+    existing.host === emptyToNull(check.host) &&
+    existing.port === (check.port ?? null) &&
+    linkLabel === (check.linkLabel ?? null) &&
+    JSON.stringify(existing.requestSpec) === JSON.stringify(incomingSpec)
+  )
+}
+
+function actionsMatch(current: LoadedEntry, values: ActionInput[]): boolean {
+  const desired = new Map(values.map((action) => [action.name, action]))
+  for (const name of managedPrefix(current, 'actions:')) {
+    if (!desired.has(name)) {
+      return false
+    }
+  }
+  return values.every((action) => actionMatches(current, action))
+}
+
+function actionMatches(current: LoadedEntry, action: ActionInput): boolean {
+  const existing = current.actions.find((item) => item.name === action.name)
+  if (existing === undefined || !current.managedFields.includes(`actions:${action.name}`)) {
+    return false
+  }
+  const confirm = action.confirm ?? action.requestSpec.method.toUpperCase() !== 'GET'
+  return (
+    existing.icon === (action.icon ?? null) &&
+    existing.confirm === confirm &&
+    existing.minRole === action.minRole &&
+    JSON.stringify(existing.inputs) === JSON.stringify(action.inputs ?? []) &&
+    JSON.stringify(existing.requestSpec) === JSON.stringify(normalizeRequest(action.requestSpec))
+  )
 }
 
 function parseTag(input: string): { namespaceName: string; value: string } {
