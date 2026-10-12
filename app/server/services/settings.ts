@@ -1,5 +1,15 @@
 import { eq } from 'drizzle-orm'
 import type { EditMode } from '../../shared/contracts'
+import {
+  accentPresets,
+  isAccentPreset,
+  isColourMode,
+  isNeutralPalette,
+  presetSeed,
+  type AccentPreset,
+  type ColourMode,
+  type NeutralPalette,
+} from '../../shared/theme'
 import { getDatabase, type Db } from '../db/client'
 import { now } from '../db/ids'
 import { settings } from '../db/schema'
@@ -9,6 +19,9 @@ const defaults = {
   site_title: 'Bookmark-Page',
   site_claim: '',
   accent_colour: '#0f766e',
+  accent_preset: 'custom' as AccentPreset,
+  neutral_palette: 'slate' as NeutralPalette,
+  default_colour_mode: 'system' as ColourMode,
   favicon_colour: '#0f766e',
   all_tab_public: false,
   audit_retention_days: 365,
@@ -55,10 +68,14 @@ export function publicSettings(db: Db = getDatabase()) {
   return {
     siteTitle: values.site_title,
     siteClaim: values.site_claim,
-    accentColour: values.accent_colour,
+    accentColour: presetSeed(storedPreset(values.accent_preset), String(values.accent_colour)),
+    accentPreset: storedPreset(values.accent_preset),
+    neutralPalette: storedNeutral(values.neutral_palette),
+    defaultColourMode: storedColourMode(values.default_colour_mode),
     faviconColour: values.favicon_colour,
     allTabPublic: values.all_tab_public,
-    hasLogo: logoRecord(db) !== null,
+    hasLogo: imageRecord(db, 'logo') !== null,
+    hasTabFavicon: imageRecord(db, 'tab_favicon') !== null,
     clientChecksAnonymous: values.client_checks_anonymous === true,
   }
 }
@@ -71,24 +88,43 @@ export function saveLogo(
   actorId: string | null,
   db: Db = getDatabase(),
 ): void {
+  saveImage('logo', contentType, dataBase64, actorId, db)
+}
+
+export function clearLogo(db: Db = getDatabase()): void {
+  db.delete(settings).where(eq(settings.key, 'logo')).run()
+}
+
+export function readLogo(db: Db = getDatabase()): { contentType: string; bytes: Buffer } | null {
+  return readImage('logo', db)
+}
+
+function saveImage(
+  key: 'logo' | 'tab_favicon',
+  contentType: string,
+  dataBase64: string,
+  actorId: string | null,
+  db: Db,
+): void {
+  const label = key === 'logo' ? 'Logo' : 'Tab favicon'
   if (contentType !== 'image/png' && contentType !== 'image/webp') {
-    throw badRequest('Logo must be a PNG or WebP image')
+    throw badRequest(`${label} must be a PNG or WebP image`)
   }
   const normalized = dataBase64.replace(/\s/g, '')
   const bytes = Buffer.from(normalized, 'base64')
   if (bytes.length === 0 || bytes.length > logoLimit || bytes.toString('base64') !== normalized) {
-    throw badRequest('Logo must be standard Base64 up to 512 KB')
+    throw badRequest(`${label} must be standard Base64 up to 512 KB`)
   }
   if (contentType === 'image/png' && !isPng(bytes)) {
-    throw badRequest('Logo content is not a PNG image')
+    throw badRequest(`${label} content is not a PNG image`)
   }
   if (contentType === 'image/webp' && !isWebp(bytes)) {
-    throw badRequest('Logo content is not a WebP image')
+    throw badRequest(`${label} content is not a WebP image`)
   }
   const timestamp = now()
   db.insert(settings)
     .values({
-      key: 'logo',
+      key,
       value: { contentType, data: normalized },
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -101,20 +137,19 @@ export function saveLogo(
     .run()
 }
 
-export function clearLogo(db: Db = getDatabase()): void {
-  db.delete(settings).where(eq(settings.key, 'logo')).run()
-}
-
-export function readLogo(db: Db = getDatabase()): { contentType: string; bytes: Buffer } | null {
-  const record = logoRecord(db)
+function readImage(
+  key: 'logo' | 'tab_favicon',
+  db: Db,
+): { contentType: string; bytes: Buffer } | null {
+  const record = imageRecord(db, key)
   if (!record) {
     return null
   }
   return { contentType: record.contentType, bytes: Buffer.from(record.data, 'base64') }
 }
 
-function logoRecord(db: Db): { contentType: string; data: string } | null {
-  const row = db.select().from(settings).where(eq(settings.key, 'logo')).get()
+function imageRecord(db: Db, key: string): { contentType: string; data: string } | null {
+  const row = db.select().from(settings).where(eq(settings.key, key)).get()
   const value = row?.value
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
@@ -166,6 +201,9 @@ export function writeSettings(
     siteClaim: string
     accentColour: string
     faviconColour: string
+    accentPreset: AccentPreset
+    neutralPalette: NeutralPalette
+    defaultColourMode: ColourMode
     allTabPublic: boolean
     auditRetentionDays: number
     defaultScopeEditMode: EditMode
@@ -180,6 +218,9 @@ export function writeSettings(
     siteTitle: 'site_title',
     siteClaim: 'site_claim',
     accentColour: 'accent_colour',
+    accentPreset: 'accent_preset',
+    neutralPalette: 'neutral_palette',
+    defaultColourMode: 'default_colour_mode',
     faviconColour: 'favicon_colour',
     allTabPublic: 'all_tab_public',
     auditRetentionDays: 'audit_retention_days',
@@ -187,6 +228,9 @@ export function writeSettings(
     faviconTlsVerify: 'favicon_tls_verify',
     faviconRefreshDays: 'favicon_refresh_days',
     clientChecksAnonymous: 'client_checks_anonymous',
+  }
+  if (patch.accentPreset && patch.accentPreset !== 'custom') {
+    patch = { ...patch, accentColour: accentPresets[patch.accentPreset].seed }
   }
   const timestamp = now()
   for (const [field, key] of Object.entries(mapping)) {
@@ -238,4 +282,35 @@ export function faviconRefreshDays(db: Db = getDatabase()): number {
 
 export function clientChecksAnonymous(db: Db = getDatabase()): boolean {
   return readSettingsMap(db).client_checks_anonymous === true
+}
+
+export function saveTabFavicon(
+  contentType: string,
+  dataBase64: string,
+  actorId: string | null,
+  db: Db = getDatabase(),
+): void {
+  saveImage('tab_favicon', contentType, dataBase64, actorId, db)
+}
+
+export function clearTabFavicon(db: Db = getDatabase()): void {
+  db.delete(settings).where(eq(settings.key, 'tab_favicon')).run()
+}
+
+export function readTabFavicon(
+  db: Db = getDatabase(),
+): { contentType: string; bytes: Buffer } | null {
+  return readImage('tab_favicon', db)
+}
+
+function storedPreset(value: unknown): AccentPreset {
+  return typeof value === 'string' && isAccentPreset(value) ? value : 'custom'
+}
+
+function storedNeutral(value: unknown): NeutralPalette {
+  return typeof value === 'string' && isNeutralPalette(value) ? value : 'slate'
+}
+
+function storedColourMode(value: unknown): ColourMode {
+  return typeof value === 'string' && isColourMode(value) ? value : 'system'
 }

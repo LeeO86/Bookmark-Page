@@ -212,6 +212,7 @@ export function createFilter(
     icon?: string | null
     isPublic: boolean
     global: boolean
+    viewMode?: 'list' | 'cards' | 'tiles'
   },
 ) {
   assertQuery(input.query)
@@ -233,6 +234,7 @@ export function createFilter(
         sort: input.sort,
         icon: input.icon ?? null,
         isPublic: global && input.isPublic,
+        viewMode: input.viewMode ?? 'list',
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: actor.userId,
@@ -257,6 +259,7 @@ export function updateFilter(
     sort: number
     icon: string | null
     isPublic: boolean
+    viewMode: 'list' | 'cards' | 'tiles'
   }>,
 ) {
   if (input.query !== undefined) {
@@ -286,6 +289,7 @@ export function updateFilter(
         sort: input.sort ?? current.sort,
         icon: input.icon === undefined ? current.icon : input.icon,
         isPublic: input.isPublic ?? current.isPublic,
+        viewMode: input.viewMode ?? current.viewMode,
         updatedAt: timestamp,
         updatedBy: actor.userId,
       })
@@ -772,6 +776,7 @@ function presentFilter(row: typeof filters.$inferSelect) {
     sort: row.sort,
     icon: row.icon,
     isPublic: row.isPublic,
+    viewMode: row.viewMode,
   }
 }
 

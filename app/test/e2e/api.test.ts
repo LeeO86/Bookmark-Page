@@ -36,6 +36,27 @@ describe('HTTP API', async () => {
     const docs = await fetch('/api/v1/docs')
     expect(await docs.text()).toContain('Bookmark-Page API')
 
+    const home = await fetch('/')
+    const policy = home.headers.get('content-security-policy') ?? ''
+    expect(policy).toContain("default-src 'self'")
+    expect(policy).toContain("style-src 'self' 'unsafe-inline'")
+    expect(policy).toContain('sha256-')
+    expect(policy).not.toContain('unsafe-eval')
+    expect(home.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(home.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(home.headers.get('x-frame-options')).toBe('DENY')
+    expect(home.headers.get('permissions-policy')).toContain('camera=()')
+
+    const favicon = await fetch('/api/v1/favicon')
+    expect(favicon.status).toBe(200)
+    expect(favicon.headers.get('content-type')).toContain('image/svg+xml')
+    expect(await favicon.text()).toContain('<svg')
+
+    const icon = await fetch('/api/icons/lucide/bookmark')
+    const iconPolicy = icon.headers.get('content-security-policy') ?? ''
+    expect(iconPolicy).toContain("default-src 'none'")
+    expect(iconPolicy).not.toContain("default-src 'self'")
+
     const rejected = await fetch('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

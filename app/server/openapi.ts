@@ -55,6 +55,11 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/action-templates/{id}': { delete: { summary: 'Delete an action template' } },
   '/api/v1/events': { get: { summary: 'Subscribe to entry and status changes' } },
   '/api/v1/logo': { get: { summary: 'Read the site logo' } },
+  '/api/v1/favicon': { get: { summary: 'Read the browser-tab icon' } },
+  '/api/v1/preferences': {
+    get: { summary: 'Read the signed-in user theme preferences' },
+    patch: { summary: 'Save colour mode and per-tab view modes' },
+  },
   '/api/v1/namespaces': {
     get: { summary: 'List tag namespaces' },
     post: { summary: 'Create a tag namespace' },
@@ -110,6 +115,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/settings/logo': {
     post: { summary: 'Upload a PNG or WebP logo' },
     delete: { summary: 'Remove the logo' },
+  },
+  '/api/v1/settings/favicon': {
+    post: { summary: 'Upload a PNG or WebP browser-tab icon' },
+    delete: { summary: 'Remove the browser-tab icon' },
   },
   '/api/v1/audit': { get: { summary: 'Read the audit log' } },
   '/api/v1/backup': { post: { summary: 'Download a backup archive' } },

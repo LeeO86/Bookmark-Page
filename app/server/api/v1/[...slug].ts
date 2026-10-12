@@ -23,6 +23,7 @@ import {
   logoWriteSchema,
   namespaceWriteSchema,
   scopeWriteSchema,
+  preferencesPatchSchema,
   settingsPatchSchema,
   syncBodySchema,
   syncEntrySchema,
@@ -109,7 +110,17 @@ import {
   listRunnableActions,
 } from '../../services/actions'
 import { publishLive, subscribeLive } from '../../services/live'
-import { clearLogo, readLogo, saveLogo } from '../../services/settings'
+import { readPreferences, writePreferences } from '../../services/preferences'
+import {
+  clearLogo,
+  clearTabFavicon,
+  publicSettings,
+  readLogo,
+  readTabFavicon,
+  saveLogo,
+  saveTabFavicon,
+} from '../../services/settings'
+import { bookmarkGlyph } from '../../../shared/theme'
 import { writeAudit } from '../../services/audit'
 import { syncScope } from '../../services/sync'
 
@@ -122,6 +133,9 @@ export default defineEventHandler(async (event) => {
   }
   if (method === 'GET' && path === '/api/v1/logo') {
     return logoResponse(event)
+  }
+  if (method === 'GET' && path === '/api/v1/favicon') {
+    return faviconResponse()
   }
   return run(event, async (actor) => {
     if (method === 'GET' && path === '/api/v1/openapi.json') {
@@ -514,6 +528,17 @@ export default defineEventHandler(async (event) => {
       return importCsv(actor, body.csv, body.mapping, body.dryRun, body.confirmDuplicates)
     }
 
+    if (method === 'GET' && path === '/api/v1/preferences') {
+      return actor.userId ? readPreferences(actor.userId) : { colourMode: null, viewModes: {} }
+    }
+    if (method === 'PATCH' && path === '/api/v1/preferences') {
+      requireRole(actor, 'viewer')
+      if (!actor.userId) {
+        setResponseStatus(event, 403)
+        return { error: { code: 'forbidden', message: 'Sign in to save preferences' } }
+      }
+      return writePreferences(actor.userId, preferencesPatchSchema.parse(await readBody(event)))
+    }
     if (method === 'GET' && path === '/api/v1/settings') {
       return readSettings(actor)
     }
@@ -532,6 +557,19 @@ export default defineEventHandler(async (event) => {
       requireAdmin(actor)
       clearLogo()
       writeAudit(actor, 'settings.update', 'settings', null, { logo: null })
+      return readSettings(actor)
+    }
+    if (method === 'POST' && path === '/api/v1/settings/favicon') {
+      requireAdmin(actor)
+      const body = logoWriteSchema.parse(await readBody(event))
+      saveTabFavicon(body.contentType, body.data, actor.userId)
+      writeAudit(actor, 'settings.update', 'settings', null, { tabFavicon: body.contentType })
+      return readSettings(actor)
+    }
+    if (method === 'DELETE' && path === '/api/v1/settings/favicon') {
+      requireAdmin(actor)
+      clearTabFavicon()
+      writeAudit(actor, 'settings.update', 'settings', null, { tabFavicon: null })
       return readSettings(actor)
     }
     if (method === 'GET' && path === '/api/v1/audit') {
@@ -600,6 +638,25 @@ async function liveResponse(event: Parameters<typeof resolveActor>[0]) {
     headers: {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
+    },
+  })
+}
+
+function faviconResponse() {
+  const uploaded = readTabFavicon()
+  if (uploaded) {
+    return new Response(new Uint8Array(uploaded.bytes), {
+      headers: {
+        'content-type': uploaded.contentType,
+        'cache-control': 'no-cache',
+      },
+    })
+  }
+  const accent = publicSettings().accentColour
+  return new Response(bookmarkGlyph(accent), {
+    headers: {
+      'content-type': 'image/svg+xml; charset=utf-8',
+      'cache-control': 'no-cache',
     },
   })
 }

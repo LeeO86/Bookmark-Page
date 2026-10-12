@@ -184,10 +184,26 @@ export const filters = sqliteTable('filters', {
   sort: integer('sort').notNull().default(0),
   icon: text('icon'),
   isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+  viewMode: text('view_mode', { enum: ['list', 'cards', 'tiles'] })
+    .notNull()
+    .default('list'),
   createdAt,
   updatedAt,
   createdBy: text('created_by'),
   updatedBy: text('updated_by'),
+})
+
+export const userPreferences = sqliteTable('user_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  colourMode: text('colour_mode', { enum: ['system', 'light', 'dark'] }),
+  viewModes: text('view_modes', { mode: 'json' })
+    .$type<Record<string, 'list' | 'cards' | 'tiles'>>()
+    .notNull()
+    .default({}),
+  createdAt,
+  updatedAt,
 })
 
 export const icons = sqliteTable('icons', {

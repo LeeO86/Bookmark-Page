@@ -29,6 +29,13 @@
       "when": 1791784815589,
       "tag": "0003_action_inputs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791808713442,
+      "tag": "0004_view_preferences",
+      "breakpoints": true
     }
   ]
 }

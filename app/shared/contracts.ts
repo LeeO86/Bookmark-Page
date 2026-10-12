@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { accentPresetNames, colourModes, neutralPalettes, viewModes } from './theme'
 
 export const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
 export const fieldTypes = ['text', 'url', 'number', 'secret'] as const
@@ -207,6 +208,7 @@ export const filterWriteSchema = z.object({
   icon: z.string().max(200).nullable().optional(),
   isPublic: z.boolean().default(false),
   global: z.boolean().default(false),
+  viewMode: z.enum(viewModes).default('list'),
 })
 
 export const checkReportSchema = z.object({
@@ -264,6 +266,14 @@ export const settingsPatchSchema = z.object({
   faviconTlsVerify: z.boolean().optional(),
   faviconRefreshDays: z.number().int().min(1).max(365).optional(),
   clientChecksAnonymous: z.boolean().optional(),
+  accentPreset: z.enum(accentPresetNames).optional(),
+  neutralPalette: z.enum(neutralPalettes).optional(),
+  defaultColourMode: z.enum(colourModes).optional(),
+})
+
+export const preferencesPatchSchema = z.object({
+  colourMode: z.enum(colourModes).nullable().optional(),
+  viewModes: z.record(z.string().min(1).max(80), z.enum(viewModes)).optional(),
 })
 
 export type ActionPrompt = z.infer<typeof actionPromptSchema>

@@ -152,6 +152,7 @@ export const backupDocumentSchema = z.object({
       sort: z.number(),
       icon: z.string().nullable(),
       isPublic: z.boolean(),
+      viewMode: z.enum(['list', 'cards', 'tiles']).default('list'),
       createdAt: stamp,
       updatedAt: stamp,
       createdBy: z.string().nullable(),
