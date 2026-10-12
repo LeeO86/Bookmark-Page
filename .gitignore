@@ -29,6 +29,10 @@ data/
 
 # ansible-test output
 ansible_collections/leeo86/bookmarks/tests/output/
+
+# Python bytecode
+__pycache__/
+*.pyc
 *.db-journal
 *.db-wal
 *.db-shm
