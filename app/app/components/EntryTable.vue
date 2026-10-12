@@ -48,6 +48,19 @@ function statusClass(status: PortalEntry['status']): string {
   return 'bg-slate-300'
 }
 
+function statusLabel(status: PortalEntry['status']): string {
+  if (status === 'up') {
+    return 'Online'
+  }
+  if (status === 'down') {
+    return 'Offline'
+  }
+  if (status === 'unknown') {
+    return 'Status unknown'
+  }
+  return 'No checks'
+}
+
 function statusTitle(entry: PortalEntry): string {
   if (entry.checks.length === 0) {
     return 'No checks'
@@ -102,6 +115,7 @@ function expandAll() {
         v-if="!portal.sidebarOpen.value"
         type="button"
         class="rounded px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800"
+        :aria-expanded="portal.sidebarOpen.value"
         @click="portal.sidebarOpen.value = true"
       >
         Tags
@@ -145,6 +159,9 @@ function expandAll() {
     </div>
     <div ref="scroller" class="min-h-0 flex-1 overflow-auto" @scroll="onScroll">
       <table class="w-full border-collapse text-left text-sm">
+        <caption class="sr-only">
+          Devices
+        </caption>
         <thead class="sticky top-0 z-10 bg-white text-xs text-slate-500 dark:bg-slate-950">
           <tr>
             <th class="w-8 px-2 py-1" />
@@ -181,7 +198,12 @@ function expandAll() {
           >
             <tr v-if="portal.groupBy.value" class="bg-slate-50 dark:bg-slate-900">
               <td :colspan="6 + portal.columns.value.length" class="px-2 py-1">
-                <button type="button" class="font-medium" @click="toggleGroup(group.key)">
+                <button
+                  type="button"
+                  class="font-medium"
+                  :aria-expanded="!portal.collapsed.value.includes(group.key)"
+                  @click="toggleGroup(group.key)"
+                >
                   {{ portal.collapsed.value.includes(group.key) ? '▸' : '▾' }}
                   {{ group.label }}
                   <span class="text-xs text-slate-500">({{ group.entries.length }})</span>
@@ -232,11 +254,14 @@ function expandAll() {
                   </span>
                 </td>
                 <td class="px-2 py-1">
-                  <span
-                    class="inline-block size-2.5 rounded-full"
-                    :class="statusClass(entry.status)"
-                    :title="statusTitle(entry)"
-                  />
+                  <span class="inline-flex" :title="statusTitle(entry)">
+                    <span
+                      class="inline-block size-2.5 rounded-full"
+                      :class="statusClass(entry.status)"
+                      aria-hidden="true"
+                    />
+                    <span class="sr-only">{{ statusLabel(entry.status) }}</span>
+                  </span>
                 </td>
                 <td class="max-w-xs truncate px-2 py-1 text-slate-600 dark:text-slate-300">
                   {{ entry.description }}

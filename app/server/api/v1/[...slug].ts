@@ -31,6 +31,15 @@ import {
   userPatchSchema,
   userWriteSchema,
 } from '../../../shared/contracts'
+import {
+  backupRequestSchema,
+  csvImportSchema,
+  csvPreviewSchema,
+  restoreRequestSchema,
+} from '../../../shared/backup'
+import { importCsv, previewCsv } from '../../backup/csv'
+import { createBackup } from '../../backup/export'
+import { restoreBackup } from '../../backup/restore'
 import { authenticateLocal } from '../../auth/login'
 import { completeOidcLogin, authorizationRedirect, newOidcTransaction } from '../../auth/oidc'
 import { authOptions, authStatus } from '../../auth/status'
@@ -473,6 +482,36 @@ export default defineEventHandler(async (event) => {
       requireAdmin(actor)
       deleteActionTemplate(actor, decodeURIComponent(templateId))
       return { ok: true }
+    }
+
+    if (method === 'POST' && path === '/api/v1/backup') {
+      requireAdmin(actor)
+      const body = backupRequestSchema.parse(await readBody(event))
+      const archive = createBackup(actor, body.includeSecrets, body.passphrase)
+      return {
+        filename: 'bookmark-backup.zip',
+        archive: Buffer.from(archive).toString('base64'),
+      }
+    }
+    if (method === 'POST' && path === '/api/v1/restore') {
+      requireAdmin(actor)
+      const body = restoreRequestSchema.parse(await readBody(event))
+      return restoreBackup(
+        actor,
+        Buffer.from(body.archive, 'base64'),
+        body.mode,
+        body.dryRun,
+        body.passphrase,
+      )
+    }
+    if (method === 'POST' && path === '/api/v1/import/csv/preview') {
+      requireAdmin(actor)
+      return previewCsv(csvPreviewSchema.parse(await readBody(event)).csv)
+    }
+    if (method === 'POST' && path === '/api/v1/import/csv') {
+      requireAdmin(actor)
+      const body = csvImportSchema.parse(await readBody(event))
+      return importCsv(actor, body.csv, body.mapping, body.dryRun, body.confirmDuplicates)
     }
 
     if (method === 'GET' && path === '/api/v1/settings') {

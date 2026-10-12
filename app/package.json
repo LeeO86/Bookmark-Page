@@ -15,6 +15,7 @@
     "format": "eslint . --fix && prettier --write --config ../.prettierrc.json --ignore-path ../.prettierignore ..",
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
+    "test:smoke": "playwright test",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@xmldom/xmldom": "0.9.12",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.4",
+    "fflate": "0.8.3",
     "lucide-static": "1.55.0",
     "nuxt": "4.6.1",
     "openid-client": "6.8.8",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@nuxt/eslint": "1.17.0",
     "@nuxt/test-utils": "4.3.3",
+    "@playwright/test": "1.63.0",
     "@types/better-sqlite3": "9.6.0",
     "@types/node": "^24.19.2",
     "@vue/test-utils": "2.5.1",

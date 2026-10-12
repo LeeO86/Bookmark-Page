@@ -97,8 +97,9 @@ function canEdit(filter: PortalFilter): boolean {
 </script>
 
 <template>
-  <div
+  <nav
     class="flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-2 py-1 dark:border-slate-700"
+    aria-label="Filters"
   >
     <button
       v-if="portal.allVisible.value"
@@ -240,5 +241,5 @@ function canEdit(filter: PortalFilter): boolean {
         </form>
       </template>
     </UModal>
-  </div>
+  </nav>
 </template>

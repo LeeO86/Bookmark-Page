@@ -12,6 +12,7 @@
     "lint": "pnpm --dir app lint",
     "typecheck": "pnpm --dir app typecheck",
     "test": "pnpm --dir app test",
+    "test:smoke": "pnpm --dir app test:smoke",
     "format": "pnpm --dir app format"
   }
 }

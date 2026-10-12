@@ -93,6 +93,12 @@ const accent = computed(() => portal.settings.value?.accentColour ?? '#0f766e')
 
 <template>
   <div class="flex h-dvh flex-col" :style="{ '--portal-accent': accent }">
+    <a
+      href="#entries"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:px-2 focus:py-1"
+    >
+      Skip to devices
+    </a>
     <header
       class="flex items-center gap-3 border-b-2 px-3 py-2"
       :style="{ borderColor: 'var(--portal-accent)' }"
@@ -149,7 +155,9 @@ const accent = computed(() => portal.settings.value?.accentColour ?? '#0f766e')
     <TabBar />
     <div class="flex min-h-0 flex-1">
       <TagSidebar />
-      <EntryTable @open="openEntry" />
+      <main id="entries" class="flex min-w-0 flex-1 flex-col">
+        <EntryTable @open="openEntry" />
+      </main>
     </div>
     <EntryDrawer
       :open="drawerOpen"

@@ -112,6 +112,10 @@ const paths: Record<string, Record<string, { summary: string }>> = {
     delete: { summary: 'Remove the logo' },
   },
   '/api/v1/audit': { get: { summary: 'Read the audit log' } },
+  '/api/v1/backup': { post: { summary: 'Download a backup archive' } },
+  '/api/v1/restore': { post: { summary: 'Restore a backup archive' } },
+  '/api/v1/import/csv/preview': { post: { summary: 'Preview a CSV header' } },
+  '/api/v1/import/csv': { post: { summary: 'Import entries from CSV' } },
   '/api/v1/openapi.json': { get: { summary: 'OpenAPI document' } },
 }
 

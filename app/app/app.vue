@@ -23,3 +23,10 @@ useHead(() => {
     <NuxtPage />
   </UApp>
 </template>
+
+<style>
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+</style>

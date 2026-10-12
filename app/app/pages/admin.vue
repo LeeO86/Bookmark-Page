@@ -70,6 +70,8 @@ const sections = [
   ['scopes', 'Ansible scopes'],
   ['icons', 'Icons'],
   ['actions', 'Action templates'],
+  ['backup', 'Backup'],
+  ['csv', 'CSV import'],
 ] as const
 
 const userForm = reactive({
@@ -267,13 +269,14 @@ function toggleScope(scope: string) {
       <NuxtLink to="/" class="underline">Back to the portal</NuxtLink>
     </div>
     <template v-else>
-      <nav class="w-44 shrink-0 space-y-1 text-sm">
+      <nav class="w-44 shrink-0 space-y-1 text-sm" aria-label="Admin sections">
         <NuxtLink to="/" class="block pb-2 underline">Portal</NuxtLink>
         <button
           v-for="item in sections"
           :key="item[0]"
           type="button"
           class="block w-full rounded px-2 py-1 text-left"
+          :aria-current="section === item[0] ? 'page' : undefined"
           :class="
             section === item[0]
               ? 'bg-teal-700 text-white'
@@ -777,6 +780,9 @@ function toggleScope(scope: string) {
             </select>
           </div>
         </section>
+
+        <BackupPanel v-else-if="section === 'backup'" />
+        <CsvImport v-else-if="section === 'csv'" :fields="fields" />
       </main>
     </template>
   </div>

@@ -64,6 +64,7 @@ async function addTag(event: MouseEvent, label: string) {
       <button
         type="button"
         class="flex w-full items-center gap-2 text-left font-medium"
+        :aria-expanded="!collapsed.includes(section.id)"
         @click="toggle(section.id)"
       >
         <span class="inline-block size-2 rounded-full" :style="{ background: section.colour }" />
