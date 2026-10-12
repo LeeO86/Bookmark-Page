@@ -19,6 +19,12 @@ body {
   line-height: 1.15;
 }
 
+@media (max-width: 767px) {
+  .page-title {
+    font-size: 1.75rem;
+  }
+}
+
 .tile-name {
   font-size: 0.875rem;
   font-weight: 550;

@@ -216,7 +216,7 @@ function onKeydown(event: KeyboardEvent) {
           class="size-14 object-contain"
         />
         <div class="min-w-0">
-          <h1 class="page-title truncate text-highlighted">
+          <h1 class="page-title text-highlighted">
             {{ portal.settings.value?.siteTitle || 'Bookmark-Page' }}
           </h1>
           <p v-if="portal.settings.value?.siteClaim" class="mt-1 truncate text-base text-muted">
@@ -266,7 +266,7 @@ function onKeydown(event: KeyboardEvent) {
           :data-testid="`view-${mode}`"
           @click="portal.setView(mode)"
         >
-          {{ mode }}
+          {{ mode === 'tiles' ? 'Tiles' : mode === 'cards' ? 'Cards' : 'List' }}
         </UButton>
         <UButton
           v-if="portal.viewMode.value === 'tiles'"

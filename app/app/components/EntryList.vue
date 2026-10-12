@@ -55,7 +55,7 @@ function mark(key: string): string {
         <tr
           v-for="entry in entries"
           :key="entry.id"
-          class="group border-t border-default"
+          class="group border-t border-default whitespace-nowrap"
           :class="[
             portal.density.value === 'compact' ? 'h-8' : 'h-9',
             portal.selectedId.value === entry.id ? 'bg-primary/10' : '',
@@ -91,9 +91,9 @@ function mark(key: string): string {
               />
               <span class="min-w-0 truncate">
                 <span class="font-medium text-highlighted">{{ entry.name }}</span>
-                <span v-if="entry.host" class="font-mono text-xs text-muted">
-                  {{ entry.host }}</span
-                >
+                <span v-if="entry.host" class="ml-2 font-mono text-xs text-muted">{{
+                  entry.host
+                }}</span>
               </span>
             </a>
             <span v-else class="flex items-center gap-2">
@@ -117,7 +117,9 @@ function mark(key: string): string {
             />
             <span v-else>{{ fieldOf(entry, field.key)?.value }}</span>
           </td>
-          <td class="px-2"><EntryTags :tags="entry.tags" /></td>
+          <td class="max-w-48 overflow-hidden px-2 whitespace-nowrap">
+            <EntryTags :tags="entry.tags" nowrap />
+          </td>
           <td class="px-2">
             <EntryMenu
               class="focus-within:opacity-100"

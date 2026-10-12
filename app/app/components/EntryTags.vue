@@ -2,7 +2,7 @@
 import { contrastingForeground, plainTagColour } from '#shared/theme'
 import type { PortalEntry } from '../types/portal'
 
-defineProps<{ tags: PortalEntry['tags'] }>()
+defineProps<{ tags: PortalEntry['tags']; nowrap?: boolean }>()
 const portal = usePortal()
 
 function colour(namespace: string | null): string | undefined {
@@ -14,7 +14,7 @@ function colour(namespace: string | null): string | undefined {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-1">
+  <div class="flex gap-1" :class="nowrap ? 'flex-nowrap overflow-hidden' : 'flex-wrap'">
     <UBadge
       v-for="tag in tags"
       :key="tag.label"

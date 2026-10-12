@@ -54,4 +54,4 @@ Filters accept `viewMode` of `list`, `cards`, or `tiles`. A new filter defaults 
 
 The query language accepts `state:online`, `state:offline`, and `state:unknown` beside `is:up`, `is:down`, and `is:unknown`. `state:` matches entries that have a check. It is not a tag.
 
-Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images, scripts, and connections from this origin only. Styles allow `'unsafe-inline'` because the component library injects them.
+Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images and connections from this origin, plus `data:` images for the component icon set. Scripts stay on this origin. Styles allow `'unsafe-inline'` because the component library injects them.
