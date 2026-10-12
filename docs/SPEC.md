@@ -102,7 +102,8 @@ Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or
 ### 4.4 Filters (tabs)
 `name`, `query` (§5), `owner_user_id` (`null` = global, set by admin), `columns`
 (which custom fields to show and in which order), `group_by` (optional tag namespace),
-`sort`, `icon`, `public` (global filters only: visible to anonymous users).
+`sort`, `icon`, `view_mode` (`list` | `cards` | `tiles`, default `list`), `public`
+(global filters only: visible to anonymous users).
 
 - Global filters appear first as tabs for everybody who may see them, personal filters
   after them for their owner.
@@ -326,28 +327,54 @@ Tests: `ansible-test sanity` and integration tests against the app container in 
 ## 11. UI
 
 Desktop-first, responsive, compact density (labs have hundreds of entries), English only.
+The shell is a Nuxt UI dashboard: collapsible sidebar, navbar, and a main panel.
 
-- **Header:** logo (uploadable), site title, claim, query bar, user menu/login.
+- **Theme:** one accent and one neutral palette, stored in settings and applied on the
+  server so the first paint matches. Presets restore the V1 swatches (Red, Yellow, Pink,
+  Green, Cyan, Blue, Grey) plus a custom hex. Each preset works in light and dark. The
+  admin sets the default colour mode (`system`, `light`, or `dark`); a signed-in user can
+  override it, and an anonymous visitor keeps the choice in a cookie. Text on the accent
+  meets WCAG AA. Tag text uses black or white against the namespace colour. Status marks
+  use dedicated colours that stay visible in both modes.
+- **Browser tab:** a bookmark glyph in the accent colour, or an uploaded PNG/WebP, served
+  from `/api/v1/favicon` on this origin.
+- **Header:** logo (uploadable), site title, claim, query bar, colour mode, command
+  palette, user menu/login.
 - **Tabs row:** global tabs, then personal tabs, plus "save current query as tab".
-- **Sidebar:** tag namespaces with their values and counts (facets), collapsible.
-- **Main table:** sticky header; columns icon, name, link buttons, status dot,
-  description, configurable custom field columns, tags. Optional grouping by a namespace
-  with collapse/expand per group and for all. Column sorting and manual sort order.
-- **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection,
-  `Enter` opens the primary link.
+- **Sidebar:** tag namespaces with their values and counts (facets), collapsible and
+  resizable.
+- **Views:** list, cards, and tiles. The list is a sticky, virtualised table. Cards show
+  the icon, name, host, status, tags, link buttons, and the tab's selected fields, in a
+  comfortable or compact density. Tiles are a launcher: large icon, name, and status.
+  Below 768px the list is shown as cards. Grouping by a namespace, with collapse and
+  expand, works in every view. The tab stores a default `view_mode`. A user can override
+  it per tab. A `view` query parameter wins, so a shared link keeps its layout.
+- **List columns:** icon, name, link buttons, status, description, the selected custom
+  fields (including secrets the caller may see), and tags. Secret values stay masked in
+  the payload. Reveal and copy call the audited reveal endpoint. Column sorting and
+  manual sort order.
+- **Opening an entry:** the name, icon, and description are real anchors to the primary
+  link (`target="_blank"`, `rel="noopener noreferrer"`). Only the name is in the tab
+  order. Editing is an explicit button, a row menu, or the `e` key. Enter still opens
+  the primary link. Each link is its own icon button with the label as the tooltip; the
+  primary link is visually distinct. `ssh`, `vnc`, `rdp`, `telnet`, and `other` also
+  have a copy button. Secret-backed links stay unresolved in the list.
+- **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection
+  in visual order, `Enter` opens the primary link, `e` edits it, and Ctrl/Cmd+K opens
+  the command palette (jump to an entry, open a link, run an action, switch tab or view).
+- **Feedback:** toasts for saves, action results, and errors; skeletons while the first
+  load is in progress; empty states for no entries, no matches, and no access.
 - **Entry editor** (drawer): name, host, description, tags with autocomplete, link list
   with drag-sort and primary toggle, fields, icon picker (library / upload / fetched /
   letter, with refetch), checks, actions. Duplicate name/host warning. Managed attributes
   shown read-only with explanation.
 - **History:** per entry change history with diffs from the audit log and "restore this
   version" (addresses V1 #12 undo).
-- **Admin area:** general settings (title, claim, logo, accent colour, browser-tab
-  favicon colour, anonymous visibility, All tab public), users and roles, auth status
-  overview, field definitions, tag namespaces, icon library, API tokens, Ansible scopes and
-  edit modes, check defaults, action templates, audit log, backup/restore, CSV import.
+- **Admin area:** one page per section (settings and theme, users, auth status, fields,
+  namespaces, tokens, scopes, icons, action templates, backup, CSV import, audit log).
+  Check intervals stay on each check. There is no separate check-defaults page.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
-- Use real anchor elements for links (`target="_blank"`, `rel="noopener noreferrer"`).
 
 ## 12. Import / export / history
 

@@ -46,4 +46,10 @@ The response JSON contains `filename` and base64 `archive`. Restore with `POST /
 
 Import CSV with `POST /api/v1/import/csv/preview` and `POST /api/v1/import/csv`. The admin page is the mapping dialog for that API.
 
-Anonymous callers only receive entries that match a public global filter, or every entry when the All tab is public. Secret fields above the caller’s role are omitted.
+Anonymous callers only receive entries that match a public global filter, or every entry when the All tab is public. Secret fields above the caller’s role are omitted. A secret that is visible is still masked in list and detail payloads (`value` is null and `masked` is true). `POST /api/v1/entries/{id}/fields/{key}/reveal` returns the plaintext and writes an audit row.
+
+Filters accept `viewMode` of `list`, `cards`, or `tiles`. It defaults to `list`.
+
+`GET /api/v1/preferences` and `PATCH /api/v1/preferences` store a signed-in user's `colourMode` and per-tab `viewModes`. `GET /api/v1/favicon` returns the uploaded tab icon or an SVG bookmark in the accent colour. `POST` and `DELETE /api/v1/settings/favicon` manage that upload. Settings also accept `accentPreset`, `neutralPalette`, and `defaultColourMode`.
+
+Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images, scripts, and connections from this origin only. Styles allow `'unsafe-inline'` because the component library injects them.

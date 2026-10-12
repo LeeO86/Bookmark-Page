@@ -34,7 +34,7 @@ Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` to create the first break-glass admin.
 
 The HTTP API is under `/api/v1`. `GET /api/v1/openapi.json` is the OpenAPI document and `/api/v1/docs` lists the routes. Authentication is a session cookie, `Authorization: Bearer`, or trusted proxy headers. See `.env.example`.
 
-The portal is the home page. Icons come from Lucide, an upload, a fetched favicon, or a letter. Server checks and browser checks update the status dot. Actions run on the server from the entry drawer, including templates whose query matches the entry. `GET /metrics` exposes Prometheus text. The query bar and the active tab are stored in the URL. Tag shortcuts add `AND` (click), `OR` (Shift-click), or `NOT` (Alt-click). `/` focuses the query, `Esc` clears it, the arrow keys move the selection, and Enter opens the primary link. Saving an entry that reuses a name or host asks for confirmation before the write. Admins open `/admin` for the title, claim, logo, colours, users, field definitions, tag namespaces, API tokens, and Ansible scopes. Logos are PNG or WebP, up to 512 KB. `GET /api/v1/events` is the live-update stream.
+The portal is the home page. Icons come from Lucide, an upload, a fetched favicon, or a letter. Server checks and browser checks update the status dot. Actions run on the server from the entry drawer, including templates whose query matches the entry. `GET /metrics` exposes Prometheus text. The query bar, the active tab, and the view (`list`, `cards`, or `tiles`) are stored in the URL. Tag shortcuts add `AND` (click), `OR` (Shift-click), or `NOT` (Alt-click). `/` focuses the query, `Esc` clears it, the arrow keys move the selection, Enter opens the primary link, `e` edits the selection, and Ctrl/Cmd+K opens the command palette. The name is a real link. Saving an entry that reuses a name or host asks for confirmation before the write. Admins open `/admin` for the title, claim, logo, theme presets, users, field definitions, tag namespaces, API tokens, Ansible scopes, backup, CSV import, and the audit log. Logos and the optional browser-tab icon are PNG or WebP, up to 512 KB. `GET /api/v1/events` is the live-update stream.
 
 ## Ansible
 
@@ -53,7 +53,7 @@ The collection `leeo86.bookmarks` is in `ansible_collections/leeo86/bookmarks`. 
 - `docs/auth-header-proxy.md`
 - `docs/checks-and-actions.md`
 
-Admins download a backup and import CSV from `/admin`. A backup includes secret values only when a passphrase is set. Restore can merge or replace, and it can preview the change first.
+Admins download a backup from `/admin/backup` and import CSV from `/admin/csv`. A backup includes secret values only when a passphrase is set. Restore can merge or replace, and it can preview the change first. The audit log is `/admin/audit`. Secret values there are redacted.
 
 ## Checks
 
