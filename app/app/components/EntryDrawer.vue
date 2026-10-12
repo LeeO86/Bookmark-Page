@@ -76,6 +76,7 @@ const checks = ref<DraftCheck[]>([])
 const actions = ref<DraftAction[]>([])
 const history = ref<HistoryRow[]>([])
 const formError = ref('')
+const actionEpoch = ref(0)
 const confirmOpen = ref(false)
 const confirmWarnings = ref<string[]>([])
 const dragIndex = ref<number | null>(null)
@@ -384,6 +385,7 @@ async function save(confirmDuplicates = false) {
           body: buildBody(confirmDuplicates),
         })
     confirmOpen.value = false
+    actionEpoch.value += 1
     emit('saved', result.entry)
     if (!props.creating && props.entry) {
       void loadHistory(props.entry.id)
@@ -769,7 +771,7 @@ function diffText(diff: Record<string, unknown>): string {
             which defaults to editor. The server calls the saved URL, including addresses on your
             network.
           </p>
-          <ActionRunner v-if="entry" :entry-id="entry.id" />
+          <ActionRunner v-if="entry" :entry-id="entry.id" :refresh="actionEpoch" />
           <div
             v-for="(action, index) in actions"
             :key="index"

@@ -2,7 +2,7 @@
 import type { ActionResult, RunnableAction } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 
-const props = defineProps<{ entryId: string }>()
+const props = defineProps<{ entryId: string; refresh: number }>()
 const actions = ref<RunnableAction[]>([])
 const active = ref<RunnableAction | null>(null)
 const values = ref<Record<string, string>>({})
@@ -11,7 +11,7 @@ const error = ref('')
 const running = ref(false)
 
 watch(
-  () => props.entryId,
+  () => [props.entryId, props.refresh] as const,
   () => {
     void load()
   },
