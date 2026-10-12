@@ -26,6 +26,9 @@ logs
 # SQLite data
 data/
 *.db
+
+# ansible-test output
+ansible_collections/leeo86/bookmarks/tests/output/
 *.db-journal
 *.db-wal
 *.db-shm

@@ -37,3 +37,62 @@ jobs:
           file: docker/Dockerfile
           push: false
           tags: bookmark-page:ci
+
+  ansible:
+    name: Ansible sanity and integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: python -m pip install "ansible-core>=2.16,<2.17"
+      - name: Sanity
+        working-directory: ansible_collections/leeo86/bookmarks
+        run: ansible-test sanity --local
+      - name: Build the app image
+        run: docker build -f docker/Dockerfile -t bookmark-page:ansible .
+      - name: Start the app and the V1 fixture
+        run: |
+          set -euo pipefail
+          docker run -d --name bookmark-ansible \
+            -p 3000:3000 \
+            -e BOOKMARK_SECRET_KEY='BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=' \
+            -e ADMIN_USERNAME=admin \
+            -e ADMIN_PASSWORD=admin-pass-1 \
+            -e SESSION_COOKIE_SECURE=false \
+            -e BOOKMARK_FAVICON_FETCH=0 \
+            -e BOOKMARK_MONITORS=0 \
+            bookmark-page:ansible
+          python3 -m http.server 8099 \
+            --directory ansible_collections/leeo86/bookmarks/tests/integration/v1-fixture \
+            >/tmp/v1-fixture.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs bookmark-ansible
+          exit 1
+      - name: Mint an admin token and run the playbook
+        run: |
+          set -euo pipefail
+          curl -sf -c /tmp/bookmark-cookies \
+            -H 'Origin: http://127.0.0.1:3000' \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"admin-pass-1"}' \
+            http://127.0.0.1:3000/api/v1/auth/login >/dev/null
+          API_TOKEN="$(curl -sf -b /tmp/bookmark-cookies \
+            -H 'Origin: http://127.0.0.1:3000' \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"ansible","scopes":["admin"]}' \
+            http://127.0.0.1:3000/api/v1/tokens | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+          API_URL=http://127.0.0.1:3000 \
+            API_TOKEN="$API_TOKEN" \
+            V1_URL=http://127.0.0.1:8099 \
+            ansible_collections/leeo86/bookmarks/tests/integration/run.sh
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs bookmark-ansible

@@ -1,0 +1,23 @@
+---
+all:
+  children:
+    studio:
+      hosts:
+        mixer:
+          ansible_host: 10.0.0.8
+          bookmark_name: Mixer
+          bookmark_description: Lawo desk
+          bookmark_icon: sliders
+          bookmark_links:
+            - label: Admin
+              url_template: http://10.0.0.8/
+              type: web
+              primary: true
+          bookmark_fields:
+            note: Lawo
+          bookmark_checks:
+            - name: Ping
+              kind: icmp
+    audio:
+      hosts:
+        mixer:

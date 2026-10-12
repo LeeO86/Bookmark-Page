@@ -34,6 +34,10 @@ The HTTP API is under `/api/v1`. `GET /api/v1/openapi.json` is the OpenAPI docum
 
 The portal is the home page. Icons come from Lucide, an upload, a fetched favicon, or a letter. Server checks and browser checks update the status dot. Actions run on the server from the entry drawer, including templates whose query matches the entry. `GET /metrics` exposes Prometheus text. The query bar and the active tab are stored in the URL. Tag shortcuts add `AND` (click), `OR` (Shift-click), or `NOT` (Alt-click). `/` focuses the query, `Esc` clears it, the arrow keys move the selection, and Enter opens the primary link. Saving an entry that reuses a name or host asks for confirmation before the write. Admins open `/admin` for the title, claim, logo, colours, users, field definitions, tag namespaces, API tokens, and Ansible scopes. Logos are PNG or WebP, up to 512 KB. `GET /api/v1/events` is the live-update stream.
 
+## Ansible
+
+The collection `leeo86.bookmarks` is in `ansible_collections/leeo86/bookmarks`. It manages entries, scopes, tags, fields, filters, and action templates, and it includes `inventory_sync` and `v1_import` roles. See `docs/ansible.md`.
+
 ## Checks
 
 ```sh
