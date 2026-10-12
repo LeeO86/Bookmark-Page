@@ -33,6 +33,10 @@ ansible_collections/leeo86/bookmarks/tests/output/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Playwright
+app/test-results/
+app/playwright-report/
 *.db-journal
 *.db-wal
 *.db-shm
