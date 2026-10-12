@@ -38,6 +38,21 @@ The portal is the home page. Icons come from Lucide, an upload, a fetched favico
 
 The collection `leeo86.bookmarks` is in `ansible_collections/leeo86/bookmarks`. It manages entries, scopes, tags, fields, filters, and action templates, and it includes `inventory_sync` and `v1_import` roles. See `docs/ansible.md`.
 
+## Documentation
+
+- `docs/installation.md`
+- `docs/configuration.md`
+- `docs/query-language.md`
+- `docs/ansible.md`
+- `docs/migration-v1.md`
+- `docs/api.md`
+- `docs/auth-entra.md`
+- `docs/auth-keycloak.md`
+- `docs/auth-header-proxy.md`
+- `docs/checks-and-actions.md`
+
+Admins download a backup and import CSV from `/admin`. A backup includes secret values only when a passphrase is set. Restore can merge or replace, and it can preview the change first.
+
 ## Checks
 
 ```sh

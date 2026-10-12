@@ -1,0 +1,38 @@
+# Configuration
+
+The server reads these variables from the environment. A blank value is treated as unset. Ansible clients use `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`, which the server does not read.
+
+| Variable                      | Default                                                                  | Purpose                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `BOOKMARK_SECRET_KEY`         | required                                                                 | Standard Base64 that decodes to 32 bytes. Seals session cookies and encrypts secret fields.              |
+| `DATABASE_PATH`               | `/data/bookmark.db` in the image, `./data/bookmark.db` in `.env.example` | SQLite file. The parent directory is created.                                                            |
+| `MIGRATIONS_FOLDER`           | `drizzle` under the working directory, `/app/drizzle` in the image       | Drizzle migration directory.                                                                             |
+| `ADMIN_USERNAME`              | unset                                                                    | Bootstrap admin username. Used only when both this and the password are set and the user does not exist. |
+| `ADMIN_PASSWORD`              | unset                                                                    | Bootstrap admin password. At least 8 characters. The account is break-glass.                             |
+| `LOCAL_LOGIN_ENABLED`         | `true`                                                                   | When `false`, only break-glass users can use password login.                                             |
+| `SESSION_COOKIE_SECURE`       | `false`                                                                  | Set `true` behind HTTPS so the session cookie is marked Secure.                                          |
+| `OIDC_DISCOVERY_URL`          | unset                                                                    | OIDC discovery URL. All four OIDC values are required to enable it.                                      |
+| `OIDC_CLIENT_ID`              | unset                                                                    | OIDC client id.                                                                                          |
+| `OIDC_CLIENT_SECRET`          | unset                                                                    | OIDC client secret.                                                                                      |
+| `OIDC_REDIRECT_URI`           | unset                                                                    | OIDC redirect URI, for example `https://bookmarks.example.com/api/v1/auth/oidc/callback`.                |
+| `OIDC_ROLE_CLAIM`             | `roles`                                                                  | Claim that contains role values.                                                                         |
+| `OIDC_ROLE_MAPPING`           | `{}`                                                                     | JSON object of claim value to `viewer`, `editor`, or `admin`. Unmapped users become viewers.             |
+| `AUTH_TRUSTED_HEADER_ENABLED` | `false`                                                                  | Accept identity headers from a reverse proxy.                                                            |
+| `AUTH_TRUSTED_PROXIES`        | empty                                                                    | Comma-separated CIDRs. Headers from any other peer are ignored.                                          |
+| `AUTH_USER_HEADER`            | `Remote-User`                                                            | Username header.                                                                                         |
+| `AUTH_EMAIL_HEADER`           | unset                                                                    | Optional email header.                                                                                   |
+| `AUTH_GROUPS_HEADER`          | unset                                                                    | Optional groups header.                                                                                  |
+| `AUTH_GROUP_ROLE_MAPPING`     | `{}`                                                                     | JSON object of group name to `viewer`, `editor`, or `admin`.                                             |
+| `AUDIT_RETENTION_DAYS`        | `365`                                                                    | Delete audit rows older than this many days on startup. `0` keeps them.                                  |
+| `METRICS_TOKEN`               | empty                                                                    | Bearer token required by `GET /metrics`. Empty leaves metrics open.                                      |
+| `CHECK_MIN_INTERVAL_SECONDS`  | `15`                                                                     | Fastest interval for a server or browser check.                                                          |
+| `CHECK_CONCURRENCY`           | `4`                                                                      | How many server checks may run at once.                                                                  |
+| `ACTION_RATE_LIMIT`           | `30`                                                                     | Action executions allowed per user in the rate window.                                                   |
+| `ACTION_RATE_WINDOW_MS`       | `900000`                                                                 | Rate window in milliseconds.                                                                             |
+| `FAVICON_TIMEOUT_MS`          | `5000`                                                                   | Favicon fetch timeout.                                                                                   |
+| `FAVICON_MAX_BYTES`           | `524288`                                                                 | Largest favicon that is stored.                                                                          |
+| `BOOKMARK_FAVICON_FETCH`      | enabled                                                                  | Set `0` to skip automatic favicon fetches.                                                               |
+| `BOOKMARK_MONITORS`           | enabled                                                                  | Set `0` to skip the server check scheduler.                                                              |
+| `LUCIDE_ICONS_DIR`            | the installed `lucide-static` icons directory                            | Override the Lucide SVG directory.                                                                       |
+
+Favicon TLS verification, the favicon refresh period, the site title, the claim, colours, and whether the All tab is public are admin settings stored in the database, not environment variables.
