@@ -1,0 +1,7 @@
+The Ansible collection in this directory is licensed under the GNU General Public License
+version 3 or later because its modules import Ansible's module utilities.
+
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+The Bookmark-Page application outside this directory remains licensed under MIT.
+See the LICENSE file at the repository root.

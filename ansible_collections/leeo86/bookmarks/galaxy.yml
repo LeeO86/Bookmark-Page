@@ -1,0 +1,18 @@
+---
+namespace: leeo86
+name: bookmarks
+version: 2.0.0
+readme: README.md
+authors:
+  - Bookmark-Page
+description: Manage a Bookmark-Page V2 server.
+license:
+  - GPL-3.0-or-later
+tags:
+  - bookmarks
+repository: https://github.com/LeeO86/Bookmark-Page
+documentation: https://github.com/LeeO86/Bookmark-Page/blob/master/docs/ansible.md
+homepage: https://github.com/LeeO86/Bookmark-Page
+issues: https://github.com/LeeO86/Bookmark-Page/issues
+build_ignore:
+  - tests/output

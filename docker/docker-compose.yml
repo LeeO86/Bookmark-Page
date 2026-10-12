@@ -1,0 +1,35 @@
+name: bookmark-page
+
+services:
+  bookmark-page:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: bookmark-page:local
+    ports:
+      - '3000:3000'
+    environment:
+      BOOKMARK_SECRET_KEY: ${BOOKMARK_SECRET_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      DATABASE_PATH: /data/bookmark.db
+      MIGRATIONS_FOLDER: /app/drizzle
+      SESSION_COOKIE_SECURE: 'false'
+    volumes:
+      - bookmark-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  bookmark-data:

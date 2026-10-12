@@ -1,0 +1,63 @@
+---
+- name: Read the V1 JSON endpoints
+  ansible.builtin.set_fact:
+    v1_global: "{{ lookup('ansible.builtin.url', v1_root ~ '/php/getGlobal.php', split_lines=False, validate_certs=v1_validate_certs) | from_json }}"
+    v1_bookmarks: "{{ lookup('ansible.builtin.url', v1_root ~ '/php/getBookmarks.php', split_lines=False, validate_certs=v1_validate_certs) | from_json }}"
+  vars:
+    v1_root: "{{ v1_url | regex_replace('/$', '') }}"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Plan the V1 import
+  ansible.builtin.set_fact:
+    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace) }}'
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure the V1 group namespace
+  leeo86.bookmarks.tag_namespace:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    name: '{{ v1_group_namespace }}'
+    label: '{{ v1_group_label }}'
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure V1 field definitions
+  leeo86.bookmarks.field_definition:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    key: '{{ item.key }}'
+    label: '{{ item.label }}'
+    type: '{{ item.type }}'
+    min_role: '{{ item.min_role }}'
+    searchable: '{{ item.searchable }}'
+    show_as_column: '{{ item.show_as_column }}'
+    sort: '{{ item.sort }}'
+  loop: '{{ v1_plan.fields }}'
+  loop_control:
+    label: '{{ item.key }}'
+  delegate_to: localhost
+  run_once: true
+
+- name: Sync imported entries
+  leeo86.bookmarks.entries_sync:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    scope: '{{ v1_scope }}'
+    purge: '{{ v1_purge }}'
+    entries: '{{ v1_plan.entries }}'
+  delegate_to: localhost
+  run_once: true
+  register: v1_sync_result
+
+- name: Publish the import result
+  ansible.builtin.set_fact:
+    v1_sync: '{{ v1_sync_result }}'
+  delegate_to: localhost
+  run_once: true
