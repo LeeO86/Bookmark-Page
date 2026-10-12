@@ -13,6 +13,7 @@
     "typecheck": "pnpm --dir app typecheck",
     "test": "pnpm --dir app test",
     "test:smoke": "pnpm --dir app test:smoke",
+    "seed:demo": "pnpm --dir app seed:demo",
     "format": "pnpm --dir app format"
   }
 }

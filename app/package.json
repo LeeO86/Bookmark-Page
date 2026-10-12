@@ -16,7 +16,8 @@
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:smoke": "playwright test",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "seed:demo": "jiti scripts/seed-demo.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.2",
