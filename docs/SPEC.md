@@ -87,8 +87,8 @@ objects also `created_by`, `updated_by`.
 
 - `url_template` supports placeholders (§8.2), most importantly `{{host}}`, e.g.
   `https://{{host}}:8443/admin`. Changing the entry's host updates all links.
-- Clicking the entry row opens the primary link. Other links are shown as compact
-  buttons (icon + label tooltip) in the row.
+- The tile, the card, or the list entry cell opens the primary link. Other links are
+  their own buttons. Reachability is shown on the favicon, not in a status column.
 - Non-HTTP schemes are rendered as links (browser protocol handler) **and** offer a
   copy button as fallback.
 
@@ -102,7 +102,8 @@ Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or
 ### 4.4 Filters (tabs)
 `name`, `query` (§5), `owner_user_id` (`null` = global, set by admin), `columns`
 (which custom fields to show and in which order), `group_by` (optional tag namespace),
-`sort`, `icon`, `view_mode` (`list` | `cards` | `tiles`, default `list`), `public`
+`sort`, `icon`, `view_mode` (`list` | `cards` | `tiles`; new filters default to
+`tiles`, and the column default stays `list` so existing rows are unchanged), `public`
 (global filters only: visible to anonymous users).
 
 - Global filters appear first as tabs for everybody who may see them, personal filters
@@ -138,11 +139,15 @@ primary  := "(" or ")" | term
 term     := ns ":" value                    # namespaced tag, value may end with *
           | "#" value                       # tag without namespace
           | "is:" ("up"|"down"|"unknown"|"managed"|"unmanaged")
+          | "state:" ("online"|"offline"|"unknown")
           | "has:" (link|field_key|check)
           | word | "quoted text"           # free text
 ```
 
 - Operators are case-insensitive (`and`/`AND`). `ns:*` means "has any tag in namespace".
+- `state:online`, `state:offline`, and `state:unknown` are a virtual status, not stored
+  tags. They match only entries that have a check. `is:unknown` still also matches an
+  entry that has no checks.
 - Free text matches name, description, host, link labels and URLs, and values of
   searchable non-secret fields the caller may view.
 - Example: `type:audio (room:studio1 OR room:studio2) -status:spare lawo`.
@@ -326,53 +331,75 @@ Tests: `ansible-test sanity` and integration tests against the app container in 
 
 ## 11. UI
 
-Desktop-first, responsive, compact density (labs have hundreds of entries), English only.
-The shell is a Nuxt UI dashboard: collapsible sidebar, navbar, and a main panel.
+Bookmark-Page is a start page. The question on the screen is where to go next. People
+recognise a device by its icon and open it. Editing is rare. The page is not a dashboard:
+there is no status column, latency, or metric in the portal. Check latency stays in
+Prometheus and in the icon tooltip.
+
+Desktop-first, responsive, English only. The portal is a titled page with the site name
+from settings. Admin keeps one collapsible sidebar and a navbar toggle that opens it as a
+drawer on a narrow screen.
 
 - **Theme:** one accent and one neutral palette, stored in settings and applied on the
-  server so the first paint matches. Presets restore the V1 swatches (Red, Yellow, Pink,
-  Green, Cyan, Blue, Grey) plus a custom hex. Each preset works in light and dark. The
-  admin sets the default colour mode (`system`, `light`, or `dark`); a signed-in user can
-  override it, and an anonymous visitor keeps the choice in a cookie. Text on the accent
-  meets WCAG AA. Tag text uses black or white against the namespace colour. Status marks
-  use dedicated colours that stay visible in both modes.
+  server so the first paint matches. Named presets use the vivid Tailwind scales Red,
+  Yellow (amber), Pink, Green, Cyan, Blue, and Grey (slate). A custom hex keeps its chroma
+  and hue and only changes lightness. Filled controls use a step that reaches 4.5:1, not a
+  desaturated seed. The background is `gradient` (default), `tint`, or `plain`. Text on
+  the wash and text on the link surfaces both meet 4.5:1. Tag text uses black or white
+  against the namespace colour (3:1). The status dot meets 3:1 against the light icon
+  plate. The admin sets the default colour mode; a signed-in user can override it, and an
+  anonymous visitor keeps the choice in a cookie.
 - **Browser tab:** a bookmark glyph in the accent colour, or an uploaded PNG/WebP, served
   from `/api/v1/favicon` on this origin.
-- **Header:** logo (uploadable), site title, claim, query bar, colour mode, command
-  palette, user menu/login.
-- **Tabs row:** global tabs, then personal tabs, plus "save current query as tab".
-- **Sidebar:** tag namespaces with their values and counts (facets), collapsible and
-  resizable.
-- **Views:** list, cards, and tiles. The list is a sticky, virtualised table. Cards show
-  the icon, name, host, status, tags, link buttons, and the tab's selected fields, in a
-  comfortable or compact density. Tiles are a launcher: large icon, name, and status.
-  Below 768px the list is shown as cards. Grouping by a namespace, with collapse and
-  expand, works in every view. The tab stores a default `view_mode`. A user can override
-  it per tab. A `view` query parameter wins, so a shared link keeps its layout.
-- **List columns:** icon, name, link buttons, status, description, the selected custom
-  fields (including secrets the caller may see), and tags. Secret values stay masked in
-  the payload. Reveal and copy call the audited reveal endpoint. Column sorting and
-  manual sort order.
-- **Opening an entry:** the name, icon, and description are real anchors to the primary
-  link (`target="_blank"`, `rel="noopener noreferrer"`). Only the name is in the tab
-  order. Editing is an explicit button, a row menu, or the `e` key. Enter still opens
-  the primary link. Each link is its own icon button with the label as the tooltip; the
-  primary link is visually distinct. `ssh`, `vnc`, `rdp`, `telnet`, and `other` also
-  have a copy button. Secret-backed links stay unresolved in the list.
+- **Header:** optional logo, the site title, and the claim. The right side is the user
+  menu or Sign in. Colour mode, edit mode, Admin, and sign-out live in that menu.
+- **Search:** a centred query bar with `⌘K` and `/`. Typing filters immediately. Chips sit
+  inside the bar. The command palette is that same surface.
+- **Tabs:** pills under the search bar. "+ Save as tab" is last, only for a signed-in
+  user, and it is visually quiet.
+- **Filters:** hidden until the Filters button opens a slide-over. Open or closed is
+  stored for a signed-in user and in the `bp-facets` cookie otherwise. Facets show a
+  namespace colour. The selected facet is highlighted. Click adds AND, Shift adds OR, and
+  Alt adds NOT. `state` is a virtual facet (`online`, `offline`, `unknown`) and is not
+  stored as a tag.
+- **Status:** only the favicon changes. Up is unchanged. Down is greyscale and dimmed,
+  with a small red corner dot. Unknown keeps the colour and adds a small amber dot. No
+  check shows nothing. The icon tooltip may say when a device went offline.
+- **Editing:** normal mode is the default for every role. Clicks open links, and `e` does
+  nothing. Right-click, a long press, or the hover menu offers Copy link, Open all links,
+  and history to everyone, and Edit to an editor. Edit mode is for editors and admins,
+  from the user menu or Shift+E, and it lasts for the browser tab only. It shows a banner,
+  edit buttons, New entry, Add link, and drag-sort. `e` opens the selected entry only then.
+- **Views:** tiles are the default, including All. A tab can store another default, and
+  the `view` query parameter still wins. Tiles use a 140px minimum (180px when the user
+  picks large tiles) with the favicon on a plate and the name under it. Cards use a 280px
+  minimum with the host, a clamped description, the tab's fields, labelled links, and up
+  to three tags. The list is a dense table, 36px rows or 32px in compact density, with the
+  favicon, name, and host in one cell, then links, description, fields, and tags. Only a
+  sorted column shows an arrow. Below 768px the list is shown as cards. Grouping is a
+  category heading with a count and a collapse control. A missing icon is a letter in a
+  colour derived from the name. Tags are subtle badges; the tooltip is the full label.
+- **Opening an entry:** the whole tile or card is one primary link (`target="_blank"`,
+  `rel="noopener noreferrer"`). Secondary links, secret reveal, and menus are real
+  controls above that link. In the list, the entry cell is the primary link. Enter still
+  opens it. `ssh`, `vnc`, `rdp`, `telnet`, and `other` also have a copy button.
+  Secret-backed links stay unresolved until reveal.
 - **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection
-  in visual order, `Enter` opens the primary link, `e` edits it, and Ctrl/Cmd+K opens
-  the command palette (jump to an entry, open a link, run an action, switch tab or view).
-- **Feedback:** toasts for saves, action results, and errors; skeletons while the first
-  load is in progress; empty states for no entries, no matches, and no access.
+  in visual order, `Enter` opens the primary link, Shift+E toggles edit mode, `e` edits
+  the selection only while edit mode is on, and Ctrl/Cmd+K opens the command palette.
+- **Feedback:** toasts for saves, action results, and errors; skeletons that follow the
+  active view; empty states for no entries, no matches, and no access.
 - **Entry editor** (drawer): name, host, description, tags with autocomplete, link list
   with drag-sort and primary toggle, fields, icon picker (library / upload / fetched /
   letter, with refetch), checks, actions. Duplicate name/host warning. Managed attributes
   shown read-only with explanation.
 - **History:** per entry change history with diffs from the audit log and "restore this
-  version" (addresses V1 #12 undo).
+  version" (addresses V1 #12 undo). Anyone can open it from the entry menu. Restore stays
+  behind edit permission.
 - **Admin area:** one page per section (settings and theme, users, auth status, fields,
   namespaces, tokens, scopes, icons, action templates, backup, CSV import, audit log).
-  Check intervals stay on each check. There is no separate check-defaults page.
+  Settings include the page background. Check intervals stay on each check. There is no
+  separate check-defaults page.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
 

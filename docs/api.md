@@ -48,8 +48,10 @@ Import CSV with `POST /api/v1/import/csv/preview` and `POST /api/v1/import/csv`.
 
 Anonymous callers only receive entries that match a public global filter, or every entry when the All tab is public. Secret fields above the caller’s role are omitted. A secret that is visible is still masked in list and detail payloads (`value` is null and `masked` is true). `POST /api/v1/entries/{id}/fields/{key}/reveal` returns the plaintext and writes an audit row.
 
-Filters accept `viewMode` of `list`, `cards`, or `tiles`. It defaults to `list`.
+Filters accept `viewMode` of `list`, `cards`, or `tiles`. A new filter defaults to `tiles`. Older rows and backup documents may still say `list`.
 
-`GET /api/v1/preferences` and `PATCH /api/v1/preferences` store a signed-in user's `colourMode` and per-tab `viewModes`. `GET /api/v1/favicon` returns the uploaded tab icon or an SVG bookmark in the accent colour. `POST` and `DELETE /api/v1/settings/favicon` manage that upload. Settings also accept `accentPreset`, `neutralPalette`, and `defaultColourMode`.
+`GET /api/v1/preferences` and `PATCH /api/v1/preferences` store a signed-in user's `colourMode`, per-tab `viewModes`, `facetsOpen`, and `tileSize` (`regular` or `large`). `GET /api/v1/favicon` returns the uploaded tab icon or an SVG bookmark in the accent colour. `POST` and `DELETE /api/v1/settings/favicon` manage that upload. Settings also accept `accentPreset`, `neutralPalette`, `defaultColourMode`, and `background` (`gradient`, `tint`, or `plain`).
+
+The query language accepts `state:online`, `state:offline`, and `state:unknown` beside `is:up`, `is:down`, and `is:unknown`. `state:` matches entries that have a check. It is not a tag.
 
 Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images, scripts, and connections from this origin only. Styles allow `'unsafe-inline'` because the component library injects them.

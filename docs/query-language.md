@@ -15,13 +15,16 @@ Space between terms means AND. `OR` and `AND` are operators. Parentheses group t
 | `-status:spare`            | Entries that do not have tag `status:spare`                   |
 | `is:up`                    | Current check status is up                                    |
 | `is:down`                  | At least one check is down                                    |
-| `is:unknown`               | Status is not a clear up or down                              |
+| `is:unknown`               | No check, or a check whose status is unknown                  |
+| `state:online`             | A check is up. Not a stored tag                               |
+| `state:offline`            | A check is down. Not a stored tag                             |
+| `state:unknown`            | A check exists and is unknown. No check is excluded           |
 | `is:managed`               | The entry belongs to an Ansible scope                         |
 | `is:unmanaged`             | The entry was created in the portal                           |
 | `has:link`                 | The entry has a link                                          |
 | `has:check`                | The entry has a check                                         |
 | `has:note`                 | The entry has a value for field `note`                        |
 
-`is:` and `has:` are reserved, so they are not tag namespaces. `has:link` and `has:check` are keywords, not field keys.
+`is:`, `state:`, and `has:` are reserved, so they are not tag namespaces. `has:link` and `has:check` are keywords, not field keys. `state:unknown` requires a check. `is:unknown` also matches an entry that has none.
 
 Clicking a tag adds it with AND. Shift-click uses OR. Alt-click uses NOT. `/` focuses the query, and Escape clears it.
