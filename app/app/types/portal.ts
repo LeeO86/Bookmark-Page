@@ -9,9 +9,13 @@ export interface PortalSettings {
   siteTitle: string
   siteClaim: string
   accentColour: string
+  accentPreset: 'red' | 'yellow' | 'pink' | 'green' | 'cyan' | 'blue' | 'grey' | 'custom'
+  neutralPalette: 'slate' | 'gray' | 'zinc' | 'neutral' | 'stone'
+  defaultColourMode: 'system' | 'light' | 'dark'
   faviconColour: string
   allTabPublic: boolean
   hasLogo: boolean
+  hasTabFavicon: boolean
   clientChecksAnonymous: boolean
   auditRetentionDays?: number
   faviconTlsVerify?: boolean
@@ -50,6 +54,7 @@ export interface PortalFilter {
   sort: number
   icon: string | null
   isPublic: boolean
+  viewMode: 'list' | 'cards' | 'tiles'
 }
 
 export interface PortalField {

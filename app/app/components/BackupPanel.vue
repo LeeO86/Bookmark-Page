@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ApiError, apiFetch } from '../utils/api'
 
+const toast = useToast()
 const includeSecrets = ref(false)
 const passphrase = ref('')
 const restorePassphrase = ref('')
@@ -41,6 +42,7 @@ async function download() {
     link.click()
     URL.revokeObjectURL(url)
     message.value = 'Backup downloaded.'
+    toast.add({ title: 'Backup downloaded.', color: 'success' })
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : 'Backup failed'
   }
@@ -78,6 +80,7 @@ async function restore() {
       },
     })
     message.value = dryRun.value ? 'Preview only. Nothing was written.' : 'Restore finished.'
+    toast.add({ title: message.value, color: 'success' })
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : 'Restore failed'
   }
@@ -100,17 +103,14 @@ async function restore() {
           minlength="8"
           required
           autocomplete="new-password"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
+          class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         />
       </label>
-      <button type="submit" class="rounded bg-teal-700 px-3 py-1 text-sm text-white">
+      <button type="submit" class="rounded bg-primary px-3 py-1 text-sm text-inverted">
         Download backup
       </button>
     </form>
-    <form
-      class="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700"
-      @submit.prevent="restore"
-    >
+    <form class="space-y-2 border-t border-default pt-3" @submit.prevent="restore">
       <label class="block text-sm">
         Backup file
         <input
@@ -121,10 +121,10 @@ async function restore() {
           @change="onFile"
         />
       </label>
-      <p v-if="fileName" class="text-xs text-slate-500">{{ fileName }}</p>
+      <p v-if="fileName" class="text-xs text-muted">{{ fileName }}</p>
       <label class="block text-sm">
         Mode
-        <select v-model="mode" class="mt-1 block rounded border px-2 py-1 dark:bg-slate-900">
+        <select v-model="mode" class="mt-1 block rounded border px-2 py-1 bg-default">
           <option value="merge">Merge</option>
           <option value="replace">Replace</option>
         </select>
@@ -139,17 +139,17 @@ async function restore() {
           v-model="restorePassphrase"
           type="password"
           autocomplete="current-password"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
+          class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         />
       </label>
       <button
         type="submit"
-        class="rounded bg-teal-700 px-3 py-1 text-sm text-white"
+        class="rounded bg-primary px-3 py-1 text-sm text-inverted"
         :disabled="archive.length === 0"
       >
         {{ dryRun ? 'Preview restore' : 'Restore' }}
       </button>
-      <p v-if="mode === 'replace'" class="text-xs text-slate-500">
+      <p v-if="mode === 'replace'" class="text-xs text-muted">
         Replace removes the current data and writes the backup. Sign in again if your account id
         changes.
       </p>
@@ -163,7 +163,7 @@ async function restore() {
         <li v-for="warning in preview.warnings" :key="warning">{{ warning }}</li>
       </ul>
     </div>
-    <p v-if="message" class="text-sm text-teal-800 dark:text-teal-200">{{ message }}</p>
-    <p v-if="error" class="text-sm text-red-700">{{ error }}</p>
+    <p v-if="message" class="text-sm text-success">{{ message }}</p>
+    <p v-if="error" class="text-sm text-error">{{ error }}</p>
   </section>
 </template>

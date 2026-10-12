@@ -22,4 +22,10 @@ export default defineNuxtConfig({
       stylistic: false,
     },
   },
+  colorMode: {
+    preference: 'system',
+    fallback: 'light',
+    classSuffix: '',
+    storageKey: 'bp-color-mode',
+  },
 })

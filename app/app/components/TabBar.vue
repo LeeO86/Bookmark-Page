@@ -30,6 +30,7 @@ async function saveTab() {
         query: portal.queryText.value,
         columns: portal.columns.value.map((field) => field.key),
         groupBy: portal.groupBy.value,
+        viewMode: portal.viewMode.value,
         sort: portal.filters.value.length,
         isPublic: saveGlobal.value && savePublic.value,
         global: saveGlobal.value,
@@ -60,6 +61,23 @@ async function renameTab() {
   })
   renameOpen.value = false
   await portal.load()
+}
+
+async function saveViewDefault() {
+  if (!menuFilter.value) {
+    return
+  }
+  message.value = ''
+  try {
+    await apiFetch(`/api/v1/filters/${menuFilter.value.id}`, {
+      method: 'PATCH',
+      body: { viewMode: portal.viewMode.value },
+    })
+    renameOpen.value = false
+    await portal.load()
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Could not save the view'
+  }
 }
 
 async function deleteTab(filter: PortalFilter) {
@@ -98,19 +116,14 @@ function canEdit(filter: PortalFilter): boolean {
 
 <template>
   <nav
-    class="flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-2 py-1 dark:border-slate-700"
+    class="flex items-center gap-1 overflow-x-auto border-b border-default px-2 py-1"
     aria-label="Filters"
   >
     <button
       v-if="portal.allVisible.value"
       type="button"
       class="shrink-0 rounded px-2 py-1 text-sm"
-      :class="
-        portal.activeTab.value === 'all'
-          ? 'text-white'
-          : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-      "
-      :style="portal.activeTab.value === 'all' ? { background: 'var(--portal-accent)' } : undefined"
+      :class="portal.activeTab.value === 'all' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
       @click="portal.setTab('all')"
     >
       All
@@ -124,12 +137,7 @@ function canEdit(filter: PortalFilter): boolean {
         type="button"
         class="rounded px-2 py-1 text-sm"
         :class="
-          portal.activeTab.value === filter.id
-            ? 'text-white'
-            : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-        "
-        :style="
-          portal.activeTab.value === filter.id ? { background: 'var(--portal-accent)' } : undefined
+          portal.activeTab.value === filter.id ? 'bg-primary text-inverted' : 'hover:bg-elevated'
         "
         @click="portal.setTab(filter.id)"
       >
@@ -138,7 +146,7 @@ function canEdit(filter: PortalFilter): boolean {
       <button
         v-if="canEdit(filter)"
         type="button"
-        class="px-1 text-xs text-slate-500"
+        class="px-1 text-xs text-muted"
         :aria-label="`Edit ${filter.name}`"
         @click="openMenu(filter)"
       >
@@ -152,13 +160,8 @@ function canEdit(filter: PortalFilter): boolean {
     >
       <button
         type="button"
-        class="rounded border border-dashed border-slate-300 px-2 py-1 text-sm dark:border-slate-600"
-        :class="portal.activeTab.value === filter.id ? 'text-white' : ''"
-        :style="
-          portal.activeTab.value === filter.id
-            ? { background: 'var(--portal-accent)', borderColor: 'transparent' }
-            : undefined
-        "
+        class="rounded border border-dashed border-default px-2 py-1 text-sm"
+        :class="portal.activeTab.value === filter.id ? 'bg-primary text-inverted' : ''"
         @click="portal.setTab(filter.id)"
       >
         {{ filter.name }}
@@ -166,7 +169,7 @@ function canEdit(filter: PortalFilter): boolean {
       <button
         v-if="canEdit(filter)"
         type="button"
-        class="px-1 text-xs text-slate-500"
+        class="px-1 text-xs text-muted"
         :aria-label="`Edit ${filter.name}`"
         @click="openMenu(filter)"
       >
@@ -176,7 +179,7 @@ function canEdit(filter: PortalFilter): boolean {
     <button
       v-if="portal.actor.value.role !== 'anonymous'"
       type="button"
-      class="shrink-0 rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+      class="shrink-0 rounded px-2 py-1 text-sm text-toned hover:bg-elevated"
       @click="openSave"
     >
       Save query
@@ -196,7 +199,7 @@ function canEdit(filter: PortalFilter): boolean {
             <input v-model="savePublic" type="checkbox" />
             Visible to anonymous visitors
           </label>
-          <p v-if="message" class="text-sm text-red-600">{{ message }}</p>
+          <p v-if="message" class="text-sm text-error">{{ message }}</p>
           <UButton type="submit" size="sm">Save tab</UButton>
         </form>
       </template>
@@ -210,6 +213,15 @@ function canEdit(filter: PortalFilter): boolean {
           </UFormField>
           <div class="flex flex-wrap gap-2">
             <UButton type="submit" size="sm">Rename</UButton>
+            <UButton
+              type="button"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              @click="saveViewDefault"
+            >
+              Use current view
+            </UButton>
             <UButton
               type="button"
               size="sm"

@@ -47,7 +47,7 @@ async function submit() {
             data-testid="login-password"
           />
         </UFormField>
-        <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+        <p v-if="error" class="text-sm text-error">{{ error }}</p>
         <UButton type="submit" data-testid="login-submit">Sign in</UButton>
       </form>
       <a

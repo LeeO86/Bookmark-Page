@@ -1,4 +1,5 @@
 import { combineQueries, queryChips } from '#shared/query-chips'
+import { isViewMode, type ViewMode } from '#shared/theme'
 import type {
   AuthOptions,
   PortalActor,
@@ -48,10 +49,14 @@ export function usePortal() {
   const queryError = useState<string | null>('portal-query-error', () => null)
   const logoVersion = useState('portal-logo-version', () => 0)
   const queryOverride = useState<string | null>('portal-query-override', () => null)
+  const viewOverrides = useState<Record<string, ViewMode>>('bp-view-modes', () => ({}))
+  const columnCount = useState('portal-column-count', () => 1)
+  const density = useState<'comfortable' | 'compact'>('portal-density', () => 'compact')
 
   const routeQuery = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
   const queryText = computed(() => queryOverride.value ?? routeQuery.value)
   const tabParam = computed(() => (typeof route.query.tab === 'string' ? route.query.tab : ''))
+  const routeView = computed(() => (typeof route.query.view === 'string' ? route.query.view : ''))
 
   watch(routeQuery, (value) => {
     if (queryOverride.value === value) {
@@ -95,8 +100,24 @@ export function usePortal() {
   const columns = computed(() =>
     visibleFieldColumns(activeFilter.value?.columns ?? [], fields.value),
   )
+  const viewMode = computed<ViewMode>(() => {
+    if (isViewMode(routeView.value)) {
+      return routeView.value
+    }
+    return viewOverrides.value[activeTab.value] ?? activeFilter.value?.viewMode ?? 'list'
+  })
   const canWrite = computed(() => actor.value.role === 'editor' || actor.value.role === 'admin')
   const canAdmin = computed(() => actor.value.role === 'admin')
+
+  function queryState(query: string, tab: string, view?: string) {
+    const current = isViewMode(routeView.value) ? routeView.value : undefined
+    const mode = view ?? current
+    return {
+      q: query || undefined,
+      tab: tab && tab !== 'all' ? tab : undefined,
+      view: mode,
+    }
+  }
 
   async function setQuery(value: string) {
     queryOverride.value = value
@@ -138,6 +159,12 @@ export function usePortal() {
       tags.value = tagBody.tags
       namespaces.value = namespaceBody.namespaces
       fields.value = fieldBody.fields
+      if (sessionBody.actor.userId) {
+        const preferences = await apiFetch<{ viewModes: Record<string, ViewMode> }>(
+          '/api/v1/preferences',
+        )
+        viewOverrides.value = { ...viewOverrides.value, ...preferences.viewModes }
+      }
       await ensureTab()
       await reloadEntries()
       ready.value = true
@@ -190,6 +217,23 @@ export function usePortal() {
     if (fallback !== 'all' || current) {
       await router.replace({ query: queryState(queryText.value, fallback) })
     }
+  }
+
+  async function setView(mode: ViewMode) {
+    viewOverrides.value = { ...viewOverrides.value, [activeTab.value]: mode }
+    await router.replace({ query: queryState(queryText.value, tabParam.value, mode) })
+    await persistViewModes()
+  }
+
+  async function persistViewModes() {
+    writeThemeCookie(viewOverrides.value)
+    if (!actor.value.userId) {
+      return
+    }
+    await apiFetch('/api/v1/preferences', {
+      method: 'PATCH',
+      body: { viewModes: viewOverrides.value },
+    })
   }
 
   function moveSelection(delta: number) {
@@ -269,8 +313,12 @@ export function usePortal() {
     activeFilter,
     activeTab,
     groups,
+    sortedEntries,
     visibleEntries,
     columns,
+    viewMode,
+    columnCount,
+    density,
     canWrite,
     canAdmin,
     setQuery,
@@ -278,6 +326,7 @@ export function usePortal() {
     load,
     reloadEntries,
     refreshTags,
+    setView,
     moveSelection,
     toggleSort,
     listen,
@@ -288,9 +337,10 @@ export function usePortal() {
 
 let liveSource: EventSource | null = null
 
-function queryState(query: string, tab: string) {
-  return {
-    q: query || undefined,
-    tab: tab && tab !== 'all' ? tab : undefined,
+function writeThemeCookie(modes: Record<string, ViewMode>) {
+  if (!import.meta.client) {
+    return
   }
+  const payload = encodeURIComponent(JSON.stringify({ viewModes: modes }))
+  document.cookie = `bp-theme=${payload}; Path=/; SameSite=Lax`
 }

@@ -52,10 +52,10 @@ export function visibleFieldColumns(
   if (columns.length > 0) {
     return columns.flatMap((key) => {
       const field = fields.find((item) => item.key === key)
-      return field && field.type !== 'secret' ? [field] : []
+      return field ? [field] : []
     })
   }
-  return fields.filter((field) => field.showAsColumnDefault && field.type !== 'secret')
+  return fields.filter((field) => field.showAsColumnDefault)
 }
 
 export function isPathLocked(

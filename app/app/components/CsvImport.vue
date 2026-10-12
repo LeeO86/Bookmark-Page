@@ -3,6 +3,7 @@ import { ApiError, apiFetch } from '../utils/api'
 import type { PortalField } from '../types/portal'
 
 const props = defineProps<{ fields: PortalField[] }>()
+const toast = useToast()
 const csv = ref('')
 const headers = ref<string[]>([])
 const sample = ref<string[][]>([])
@@ -73,6 +74,7 @@ async function run(dryRun: boolean) {
     message.value = dryRun
       ? 'Preview only. Nothing was written.'
       : `Imported ${result.value?.created ?? 0} entries.`
+    toast.add({ title: message.value, color: 'success' })
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : 'Import failed'
   }
@@ -92,17 +94,14 @@ async function run(dryRun: boolean) {
         <select
           v-model="nameColumn"
           required
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
+          class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         >
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
         </select>
       </label>
       <label class="text-sm">
         Host
-        <select
-          v-model="hostColumn"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
-        >
+        <select v-model="hostColumn" class="mt-1 block w-full rounded border px-2 py-1 bg-default">
           <option value="">None</option>
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
         </select>
@@ -111,7 +110,7 @@ async function run(dryRun: boolean) {
         Description
         <select
           v-model="descriptionColumn"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
+          class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         >
           <option value="">None</option>
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
@@ -119,20 +118,14 @@ async function run(dryRun: boolean) {
       </label>
       <label class="text-sm">
         Primary link
-        <select
-          v-model="linkColumn"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
-        >
+        <select v-model="linkColumn" class="mt-1 block w-full rounded border px-2 py-1 bg-default">
           <option value="">None</option>
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
         </select>
       </label>
       <label class="text-sm">
         Tags
-        <select
-          v-model="tagsColumn"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
-        >
+        <select v-model="tagsColumn" class="mt-1 block w-full rounded border px-2 py-1 bg-default">
           <option value="">None</option>
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
         </select>
@@ -141,14 +134,14 @@ async function run(dryRun: boolean) {
         {{ field.label }}
         <select
           v-model="fieldColumns[field.key]"
-          class="mt-1 block w-full rounded border px-2 py-1 dark:bg-slate-900"
+          class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         >
           <option value="">None</option>
           <option v-for="header in headers" :key="header" :value="header">{{ header }}</option>
         </select>
       </label>
       <div class="flex flex-wrap gap-2 md:col-span-2">
-        <button type="submit" class="rounded bg-teal-700 px-3 py-1 text-sm text-white">
+        <button type="submit" class="rounded bg-primary px-3 py-1 text-sm text-inverted">
           Preview import
         </button>
         <button type="button" class="rounded border px-3 py-1 text-sm" @click="run(false)">
@@ -181,7 +174,7 @@ async function run(dryRun: boolean) {
         Import these rows even though a name or host already exists
       </label>
     </div>
-    <p v-if="message" class="text-sm text-teal-800 dark:text-teal-200">{{ message }}</p>
-    <p v-if="error" class="text-sm text-red-700">{{ error }}</p>
+    <p v-if="message" class="text-sm text-success">{{ message }}</p>
+    <p v-if="error" class="text-sm text-error">{{ error }}</p>
   </section>
 </template>

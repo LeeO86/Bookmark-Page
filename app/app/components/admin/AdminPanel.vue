@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import type { PortalField, PortalNamespace, PortalSettings } from '../types/portal'
-import { apiFetch } from '../utils/api'
+import { settingsPatchSchema } from '#shared/contracts'
+import { accentPresets, plainTagColour, type AccentPreset } from '#shared/theme'
+import type { PortalField, PortalNamespace, PortalSettings } from '../../types/portal'
+import { apiFetch } from '../../utils/api'
 
 interface AdminSettings extends PortalSettings {
   auditRetentionDays: number
@@ -48,8 +50,10 @@ interface AuthStatus {
   groupsHeader: string | null
 }
 
+const props = defineProps<{ section: string }>()
+const section = computed(() => props.section)
 const portal = usePortal()
-const section = ref('settings')
+const toast = useToast()
 const message = ref('')
 const error = ref('')
 const settings = ref<AdminSettings | null>(null)
@@ -60,19 +64,23 @@ const tokens = ref<AdminToken[]>([])
 const scopes = ref<AdminScope[]>([])
 const status = ref<AuthStatus | null>(null)
 const issuedToken = ref('')
-const sections = [
-  ['settings', 'Settings'],
-  ['users', 'Users'],
-  ['auth', 'Auth status'],
-  ['fields', 'Fields'],
-  ['namespaces', 'Namespaces'],
-  ['tokens', 'API tokens'],
-  ['scopes', 'Ansible scopes'],
-  ['icons', 'Icons'],
-  ['actions', 'Action templates'],
-  ['backup', 'Backup'],
-  ['csv', 'CSV import'],
-] as const
+const auditRows = ref<
+  Array<{
+    id: string
+    action: string
+    actorLabel: string
+    actorType: string
+    targetType: string
+    createdAt: string
+  }>
+>([])
+const presets = [
+  ...Object.entries(accentPresets).map(([value, preset]) => ({
+    label: preset.label,
+    value: value as AccentPreset,
+  })),
+  { label: 'Custom', value: 'custom' as const },
+]
 
 const userForm = reactive({
   username: '',
@@ -93,7 +101,7 @@ const fieldForm = reactive({
 const namespaceForm = reactive({
   name: '',
   label: '',
-  colour: '#64748b',
+  colour: plainTagColour,
   sort: 0,
   showInSidebar: true,
 })
@@ -118,6 +126,9 @@ onMounted(async () => {
     return
   }
   await refresh()
+  if (section.value === 'audit') {
+    await loadAudit()
+  }
 })
 
 async function refresh() {
@@ -157,9 +168,11 @@ async function run(action: () => Promise<void>, success: string) {
   try {
     await action()
     message.value = success
+    toast.add({ title: success, color: 'success' })
     await refresh()
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Request failed'
+    toast.add({ title: error.value, color: 'error' })
   }
 }
 
@@ -174,7 +187,10 @@ async function saveSettings() {
         siteTitle: settings.value?.siteTitle,
         siteClaim: settings.value?.siteClaim,
         accentColour: settings.value?.accentColour,
-        faviconColour: settings.value?.faviconColour,
+        accentPreset: settings.value?.accentPreset,
+        neutralPalette: settings.value?.neutralPalette,
+        defaultColourMode: settings.value?.defaultColourMode,
+        faviconColour: settings.value?.accentColour,
         allTabPublic: settings.value?.allTabPublic,
         auditRetentionDays: Number(settings.value?.auditRetentionDays),
         defaultScopeEditMode: settings.value?.defaultScopeEditMode,
@@ -255,6 +271,46 @@ async function uploadIcon() {
   }, 'Icon uploaded')
 }
 
+function choosePreset(value: string) {
+  if (!settings.value) {
+    return
+  }
+  const preset = value as AccentPreset
+  settings.value.accentPreset = preset
+  if (preset !== 'custom') {
+    settings.value.accentColour = accentPresets[preset].seed
+  }
+}
+
+async function uploadTabFavicon(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) {
+    return
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  await run(async () => {
+    await apiFetch('/api/v1/settings/favicon', {
+      method: 'POST',
+      body: { contentType: file.type, data: btoa(binary) },
+    })
+  }, 'Tab icon saved')
+}
+
+watch(section, () => {
+  if (section.value === 'audit') {
+    void loadAudit()
+  }
+})
+
+async function loadAudit() {
+  const body = await apiFetch<{ entries: typeof auditRows.value }>('/api/v1/audit')
+  auditRows.value = body.entries
+}
+
 function toggleScope(scope: string) {
   tokenForm.scopes = tokenForm.scopes.includes(scope)
     ? tokenForm.scopes.filter((item) => item !== scope)
@@ -263,38 +319,27 @@ function toggleScope(scope: string) {
 </script>
 
 <template>
-  <div class="mx-auto flex max-w-5xl gap-6 p-4">
-    <div v-if="portal.actor.value.role !== 'admin'" class="text-sm">
+  <div class="space-y-4 p-4 text-sm">
+    <div v-if="portal.actor.value.role !== 'admin'">
       <p>Admin access is required.</p>
-      <NuxtLink to="/" class="underline">Back to the portal</NuxtLink>
+      <NuxtLink to="/" class="text-accent">Back to the portal</NuxtLink>
     </div>
     <template v-else>
-      <nav class="w-44 shrink-0 space-y-1 text-sm" aria-label="Admin sections">
-        <NuxtLink to="/" class="block pb-2 underline">Portal</NuxtLink>
-        <button
-          v-for="item in sections"
-          :key="item[0]"
-          type="button"
-          class="block w-full rounded px-2 py-1 text-left"
-          :aria-current="section === item[0] ? 'page' : undefined"
-          :class="
-            section === item[0]
-              ? 'bg-teal-700 text-white'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-          "
-          @click="section = item[0]"
-        >
-          {{ item[1] }}
-        </button>
+      <nav aria-label="Admin pages" class="flex flex-wrap gap-2">
+        <NuxtLink to="/admin/backup" class="text-accent">Backup</NuxtLink>
+        <NuxtLink to="/admin/csv" class="text-accent">CSV import</NuxtLink>
+        <NuxtLink to="/admin/audit" class="text-accent">Audit log</NuxtLink>
       </nav>
-      <main class="min-w-0 flex-1 space-y-4 text-sm">
-        <p v-if="message" class="text-emerald-700">{{ message }}</p>
-        <p v-if="error" class="text-red-600">{{ error }}</p>
+      <main class="min-w-0 flex-1 space-y-4">
+        <p v-if="message" class="text-success">{{ message }}</p>
+        <p v-if="error" class="text-error">{{ error }}</p>
 
-        <form
+        <UForm
           v-if="section === 'settings' && settings"
+          :schema="settingsPatchSchema"
+          :state="settings"
           class="space-y-3"
-          @submit.prevent="saveSettings"
+          @submit="saveSettings"
         >
           <h1 class="text-lg font-semibold">Settings</h1>
           <UFormField label="Title"
@@ -303,10 +348,36 @@ function toggleScope(scope: string) {
           <UFormField label="Claim"
             ><UInput v-model="settings.siteClaim" class="w-full"
           /></UFormField>
-          <label class="block">Accent <input v-model="settings.accentColour" type="color" /></label>
-          <label class="block"
-            >Browser tab <input v-model="settings.faviconColour" type="color"
-          /></label>
+          <UFormField label="Theme">
+            <USelect
+              :model-value="settings.accentPreset"
+              :items="presets"
+              class="w-48"
+              @update:model-value="choosePreset(String($event))"
+            />
+          </UFormField>
+          <label class="block">
+            Accent
+            <input
+              v-model="settings.accentColour"
+              type="color"
+              @input="settings.accentPreset = 'custom'"
+            />
+          </label>
+          <UFormField label="Neutral palette">
+            <USelect
+              v-model="settings.neutralPalette"
+              :items="['slate', 'gray', 'zinc', 'neutral', 'stone']"
+              class="w-48"
+            />
+          </UFormField>
+          <UFormField label="Default colour mode">
+            <USelect
+              v-model="settings.defaultColourMode"
+              :items="['system', 'light', 'dark']"
+              class="w-48"
+            />
+          </UFormField>
           <label class="flex items-center gap-2">
             <input v-model="settings.allTabPublic" type="checkbox" />
             All tab is visible to anonymous visitors
@@ -328,13 +399,33 @@ function toggleScope(scope: string) {
           <UFormField label="Default scope edit mode">
             <select
               v-model="settings.defaultScopeEditMode"
-              class="rounded border px-2 py-1 dark:bg-slate-900"
+              class="rounded border px-2 py-1 bg-default"
             >
               <option value="locked">locked</option>
               <option value="field_ownership">field_ownership</option>
               <option value="free">free</option>
             </select>
           </UFormField>
+          <div>
+            <label class="block"
+              >Browser tab icon (PNG or WebP). Leave empty to use the accent glyph.</label
+            >
+            <input type="file" accept="image/png,image/webp" @change="uploadTabFavicon" />
+            <UButton
+              type="button"
+              class="mt-2"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              @click="
+                run(async () => {
+                  await apiFetch('/api/v1/settings/favicon', { method: 'DELETE', body: {} })
+                }, 'Tab icon removed')
+              "
+            >
+              Use accent glyph
+            </UButton>
+          </div>
           <div>
             <label class="block">Logo (PNG or WebP, up to 512 KB)</label>
             <input
@@ -354,7 +445,7 @@ function toggleScope(scope: string) {
             >
           </div>
           <UButton type="submit">Save settings</UButton>
-        </form>
+        </UForm>
 
         <section v-else-if="section === 'users'" class="space-y-3">
           <h1 class="text-lg font-semibold">Users and roles</h1>
@@ -374,7 +465,7 @@ function toggleScope(scope: string) {
             <UInput v-model="userForm.username" placeholder="Username" required />
             <UInput v-model="userForm.email" placeholder="Email" />
             <UInput v-model="userForm.password" type="password" placeholder="Password" required />
-            <select v-model="userForm.role" class="rounded border px-2 py-1 dark:bg-slate-900">
+            <select v-model="userForm.role" class="rounded border px-2 py-1 bg-default">
               <option value="viewer">viewer</option>
               <option value="editor">editor</option>
               <option value="admin">admin</option>
@@ -390,10 +481,10 @@ function toggleScope(scope: string) {
             class="flex flex-wrap items-center gap-2 border-t py-2"
           >
             <span class="font-medium">{{ user.username }}</span>
-            <span class="text-xs text-slate-500">{{ user.authSource }}</span>
+            <span class="text-xs text-muted">{{ user.authSource }}</span>
             <select
               :value="user.role"
-              class="rounded border px-2 py-1 dark:bg-slate-900"
+              class="rounded border px-2 py-1 bg-default"
               @change="
                 run(async () => {
                   await apiFetch(`/api/v1/users/${user.id}`, {
@@ -434,7 +525,7 @@ function toggleScope(scope: string) {
           <p>User header: {{ status.userHeader }}</p>
           <p v-if="status.emailHeader">Email header: {{ status.emailHeader }}</p>
           <p v-if="status.groupsHeader">Groups header: {{ status.groupsHeader }}</p>
-          <p class="text-xs text-slate-500">Secrets are not shown.</p>
+          <p class="text-xs text-muted">Secrets are not shown.</p>
         </section>
 
         <section v-else-if="section === 'fields'" class="space-y-3">
@@ -449,16 +540,13 @@ function toggleScope(scope: string) {
           >
             <UInput v-model="fieldForm.key" placeholder="key" required />
             <UInput v-model="fieldForm.label" placeholder="Label" required />
-            <select v-model="fieldForm.type" class="rounded border px-2 py-1 dark:bg-slate-900">
+            <select v-model="fieldForm.type" class="rounded border px-2 py-1 bg-default">
               <option value="text">text</option>
               <option value="url">url</option>
               <option value="number">number</option>
               <option value="secret">secret</option>
             </select>
-            <select
-              v-model="fieldForm.minRoleToView"
-              class="rounded border px-2 py-1 dark:bg-slate-900"
-            >
+            <select v-model="fieldForm.minRoleToView" class="rounded border px-2 py-1 bg-default">
               <option value="anonymous">anonymous</option>
               <option value="viewer">viewer</option>
               <option value="editor">editor</option>
@@ -591,7 +679,7 @@ function toggleScope(scope: string) {
             </label>
             <UButton type="submit" size="sm">Create token</UButton>
           </form>
-          <p v-if="issuedToken" class="rounded bg-amber-50 p-2 break-all">
+          <p v-if="issuedToken" class="rounded bg-warning/10 p-2 break-all">
             Copy this token now. It will not be shown again: {{ issuedToken }}
           </p>
           <div
@@ -618,7 +706,7 @@ function toggleScope(scope: string) {
 
         <section v-else-if="section === 'actions'" class="space-y-3">
           <h1 class="text-lg font-semibold">Action templates</h1>
-          <p class="text-xs text-slate-500">
+          <p class="text-xs text-muted">
             A template appears on every entry that matches its query. Running it makes this server
             call that URL.
           </p>
@@ -694,7 +782,7 @@ function toggleScope(scope: string) {
 
         <section v-else-if="section === 'icons'" class="space-y-3">
           <h1 class="text-lg font-semibold">Icon library</h1>
-          <p class="text-xs text-slate-500">
+          <p class="text-xs text-muted">
             Lucide names match the old Feather icon names. Uploaded SVGs are sanitised.
           </p>
           <div class="flex gap-2">
@@ -721,7 +809,7 @@ function toggleScope(scope: string) {
               <button
                 v-if="icon.kind === 'upload'"
                 type="button"
-                class="text-xs text-red-600"
+                class="text-xs text-error"
                 @click="
                   run(async () => {
                     await apiFetch(`/api/v1/icons/${icon.ref.slice('upload:'.length)}`, {
@@ -749,7 +837,7 @@ function toggleScope(scope: string) {
             "
           >
             <UInput v-model="scopeForm.name" placeholder="name" required />
-            <select v-model="scopeForm.editMode" class="rounded border px-2 py-1 dark:bg-slate-900">
+            <select v-model="scopeForm.editMode" class="rounded border px-2 py-1 bg-default">
               <option value="locked">locked</option>
               <option value="field_ownership">field_ownership</option>
               <option value="free">free</option>
@@ -764,7 +852,7 @@ function toggleScope(scope: string) {
             <span class="font-medium">{{ scope.name }}</span>
             <select
               :value="scope.editMode"
-              class="rounded border px-2 py-1 dark:bg-slate-900"
+              class="rounded border px-2 py-1 bg-default"
               @change="
                 run(async () => {
                   await apiFetch(`/api/v1/scopes/${scope.id}`, {
@@ -779,6 +867,19 @@ function toggleScope(scope: string) {
               <option value="free">free</option>
             </select>
           </div>
+        </section>
+
+        <section v-else-if="section === 'audit'" class="space-y-3">
+          <h1 class="text-lg font-semibold">Audit log</h1>
+          <p class="text-xs text-muted">Secret values are redacted.</p>
+          <div v-for="row in auditRows" :key="row.id" class="border-t border-default py-2">
+            <p>
+              <time>{{ new Date(row.createdAt).toLocaleString() }}</time>
+              · {{ row.actorLabel }} ({{ row.actorType }})
+            </p>
+            <p class="text-muted">{{ row.action }} · {{ row.targetType }}</p>
+          </div>
+          <p v-if="auditRows.length === 0" class="text-muted">No audit entries.</p>
         </section>
 
         <BackupPanel v-else-if="section === 'backup'" />

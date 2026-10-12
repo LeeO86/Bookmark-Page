@@ -1,2 +1,32 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
+
+:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.text-accent {
+  color: var(--bp-accent-text);
+}
+
+.status-mark {
+  background: var(--bp-status-none);
+  color: var(--bp-status-none);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 28%, transparent);
+}
+
+.status-up {
+  background: var(--bp-status-up);
+  color: var(--bp-status-up);
+}
+
+.status-down {
+  background: var(--bp-status-down);
+  color: var(--bp-status-down);
+}
+
+.status-unknown {
+  background: var(--bp-status-unknown);
+  color: var(--bp-status-unknown);
+}

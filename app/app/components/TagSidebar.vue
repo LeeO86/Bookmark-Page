@@ -27,7 +27,7 @@ const sections = computed(() => {
     .filter((tag) => tag.count > 0)
     .sort((left, right) => left.label.localeCompare(right.label))
   if (plain.length > 0) {
-    groups.push({ id: 'plain', label: 'Tags', colour: '#64748b', tags: plain })
+    groups.push({ id: 'plain', label: 'Tags', colour: '', tags: plain })
   }
   return groups.filter((group) => group.tags.length > 0)
 })
@@ -45,21 +45,8 @@ async function addTag(event: MouseEvent, label: string) {
 </script>
 
 <template>
-  <aside
-    v-show="portal.sidebarOpen.value"
-    class="w-56 shrink-0 overflow-auto border-r border-slate-200 p-2 text-sm dark:border-slate-700"
-  >
-    <div class="mb-2 flex items-center justify-between">
-      <h2 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Tags</h2>
-      <button
-        type="button"
-        class="text-xs text-slate-500"
-        @click="portal.sidebarOpen.value = false"
-      >
-        Hide
-      </button>
-    </div>
-    <p v-if="sections.length === 0" class="text-xs text-slate-500">No tags in this view.</p>
+  <div class="text-sm">
+    <p v-if="sections.length === 0" class="text-xs text-muted">No tags in this view.</p>
     <section v-for="section in sections" :key="section.id" class="mb-3">
       <button
         type="button"
@@ -67,22 +54,25 @@ async function addTag(event: MouseEvent, label: string) {
         :aria-expanded="!collapsed.includes(section.id)"
         @click="toggle(section.id)"
       >
-        <span class="inline-block size-2 rounded-full" :style="{ background: section.colour }" />
+        <span
+          class="inline-block size-2 rounded-full bg-primary"
+          :style="section.colour ? { background: section.colour } : undefined"
+        />
         {{ section.label }}
       </button>
       <ul v-show="!collapsed.includes(section.id)" class="mt-1 space-y-0.5 pl-4">
         <li v-for="tag in section.tags" :key="tag.label">
           <button
             type="button"
-            class="flex w-full items-center justify-between rounded px-1 py-0.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+            class="flex w-full items-center justify-between rounded px-1 py-0.5 text-left hover:bg-elevated"
             :title="`${tag.label}. Click to add, Shift for OR, Alt for NOT`"
             @click="addTag($event, tag.label)"
           >
             <span class="truncate">{{ tag.label }}</span>
-            <span class="text-xs text-slate-500">{{ tag.count }}</span>
+            <span class="text-xs text-muted">{{ tag.count }}</span>
           </button>
         </li>
       </ul>
     </section>
-  </aside>
+  </div>
 </template>

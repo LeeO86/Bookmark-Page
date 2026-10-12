@@ -68,11 +68,11 @@ async function execute(confirmed: boolean) {
       v-for="action in actions"
       :key="`${action.source}-${action.name}`"
       type="button"
-      class="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+      class="rounded border border-default px-2 py-1 text-xs hover:bg-elevated hover:bg-elevated"
       @click="open(action)"
     >
       Run {{ action.name }}
-      <span v-if="action.source === 'template'" class="text-slate-500">template</span>
+      <span v-if="action.source === 'template'" class="text-muted">template</span>
     </button>
   </div>
 
@@ -99,11 +99,11 @@ async function execute(confirmed: boolean) {
             :required="input.required"
           />
         </label>
-        <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+        <p v-if="error" class="text-sm text-error">{{ error }}</p>
         <div
           v-if="result"
           class="rounded p-2 text-sm"
-          :class="result.ok ? 'bg-emerald-50 text-emerald-900' : 'bg-red-50 text-red-900'"
+          :class="result.ok ? 'bg-success/10 text-success' : 'bg-error/10 text-error'"
         >
           <p>
             {{ result.ok ? 'Expectation met' : 'Expectation not met' }} · HTTP {{ result.status }} ·

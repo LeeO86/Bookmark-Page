@@ -6,6 +6,7 @@ import {
   suggestionToken,
   suggestQuery,
 } from '#shared/query-chips'
+import { contrastingForeground } from '#shared/theme'
 
 const portal = usePortal()
 const input = ref<HTMLInputElement | null>(null)
@@ -31,19 +32,25 @@ watch(suggestions, (items) => {
 })
 
 function chipColour(kind: string): string {
-  if (kind === 'is') {
-    return '#0369a1'
+  if (kind === 'is' || kind === 'has' || kind === 'group' || kind === 'text') {
+    return `var(--bp-chip-${kind})`
   }
-  if (kind === 'has') {
-    return '#6d28d9'
+  return 'var(--bp-chip-tag)'
+}
+
+function chipForeground(kind: string): string {
+  if (kind === 'is' || kind === 'has' || kind === 'group' || kind === 'text') {
+    return `var(--bp-chip-${kind}-fg)`
   }
-  if (kind === 'group') {
-    return '#b45309'
+  return 'var(--bp-chip-tag-fg)'
+}
+
+function chipStyle(text: string, kind: string): Record<string, string> {
+  const background = colour(text)
+  if (background) {
+    return { background, color: contrastingForeground(background) }
   }
-  if (kind === 'text') {
-    return '#475569'
-  }
-  return '#64748b'
+  return { background: chipColour(kind), color: chipForeground(kind) }
 }
 
 function colour(text: string): string | undefined {
@@ -124,7 +131,7 @@ defineExpose({ focus: () => input.value?.focus() })
       ref="input"
       data-testid="query-input"
       :value="portal.queryText.value"
-      class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-[var(--portal-accent)] dark:border-slate-600 dark:bg-slate-900"
+      class="w-full rounded-md border border-default bg-default px-2 py-1 text-sm outline-none focus:border-primary"
       placeholder="Query, or press /"
       autocomplete="off"
       @input="onInput"
@@ -132,19 +139,19 @@ defineExpose({ focus: () => input.value?.focus() })
       @focus="onFocus"
       @blur="onBlur"
     />
-    <p v-if="parsed.error" class="mt-1 text-xs text-red-600">{{ parsed.error.message }}</p>
+    <p v-if="parsed.error" class="mt-1 text-xs text-error">{{ parsed.error.message }}</p>
     <div v-if="parsed.chips.length > 0" class="mt-1 flex flex-wrap gap-1">
       <span
         v-for="(chip, index) in parsed.chips"
         :key="`${chip.start}-${chip.text}`"
-        class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-white"
-        :style="{ background: colour(chip.text) ?? chipColour(chip.kind) }"
+        class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+        :style="chipStyle(chip.text, chip.kind)"
       >
         <span v-if="index > 0 && chip.join === 'or'" class="opacity-80">OR</span>
         {{ chip.text }}
         <button
           type="button"
-          class="rounded px-0.5 hover:bg-black/20"
+          class="rounded px-0.5 hover:bg-inverted/20"
           :aria-label="`Remove ${chip.text}`"
           @click="portal.setQuery(removeQueryChip(portal.queryText.value, index))"
         >
@@ -154,13 +161,13 @@ defineExpose({ focus: () => input.value?.focus() })
     </div>
     <ul
       v-if="portal.suggestionsOpen.value && suggestions.length > 0"
-      class="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white text-sm shadow dark:border-slate-700 dark:bg-slate-900"
+      class="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border border-default bg-elevated text-sm shadow"
     >
       <li v-for="(suggestion, index) in suggestions" :key="suggestion">
         <button
           type="button"
-          class="block w-full px-2 py-1 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
-          :class="index === highlight ? 'bg-slate-100 dark:bg-slate-800' : ''"
+          class="block w-full px-2 py-1 text-left hover:bg-muted"
+          :class="index === highlight ? 'bg-muted' : ''"
           @mousedown.prevent="choose(suggestion)"
         >
           {{ suggestion }}

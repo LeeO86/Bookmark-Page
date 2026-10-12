@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { z } from 'zod'
 import type { ActionPrompt, HistoryRow, PortalEntry } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 import { isPathLocked } from '../utils/view'
@@ -6,6 +7,17 @@ import { isPathLocked } from '../utils/view'
 const props = defineProps<{ open: boolean; entry: PortalEntry | null; creating: boolean }>()
 const emit = defineEmits<{ close: []; saved: [entry: PortalEntry] }>()
 const portal = usePortal()
+
+const entryFormSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  host: z.string().max(500),
+  description: z.string().max(4000),
+})
+const editorState = computed(() => ({
+  name: name.value,
+  host: host.value,
+  description: description.value,
+}))
 
 const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
 const checkKinds = ['icmp', 'tcp', 'http'] as const
@@ -476,17 +488,17 @@ function diffText(diff: Record<string, unknown>): string {
   >
     <template #body>
       <div class="space-y-4 text-sm">
-        <p v-if="entry?.editMode === 'locked'" class="rounded bg-amber-50 px-2 py-1 text-amber-900">
+        <p v-if="entry?.editMode === 'locked'" class="rounded bg-warning/10 px-2 py-1 text-warning">
           This entry is locked by its Ansible scope. Managed attributes cannot be changed here.
         </p>
         <p
           v-else-if="entry?.editMode === 'field_ownership'"
-          class="rounded bg-amber-50 px-2 py-1 text-amber-900"
+          class="rounded bg-warning/10 px-2 py-1 text-warning"
         >
           Ansible owns the highlighted attributes. Those fields stay read-only; everything else can
           be edited.
         </p>
-        <p v-if="entry?.scope" class="text-xs text-slate-500">
+        <p v-if="entry?.scope" class="text-xs text-muted">
           Managed by scope {{ entry.scope
           }}<span v-if="entry.externalKey"> · {{ entry.externalKey }}</span>
         </p>
@@ -522,7 +534,7 @@ function diffText(diff: Record<string, unknown>): string {
               v-for="choice in iconChoices"
               :key="choice.ref"
               type="button"
-              class="rounded border border-slate-200 p-1 dark:border-slate-700"
+              class="rounded border border-default p-1"
               :title="choice.name"
               @click="iconRef = choice.ref"
             >
@@ -531,30 +543,37 @@ function diffText(diff: Record<string, unknown>): string {
           </div>
         </div>
 
-        <UFormField label="Name">
-          <UInput
-            v-model="name"
-            :disabled="locked('name')"
-            class="w-full"
-            data-testid="entry-name"
-          />
-        </UFormField>
-        <UFormField label="Host">
-          <UInput
-            v-model="host"
-            :disabled="locked('host')"
-            class="w-full"
-            data-testid="entry-host"
-          />
-        </UFormField>
-        <UFormField label="Description">
-          <UTextarea
-            v-model="description"
-            :disabled="locked('description')"
-            :rows="3"
-            class="w-full"
-          />
-        </UFormField>
+        <UForm
+          id="entry-editor"
+          :schema="entryFormSchema"
+          :state="editorState"
+          @submit="save(false)"
+        >
+          <UFormField name="name" label="Name">
+            <UInput
+              v-model="name"
+              :disabled="locked('name')"
+              class="w-full"
+              data-testid="entry-name"
+            />
+          </UFormField>
+          <UFormField name="host" label="Host">
+            <UInput
+              v-model="host"
+              :disabled="locked('host')"
+              class="w-full"
+              data-testid="entry-host"
+            />
+          </UFormField>
+          <UFormField name="description" label="Description">
+            <UTextarea
+              v-model="description"
+              :disabled="locked('description')"
+              :rows="3"
+              class="w-full"
+            />
+          </UFormField>
+        </UForm>
         <UFormField label="Manual sort">
           <UInput v-model.number="sort" type="number" :disabled="locked('sort')" class="w-full" />
         </UFormField>
@@ -565,7 +584,7 @@ function diffText(diff: Record<string, unknown>): string {
             <span
               v-for="tag in tags"
               :key="tag"
-              class="inline-flex items-center gap-1 rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-700"
+              class="inline-flex items-center gap-1 rounded bg-accented px-2 py-0.5"
             >
               {{ tag }}
               <button
@@ -582,7 +601,7 @@ function diffText(diff: Record<string, unknown>): string {
             <input
               v-model="tagDraft"
               list="tag-suggestions"
-              class="w-full rounded border border-slate-300 px-2 py-1 dark:border-slate-600 dark:bg-slate-900"
+              class="w-full rounded border border-default px-2 py-1 bg-default"
               placeholder="namespace:value"
               @keydown.enter.prevent="addTag"
             />
@@ -611,7 +630,7 @@ function diffText(diff: Record<string, unknown>): string {
           <div
             v-for="(link, index) in links"
             :key="index"
-            class="mb-2 space-y-1 rounded border border-slate-200 p-2 dark:border-slate-700"
+            class="mb-2 space-y-1 rounded border border-default p-2"
             draggable="true"
             @dragstart="dragIndex = index"
             @dragover.prevent
@@ -626,7 +645,7 @@ function diffText(diff: Record<string, unknown>): string {
               />
               <select
                 v-model="link.type"
-                class="rounded border border-slate-300 px-1 dark:border-slate-600 dark:bg-slate-900"
+                class="rounded border border-default px-1 bg-default"
                 :disabled="locked(`links:${link.label}`)"
               >
                 <option v-for="type in linkTypes" :key="type" :value="type">{{ type }}</option>
@@ -654,7 +673,7 @@ function diffText(diff: Record<string, unknown>): string {
               <button
                 v-if="!locked(`links:${link.label}`)"
                 type="button"
-                class="text-xs text-red-600"
+                class="text-xs text-error"
                 @click="links.splice(index, 1)"
               >
                 Remove
@@ -666,7 +685,7 @@ function diffText(diff: Record<string, unknown>): string {
         <div>
           <h3 class="mb-1 font-medium">Fields</h3>
           <div v-for="field in fields" :key="field.key" class="mb-2">
-            <label class="mb-0.5 block text-xs text-slate-500">{{ field.label }}</label>
+            <label class="mb-0.5 block text-xs text-muted">{{ field.label }}</label>
             <div class="flex gap-1">
               <UInput
                 v-model="field.value"
@@ -710,7 +729,7 @@ function diffText(diff: Record<string, unknown>): string {
               >Add check</UButton
             >
           </div>
-          <p class="mb-1 text-xs text-slate-500">
+          <p class="mb-1 text-xs text-muted">
             Server checks run on a schedule. Browser checks only see whether a request starts: they
             cannot read status codes, an HTTPS page cannot probe http:// targets, and untrusted
             certificates make the result unreliable. ICMP needs CAP_NET_RAW on the server; otherwise
@@ -719,7 +738,7 @@ function diffText(diff: Record<string, unknown>): string {
           <div
             v-for="(check, index) in checks"
             :key="index"
-            class="mb-2 space-y-1 rounded border border-slate-200 p-2 dark:border-slate-700"
+            class="mb-2 space-y-1 rounded border border-default p-2"
           >
             <div class="flex gap-1">
               <UInput
@@ -727,10 +746,7 @@ function diffText(diff: Record<string, unknown>): string {
                 :disabled="locked(`checks:${check.name}`)"
                 class="flex-1"
               />
-              <select
-                v-model="check.kind"
-                class="rounded border border-slate-300 px-1 dark:border-slate-600 dark:bg-slate-900"
-              >
+              <select v-model="check.kind" class="rounded border border-default px-1 bg-default">
                 <option v-for="kind in checkKinds" :key="kind" :value="kind">{{ kind }}</option>
               </select>
             </div>
@@ -745,7 +761,7 @@ function diffText(diff: Record<string, unknown>): string {
             <button
               v-if="!locked(`checks:${check.name}`)"
               type="button"
-              class="text-xs text-red-600"
+              class="text-xs text-error"
               @click="checks.splice(index, 1)"
             >
               Remove
@@ -766,7 +782,7 @@ function diffText(diff: Record<string, unknown>): string {
               >Add action</UButton
             >
           </div>
-          <p class="mb-1 text-xs text-slate-500">
+          <p class="mb-1 text-xs text-muted">
             Actions run on the server. Creating or running one is limited to the action's role,
             which defaults to editor. The server calls the saved URL, including addresses on your
             network.
@@ -775,7 +791,7 @@ function diffText(diff: Record<string, unknown>): string {
           <div
             v-for="(action, index) in actions"
             :key="index"
-            class="mb-2 space-y-1 rounded border border-slate-200 p-2 dark:border-slate-700"
+            class="mb-2 space-y-1 rounded border border-default p-2"
           >
             <UInput
               v-model="action.name"
@@ -793,7 +809,7 @@ function diffText(diff: Record<string, unknown>): string {
             <button
               v-if="!locked(`actions:${action.name}`)"
               type="button"
-              class="text-xs text-red-600"
+              class="text-xs text-error"
               @click="actions.splice(index, 1)"
             >
               Remove
@@ -804,14 +820,10 @@ function diffText(diff: Record<string, unknown>): string {
         <div v-if="entry">
           <h3 class="mb-1 font-medium">History</h3>
           <ul class="space-y-2">
-            <li
-              v-for="row in history"
-              :key="row.id"
-              class="rounded border border-slate-200 p-2 dark:border-slate-700"
-            >
+            <li v-for="row in history" :key="row.id" class="rounded border border-default p-2">
               <div class="flex items-center justify-between gap-2">
                 <span>{{ row.action }} · {{ row.actorLabel }}</span>
-                <time class="text-xs text-slate-500">{{
+                <time class="text-xs text-muted">{{
                   new Date(row.createdAt).toLocaleString()
                 }}</time>
               </div>
@@ -830,16 +842,16 @@ function diffText(diff: Record<string, unknown>): string {
             </li>
           </ul>
         </div>
-        <p v-if="formError" class="text-red-600">{{ formError }}</p>
+        <p v-if="formError" class="text-error">{{ formError }}</p>
       </div>
     </template>
     <template #footer>
       <div class="flex gap-2">
         <UButton
           v-if="editable && portal.canWrite.value"
-          type="button"
+          type="submit"
+          form="entry-editor"
           data-testid="save-entry"
-          @click="save(false)"
           >Save</UButton
         >
         <UButton

@@ -31,16 +31,17 @@ test('signs in from the portal', async ({ page, goto }) => {
   await page.getByTestId('login-submit').click()
   await expect(page.getByTestId('new-entry')).toBeVisible()
   await page.getByRole('link', { name: 'Admin' }).click()
-  await page.getByRole('button', { name: 'Backup' }).click()
+  await page.getByRole('link', { name: 'Backup' }).first().click()
   await expect(page.getByRole('heading', { name: 'Backup and restore' })).toBeVisible()
   await page.getByRole('button', { name: 'Download backup' }).click()
-  await expect(page.getByText('Backup downloaded.')).toBeVisible()
-  await page.getByRole('button', { name: 'CSV import' }).click()
+  await expect(page.getByText('Backup downloaded.').first()).toBeVisible()
+  await page.getByRole('link', { name: 'CSV import' }).first().click()
+  await expect(page.getByRole('heading', { name: 'CSV import' })).toBeVisible()
   await page.locator('input[type="file"]').setInputFiles({
     name: 'devices.csv',
     mimeType: 'text/csv',
     buffer: Buffer.from('Name,Host\nMixer,10.0.0.8\n'),
   })
   await page.getByRole('button', { name: 'Preview import' }).click()
-  await expect(page.getByText('Preview only. Nothing was written.')).toBeVisible()
+  await expect(page.getByText('Preview only. Nothing was written.').first()).toBeVisible()
 })
