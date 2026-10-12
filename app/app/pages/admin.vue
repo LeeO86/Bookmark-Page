@@ -22,6 +22,15 @@ interface AdminToken {
   scopes: string[]
   userId: string
 }
+interface ActionTemplateRow {
+  id: string
+  name: string
+  query: string
+  method: string
+  urlTemplate: string
+  confirm: boolean
+  minRole: string
+}
 interface AdminScope {
   id: string
   name: string
@@ -60,6 +69,7 @@ const sections = [
   ['tokens', 'API tokens'],
   ['scopes', 'Ansible scopes'],
   ['icons', 'Icons'],
+  ['actions', 'Action templates'],
 ] as const
 
 const userForm = reactive({
@@ -87,7 +97,16 @@ const namespaceForm = reactive({
 })
 const tokenForm = reactive({ name: '', scopes: ['read'] as string[] })
 const scopeForm = reactive({ name: '', editMode: 'field_ownership' as AdminScope['editMode'] })
+const templates = ref<ActionTemplateRow[]>([])
 const iconQuery = ref('')
+const templateForm = reactive({
+  name: '',
+  query: '',
+  method: 'POST',
+  urlTemplate: 'https://{{host}}/',
+  confirm: true,
+  minRole: 'editor' as 'viewer' | 'editor' | 'admin',
+})
 const iconResults = ref<Array<{ ref: string; name: string; kind: string; url: string }>>([])
 const iconName = ref('')
 
@@ -101,16 +120,25 @@ onMounted(async () => {
 
 async function refresh() {
   error.value = ''
-  const [settingsBody, userBody, namespaceBody, fieldBody, tokenBody, scopeBody, statusBody] =
-    await Promise.all([
-      apiFetch<AdminSettings>('/api/v1/settings'),
-      apiFetch<{ users: AdminUser[] }>('/api/v1/users'),
-      apiFetch<{ namespaces: PortalNamespace[] }>('/api/v1/namespaces'),
-      apiFetch<{ fields: PortalField[] }>('/api/v1/fields'),
-      apiFetch<{ tokens: AdminToken[] }>('/api/v1/tokens'),
-      apiFetch<{ scopes: AdminScope[] }>('/api/v1/scopes'),
-      apiFetch<AuthStatus>('/api/v1/auth/status'),
-    ])
+  const [
+    settingsBody,
+    userBody,
+    namespaceBody,
+    fieldBody,
+    tokenBody,
+    scopeBody,
+    statusBody,
+    templateBody,
+  ] = await Promise.all([
+    apiFetch<AdminSettings>('/api/v1/settings'),
+    apiFetch<{ users: AdminUser[] }>('/api/v1/users'),
+    apiFetch<{ namespaces: PortalNamespace[] }>('/api/v1/namespaces'),
+    apiFetch<{ fields: PortalField[] }>('/api/v1/fields'),
+    apiFetch<{ tokens: AdminToken[] }>('/api/v1/tokens'),
+    apiFetch<{ scopes: AdminScope[] }>('/api/v1/scopes'),
+    apiFetch<AuthStatus>('/api/v1/auth/status'),
+    apiFetch<{ templates: ActionTemplateRow[] }>('/api/v1/action-templates'),
+  ])
   settings.value = settingsBody
   users.value = userBody.users
   namespaces.value = namespaceBody.namespaces
@@ -118,6 +146,7 @@ async function refresh() {
   tokens.value = tokenBody.tokens
   scopes.value = scopeBody.scopes
   status.value = statusBody
+  templates.value = templateBody.templates
 }
 
 async function run(action: () => Promise<void>, success: string) {
@@ -577,6 +606,82 @@ function toggleScope(scope: string) {
                 run(async () => {
                   await apiFetch(`/api/v1/tokens/${token.id}`, { method: 'DELETE', body: {} })
                 }, 'Token deleted')
+              "
+            >
+              Delete
+            </UButton>
+          </div>
+        </section>
+
+        <section v-else-if="section === 'actions'" class="space-y-3">
+          <h1 class="text-lg font-semibold">Action templates</h1>
+          <p class="text-xs text-slate-500">
+            A template appears on every entry that matches its query. Running it makes this server
+            call that URL.
+          </p>
+          <form
+            class="grid gap-2 md:grid-cols-2"
+            @submit.prevent="
+              run(async () => {
+                await apiFetch('/api/v1/action-templates', {
+                  method: 'POST',
+                  body: {
+                    name: templateForm.name,
+                    query: templateForm.query,
+                    confirm: templateForm.confirm,
+                    minRole: templateForm.minRole,
+                    requestSpec: {
+                      method: templateForm.method,
+                      urlTemplate: templateForm.urlTemplate,
+                      headers: {},
+                      bodyTemplate: null,
+                      tlsVerify: false,
+                      timeoutMs: 5000,
+                      expectation: {
+                        status: ['2xx'],
+                        bodyContains: null,
+                        bodyRegex: null,
+                        jsonPath: null,
+                        equals: null,
+                      },
+                    },
+                  },
+                })
+                templateForm.name = ''
+              }, 'Template created')
+            "
+          >
+            <UInput v-model="templateForm.name" placeholder="Name" required />
+            <UInput v-model="templateForm.query" placeholder="Query, for example type:audio" />
+            <UInput v-model="templateForm.method" placeholder="Method" required />
+            <UInput v-model="templateForm.urlTemplate" placeholder="URL template" required />
+            <label class="flex items-center gap-2"
+              ><input v-model="templateForm.confirm" type="checkbox" /> Confirm before
+              running</label
+            >
+            <UButton type="submit" size="sm">Create template</UButton>
+          </form>
+          <div
+            v-for="template in templates"
+            :key="template.id"
+            class="flex items-center justify-between border-t py-2"
+          >
+            <span
+              >{{ template.name }} · {{ template.method }} ·
+              {{ template.query || 'all entries' }}</span
+            >
+            <UButton
+              type="button"
+              size="xs"
+              color="error"
+              variant="soft"
+              @click="
+                run(async () => {
+                  await apiFetch(`/api/v1/action-templates/${template.id}`, {
+                    method: 'DELETE',
+                    body: {},
+                  })
+                }, 'Template deleted')
               "
             >
               Delete

@@ -44,6 +44,15 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/entries/{id}/favicon': { post: { summary: 'Refetch favicons for an entry' } },
   '/api/v1/checks/lease': { post: { summary: 'Lease due browser checks' } },
   '/api/v1/checks/{id}/report': { post: { summary: 'Report a browser check result' } },
+  '/api/v1/entries/{id}/actions': { get: { summary: 'List actions that can run on an entry' } },
+  '/api/v1/entries/{id}/actions/{name}/execute': {
+    post: { summary: 'Run an action on the server' },
+  },
+  '/api/v1/action-templates': {
+    get: { summary: 'List action templates' },
+    post: { summary: 'Create an action template' },
+  },
+  '/api/v1/action-templates/{id}': { delete: { summary: 'Delete an action template' } },
   '/api/v1/events': { get: { summary: 'Subscribe to entry and status changes' } },
   '/api/v1/logo': { get: { summary: 'Read the site logo' } },
   '/api/v1/namespaces': {

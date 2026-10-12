@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HistoryRow, PortalEntry } from '../types/portal'
+import type { ActionPrompt, HistoryRow, PortalEntry } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 import { isPathLocked } from '../utils/view'
 
@@ -46,6 +46,7 @@ interface DraftAction {
   minRole: (typeof roles)[number]
   method: string
   urlTemplate: string
+  inputs: ActionPrompt[]
 }
 
 const iconPreview = computed(() => {
@@ -180,6 +181,7 @@ function fill(entry: PortalEntry) {
       : 'editor',
     method: action.requestSpec.method,
     urlTemplate: action.requestSpec.urlTemplate,
+    inputs: action.inputs ?? [],
   }))
 }
 
@@ -297,6 +299,7 @@ function addAction() {
       minRole: 'editor',
       method: 'POST',
       urlTemplate: 'https://{{host}}/',
+      inputs: [],
     },
   ]
 }
@@ -357,6 +360,7 @@ function buildBody(confirmDuplicates: boolean) {
       confirm: action.confirm,
       minRole: action.minRole,
       icon: null,
+      inputs: action.inputs,
       requestSpec: requestSpec(action.method, action.urlTemplate, false, 5000),
     })),
     confirmDuplicates,
@@ -761,8 +765,11 @@ function diffText(diff: Record<string, unknown>): string {
             >
           </div>
           <p class="mb-1 text-xs text-slate-500">
-            Actions are stored here. Nothing executes them yet.
+            Actions run on the server. Creating or running one is limited to the action's role,
+            which defaults to editor. The server calls the saved URL, including addresses on your
+            network.
           </p>
+          <ActionRunner v-if="entry" :entry-id="entry.id" />
           <div
             v-for="(action, index) in actions"
             :key="index"

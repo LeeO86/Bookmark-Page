@@ -15,6 +15,54 @@ export function assertKnownPlaceholders(template: string, allowInput: boolean): 
   }
 }
 
+export function resolvePlaceholders(
+  template: string,
+  context: {
+    host: string | null
+    name: string
+    fields: Record<string, string>
+    inputs: Record<string, string>
+  },
+): string {
+  return template.replace(placeholderPattern, (_match, key: string) => {
+    if (key === 'host') {
+      if (!context.host) {
+        throw new PlaceholderError('host')
+      }
+      return context.host
+    }
+    if (key === 'entry.name') {
+      return context.name
+    }
+    if (key.startsWith('field.')) {
+      const value = context.fields[key.slice('field.'.length)]
+      if (value === undefined) {
+        throw new PlaceholderError(key)
+      }
+      return value
+    }
+    if (key.startsWith('input.')) {
+      const value = context.inputs[key.slice('input.'.length)]
+      if (value === undefined) {
+        throw new PlaceholderError(key)
+      }
+      return value
+    }
+    throw new PlaceholderError(key)
+  })
+}
+
+export function redactSecretValues(text: string, secrets: readonly string[]): string {
+  let output = text
+  for (const secret of secrets) {
+    if (secret.length < 4) {
+      continue
+    }
+    output = output.split(secret).join('[redacted]')
+  }
+  return output
+}
+
 export function resolveLinkUrl(
   template: string,
   context: { host: string | null; name: string; fields: Record<string, string> },

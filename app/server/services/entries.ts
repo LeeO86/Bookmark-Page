@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import {
   entryPatchSchema,
   type ActionInput,
+  type ActionPrompt,
   type CheckInput,
   type EditMode,
   type EntryPatch,
@@ -91,6 +92,7 @@ interface LoadedAction {
   name: string
   icon: string | null
   requestSpec: Record<string, unknown>
+  inputs: ActionPrompt[]
   confirm: boolean
   minRole: Role
 }
@@ -826,6 +828,7 @@ function insertActions(
         name: action.name,
         icon: action.icon ?? null,
         requestSpec,
+        inputs: action.inputs ?? [],
         confirm: action.confirm ?? requestSpec.method !== 'GET',
         minRole: action.minRole,
         createdAt: timestamp,
@@ -1314,7 +1317,17 @@ function present(
     })),
     checks: entry.checks,
     status: entryStatus(entry.checks),
-    actions: entry.actions,
+    actions: entry.actions
+      .filter((action) => roleAtLeast(role, action.minRole))
+      .map((action) => ({
+        id: action.id,
+        name: action.name,
+        icon: action.icon,
+        requestSpec: action.requestSpec,
+        inputs: action.inputs,
+        confirm: action.confirm,
+        minRole: action.minRole,
+      })),
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     createdBy: entry.createdBy,
@@ -1435,6 +1448,7 @@ function hydrate(db: Db, rows: Array<typeof entries.$inferSelect>): LoadedEntry[
         name: action.name,
         icon: action.icon,
         requestSpec: action.requestSpec,
+        inputs: action.inputs ?? [],
         confirm: action.confirm,
         minRole: action.minRole,
       })),
@@ -1644,6 +1658,7 @@ function actionToInput(action: LoadedAction): ActionInput {
     name: action.name,
     icon: action.icon,
     requestSpec: action.requestSpec as ActionInput['requestSpec'],
+    inputs: action.inputs,
     confirm: action.confirm,
     minRole: action.minRole,
   }

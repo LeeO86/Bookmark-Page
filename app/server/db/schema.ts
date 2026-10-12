@@ -263,6 +263,18 @@ export const actions = sqliteTable(
     name: text('name').notNull(),
     icon: text('icon'),
     requestSpec: text('request_spec', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    inputs: text('inputs', { mode: 'json' })
+      .$type<
+        Array<{
+          name: string
+          label: string
+          type: 'text' | 'password' | 'number'
+          defaultValue: string | null
+          required: boolean
+        }>
+      >()
+      .notNull()
+      .default([]),
     confirm: integer('confirm', { mode: 'boolean' }).notNull().default(true),
     minRole: text('min_role', { enum: ['anonymous', 'viewer', 'editor', 'admin'] }).notNull(),
     createdAt,
@@ -278,6 +290,18 @@ export const actionTemplates = sqliteTable('action_templates', {
   name: text('name').notNull(),
   icon: text('icon'),
   requestSpec: text('request_spec', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  inputs: text('inputs', { mode: 'json' })
+    .$type<
+      Array<{
+        name: string
+        label: string
+        type: 'text' | 'password' | 'number'
+        defaultValue: string | null
+        required: boolean
+      }>
+    >()
+    .notNull()
+    .default([]),
   query: text('query').notNull().default(''),
   confirm: integer('confirm', { mode: 'boolean' }).notNull().default(true),
   minRole: text('min_role', { enum: ['anonymous', 'viewer', 'editor', 'admin'] }).notNull(),

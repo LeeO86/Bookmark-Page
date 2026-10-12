@@ -58,12 +58,39 @@ export const checkInputSchema = z.object({
   requestSpec: requestSpecSchema.nullable().optional(),
 })
 
+export const actionPromptSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]{0,63}$/),
+  label: z.string().trim().min(1).max(200),
+  type: z.enum(['text', 'password', 'number']).default('text'),
+  defaultValue: z.string().max(2000).nullable().default(null),
+  required: z.boolean().default(true),
+})
+
 export const actionInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   icon: z.string().max(200).nullable().optional(),
   requestSpec: requestSpecSchema,
+  inputs: z.array(actionPromptSchema).default([]),
   confirm: z.boolean().optional(),
   minRole: z.enum(['anonymous', 'viewer', 'editor', 'admin']).default('editor'),
+})
+
+export const actionTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  icon: z.string().max(200).nullable().optional(),
+  query: z.string().max(4000).default(''),
+  requestSpec: requestSpecSchema,
+  inputs: z.array(actionPromptSchema).default([]),
+  confirm: z.boolean().optional(),
+  minRole: z.enum(['anonymous', 'viewer', 'editor', 'admin']).default('editor'),
+})
+
+export const actionExecuteSchema = z.object({
+  confirmed: z.boolean().optional().default(false),
+  inputs: z.record(z.string(), z.string().max(20000)).default({}),
 })
 
 export const entryWriteSchema = z.object({
@@ -239,6 +266,7 @@ export const settingsPatchSchema = z.object({
   clientChecksAnonymous: z.boolean().optional(),
 })
 
+export type ActionPrompt = z.infer<typeof actionPromptSchema>
 export type EntryWrite = z.infer<typeof entryWriteSchema>
 export type EntryPatch = z.infer<typeof entryPatchSchema>
 export type SyncEntry = z.infer<typeof syncEntrySchema>

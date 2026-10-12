@@ -108,8 +108,35 @@ export interface PortalAction {
   name: string
   icon: string | null
   requestSpec: { method: string; urlTemplate: string }
+  inputs: ActionPrompt[]
   confirm: boolean
   minRole: string
+}
+
+export interface ActionPrompt {
+  name: string
+  label: string
+  type: 'text' | 'password' | 'number'
+  defaultValue: string | null
+  required: boolean
+}
+
+export interface RunnableAction {
+  source: 'entry' | 'template'
+  name: string
+  icon: string | null
+  confirm: boolean
+  minRole: string
+  method: string
+  inputs: ActionPrompt[]
+}
+
+export interface ActionResult {
+  ok: boolean
+  status: number
+  latencyMs: number
+  message: string
+  body: string
 }
 
 export interface PortalEntry {

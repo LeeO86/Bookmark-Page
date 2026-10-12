@@ -1,6 +1,6 @@
 # Checks and actions
 
-Server checks and browser checks are part of this version. Running saved actions is a later milestone. Creating an HTTP check still makes the server request that URL, so treat check targets as intentional access to lab devices. Only an editor or admin can create a check.
+Server checks and browser checks run in this version. Actions also run on the server. Creating an HTTP check or an action makes the server request that URL, so treat those targets as intentional access to lab devices. Only an editor or admin can create a check or an action unless the action sets a lower role.
 
 ## Server checks
 
@@ -21,6 +21,14 @@ The browser probe is deliberately weak:
 - Certificate errors and opaque responses make the result unreliable.
 - Field values are not sent to the browser. A check URL that uses `{{field.*}}` is not given to the client.
 - TCP and ICMP checks leased to a browser are probed as an HTTP request to that host, not as a real TCP or ICMP packet.
+
+## Actions
+
+An action is an HTTP request made by this server, not by the browser. Entry actions belong to one entry. An action template has a query and appears on every visible entry that matches it. The default role is editor. A non-GET action asks for confirmation unless that was turned off.
+
+`POST /api/v1/entries/{id}/actions/{name}/execute` with `{ "confirmed": true, "inputs": {} }` runs it. Placeholders `{{host}}`, `{{entry.name}}`, `{{field.<key>}}`, and `{{input.<name>}}` are filled on the server. Secret field values and password inputs are removed from the result and from the audit log. The response body shown in the UI is limited to 4 KB.
+
+This is intentional access from the server to the target URL, which may be a private device. Only a caller whose role and token scope allow the action can run it. Executions are rate-limited per user (`ACTION_RATE_LIMIT`, default 30 per 15 minutes).
 
 ## Favicons
 

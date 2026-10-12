@@ -25,6 +25,16 @@ export function notFound(message = 'Not found'): HttpError {
   return new HttpError(404, message, 'not_found')
 }
 
+export function tooManyRequests(message: string): HttpError {
+  return new HttpError(429, message, 'rate_limited')
+}
+
+export function confirmAction(name: string, method: string): HttpError {
+  return new HttpError(409, 'Confirm this action before it runs', 'confirm_action', {
+    action: { name, method },
+  })
+}
+
 export function confirmDuplicate(warnings: unknown): HttpError {
   return new HttpError(
     409,

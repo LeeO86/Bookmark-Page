@@ -10,6 +10,8 @@ import {
   updateSession,
 } from 'nuxt/server'
 import {
+  actionExecuteSchema,
+  actionTemplateSchema,
   checkReportSchema,
   entryPatchSchema,
   entryWriteSchema,
@@ -88,6 +90,13 @@ import {
 } from '../../services/entries'
 import { leaseChecks, reportCheck } from '../../checks/lease'
 import { prepareUpload, searchIcons } from '../../icons/files'
+import {
+  createActionTemplate,
+  deleteActionTemplate,
+  executeNamedAction,
+  listActionTemplates,
+  listRunnableActions,
+} from '../../services/actions'
 import { publishLive, subscribeLive } from '../../services/live'
 import { clearLogo, readLogo, saveLogo } from '../../services/settings'
 import { writeAudit } from '../../services/audit'
@@ -202,6 +211,23 @@ export default defineEventHandler(async (event) => {
         actor,
         decodeURIComponent(restore[0] ?? ''),
         decodeURIComponent(restore[1] ?? ''),
+      )
+    }
+    const entryActions = match(path, /^\/api\/v1\/entries\/([^/]+)\/actions$/)
+    if (entryActions && method === 'GET') {
+      return { actions: listRunnableActions(actor, decodeURIComponent(entryActions)) }
+    }
+    const execute = matchAll(path, /^\/api\/v1\/entries\/([^/]+)\/actions\/([^/]+)\/execute$/)
+    if (execute && method === 'POST') {
+      const body = actionExecuteSchema.parse(await readBody(event))
+      return executeNamedAction(
+        actor,
+        decodeURIComponent(execute[0] ?? ''),
+        decodeURIComponent(execute[1] ?? ''),
+        {
+          confirmed: body.confirmed,
+          inputs: body.inputs,
+        },
       )
     }
     const faviconRefresh = match(path, /^\/api\/v1\/entries\/([^/]+)\/favicon$/)
@@ -411,6 +437,22 @@ export default defineEventHandler(async (event) => {
         latencyMs: body.latencyMs ?? null,
         message: body.message,
       })
+      return { ok: true }
+    }
+
+    if (method === 'GET' && path === '/api/v1/action-templates') {
+      requireAdmin(actor)
+      return { templates: listActionTemplates() }
+    }
+    if (method === 'POST' && path === '/api/v1/action-templates') {
+      requireAdmin(actor)
+      setResponseStatus(event, 201)
+      return createActionTemplate(actor, actionTemplateSchema.parse(await readBody(event)))
+    }
+    const templateId = match(path, /^\/api\/v1\/action-templates\/([^/]+)$/)
+    if (templateId && method === 'DELETE') {
+      requireAdmin(actor)
+      deleteActionTemplate(actor, decodeURIComponent(templateId))
       return { ok: true }
     }
 
