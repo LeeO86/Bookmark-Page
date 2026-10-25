@@ -27,16 +27,15 @@ function secondaries(entry: PortalEntry) {
     class="grid gap-4"
     :class="
       portal.tileSize.value === 'large'
-        ? 'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]'
+        ? 'grid-cols-[repeat(auto-fill,minmax(168px,1fr))]'
         : 'grid-cols-[repeat(auto-fill,minmax(140px,1fr))]'
     "
   >
     <article
       v-for="entry in entries"
       :key="entry.id"
-      class="group relative flex min-h-40 flex-col items-center rounded-2xl border border-default bg-default px-3 py-4 text-center shadow-sm"
-      :class="portal.selectedId.value === entry.id ? 'ring-2 ring-primary' : ''"
-      :draggable="portal.editMode.value"
+      :data-entry-id="entry.id"
+      class="portal-card group relative flex min-h-36 flex-col items-center rounded-xl border border-default px-3 py-4 text-center"
       @click="portal.selectedId.value = entry.id"
       @click.capture="menu.pressClick"
       @contextmenu.prevent="menu.open(entry.id)"
@@ -44,7 +43,6 @@ function secondaries(entry: PortalEntry) {
       @pointerup="menu.pressEnd"
       @pointercancel="menu.pressEnd"
       @pointerleave="menu.pressEnd"
-      @dragstart="$emit('drag', entry)"
       @dragover.prevent
       @drop="$emit('drop', entry)"
     >
@@ -53,12 +51,23 @@ function secondaries(entry: PortalEntry) {
         :href="href(entry) ?? undefined"
         target="_blank"
         rel="noopener noreferrer"
-        class="absolute inset-0 rounded-2xl"
+        class="absolute inset-0 rounded-xl"
         :aria-label="entry.name"
-        :title="statusTooltip(entry)"
+        :title="entry.name"
         data-testid="entry-link"
       />
-      <span class="relative">
+      <button
+        v-if="portal.editMode.value"
+        type="button"
+        class="absolute top-2 left-2 z-10 cursor-grab text-muted"
+        aria-label="Drag to reorder"
+        draggable="true"
+        @click.stop
+        @dragstart="$emit('drag', entry)"
+      >
+        ⋮⋮
+      </button>
+      <span class="relative" :title="statusTooltip(entry)">
         <EntryIcon
           :name="entry.name"
           :icon-ref="entry.iconRef"
@@ -67,7 +76,9 @@ function secondaries(entry: PortalEntry) {
           :size="portal.tileSize.value === 'large' ? 'large' : 'tile'"
         />
       </span>
-      <p class="tile-name relative mt-3 line-clamp-2 text-highlighted">{{ entry.name }}</p>
+      <p class="tile-name relative mt-3 line-clamp-3 text-highlighted" :title="entry.name">
+        {{ entry.name }}
+      </p>
       <div v-if="secondaries(entry).length" class="relative z-10 mt-auto flex gap-1 pt-3">
         <a
           v-for="link in secondaries(entry)"
@@ -76,7 +87,7 @@ function secondaries(entry: PortalEntry) {
           target="_blank"
           rel="noopener noreferrer"
           :title="link.label"
-          class="rounded-md p-1 text-default hover:bg-elevated"
+          class="inline-flex size-7 items-center justify-center rounded-md text-default hover:bg-elevated"
           @click.stop
         >
           <LinkGlyph :link="link" />
@@ -84,10 +95,8 @@ function secondaries(entry: PortalEntry) {
         </a>
       </div>
       <EntryMenu
-        class="absolute top-2 right-2 z-10 focus-within:opacity-100"
-        :class="
-          portal.editMode.value ? 'opacity-100' : 'opacity-0 transition group-hover:opacity-100'
-        "
+        v-show="portal.editMode.value || menu.menuId.value === entry.id"
+        class="absolute top-2 right-2 z-10"
         :entry="entry"
         :editing="portal.editMode.value"
         :open="menu.menuId.value === entry.id"

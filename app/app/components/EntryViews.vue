@@ -5,22 +5,9 @@ import { apiFetch } from '../utils/api'
 
 const portal = usePortal()
 const emit = defineEmits<{ edit: [entry: PortalEntry]; history: [entry: PortalEntry] }>()
-const narrow = ref(false)
 const dragging = ref<PortalEntry | null>(null)
 
-const shown = computed<ViewMode>(() =>
-  portal.viewMode.value === 'list' && narrow.value ? 'cards' : portal.viewMode.value,
-)
-
-onMounted(() => {
-  const media = window.matchMedia('(max-width: 767px)')
-  const update = () => {
-    narrow.value = media.matches
-  }
-  update()
-  media.addEventListener('change', update)
-  onBeforeUnmount(() => media.removeEventListener('change', update))
-})
+const shown = computed<ViewMode>(() => portal.viewMode.value)
 
 function toggle(key: string) {
   portal.collapsed.value = portal.collapsed.value.includes(key)
@@ -92,14 +79,14 @@ async function onDrop(target: PortalEntry) {
         <button
           v-if="portal.groupBy.value"
           type="button"
-          class="mb-3 flex items-center gap-2 text-[0.95rem] font-semibold text-highlighted"
+          class="section-heading mb-3 flex w-full items-center gap-2 text-highlighted"
           :aria-expanded="!portal.collapsed.value.includes(group.key)"
           @click="toggle(group.key)"
         >
           <span class="text-muted">{{
             portal.collapsed.value.includes(group.key) ? '▸' : '▾'
           }}</span>
-          {{ group.label }}
+          <span class="min-w-0 flex-1 truncate text-left">{{ group.label }}</span>
           <span class="text-xs font-normal text-muted">{{ group.entries.length }}</span>
         </button>
         <div v-show="!portal.groupBy.value || !portal.collapsed.value.includes(group.key)">

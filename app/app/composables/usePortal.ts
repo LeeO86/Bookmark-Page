@@ -91,7 +91,14 @@ export function usePortal() {
   const sortedEntries = computed(() =>
     sortEntries(entries.value, sortKey.value, sortDirection.value),
   )
-  const groups = computed(() => groupEntries(sortedEntries.value, groupBy.value))
+  const allCount = useState('portal-all-count', () => 0)
+  const sidebarCollapsed = useState('portal-sidebar-collapsed', () => false)
+  const groupModes = useState<Record<string, string | null>>('portal-group-modes', () => ({}))
+  const groups = computed(() =>
+    groupEntries(sortedEntries.value, groupBy.value, (value) =>
+      displayFor(groupBy.value, value, tags.value),
+    ),
+  )
   const visibleEntries = computed(() => {
     if (!groupBy.value) {
       return sortedEntries.value
@@ -107,7 +114,7 @@ export function usePortal() {
     if (isViewMode(routeView.value)) {
       return routeView.value
     }
-    return viewOverrides.value[activeTab.value] ?? activeFilter.value?.viewMode ?? 'tiles'
+    return viewOverrides.value[activeTab.value] ?? activeFilter.value?.viewMode ?? 'cards'
   })
   const canWrite = computed(() => actor.value.role === 'editor' || actor.value.role === 'admin')
   const canAdmin = computed(() => actor.value.role === 'admin')
@@ -127,11 +134,51 @@ export function usePortal() {
     await router.replace({ query: queryState(value, tabParam.value) })
   }
 
+  function groupForTab(id: string): string | null {
+    if (Object.prototype.hasOwnProperty.call(groupModes.value, id)) {
+      return groupModes.value[id] ?? null
+    }
+    return filters.value.find((item) => item.id === id)?.groupBy ?? null
+  }
+
   async function setTab(id: string) {
-    const filter = filters.value.find((item) => item.id === id)
-    groupBy.value = filter?.groupBy ?? null
+    groupBy.value = groupForTab(id)
     collapsed.value = []
     await router.replace({ query: queryState(queryText.value, id) })
+  }
+
+  async function setGroup(value: string | null) {
+    const tab = activeTab.value
+    groupBy.value = value
+    collapsed.value = []
+    groupModes.value = { ...groupModes.value, [tab]: value }
+    if (actor.value.userId) {
+      await apiFetch('/api/v1/preferences', {
+        method: 'PATCH',
+        body: { groupModes: { [tab]: value } },
+      })
+      return
+    }
+    if (import.meta.client) {
+      sessionStorage.setItem('bp-group-modes', JSON.stringify(groupModes.value))
+    }
+  }
+
+  function setGroupsOpen(open: boolean) {
+    collapsed.value = open ? [] : groups.value.map((group) => group.key)
+  }
+
+  async function setSidebarCollapsed(collapsedNav: boolean) {
+    sidebarCollapsed.value = collapsedNav
+    if (import.meta.client) {
+      document.cookie = `bp-sidebar=${collapsedNav ? '1' : '0'}; Path=/; SameSite=Lax`
+    }
+    if (actor.value.userId) {
+      await apiFetch('/api/v1/preferences', {
+        method: 'PATCH',
+        body: { sidebarCollapsed: collapsedNav },
+      })
+    }
   }
 
   async function load() {
@@ -150,7 +197,7 @@ export function usePortal() {
         apiFetch<PortalSettings>('/api/v1/settings'),
         apiFetch<{ actor: PortalActor }>('/api/v1/auth/session'),
         apiFetch<AuthOptions>('/api/v1/auth/options'),
-        apiFetch<{ filters: PortalFilter[] }>('/api/v1/filters'),
+        apiFetch<{ filters: PortalFilter[]; allCount: number }>('/api/v1/filters'),
         apiFetch<{ tags: PortalTag[] }>('/api/v1/tags'),
         apiFetch<{ namespaces: PortalNamespace[] }>('/api/v1/namespaces'),
         apiFetch<{ fields: PortalField[] }>('/api/v1/fields'),
@@ -159,6 +206,7 @@ export function usePortal() {
       actor.value = sessionBody.actor
       authOptions.value = optionsBody
       filters.value = filterBody.filters
+      allCount.value = filterBody.allCount
       tags.value = tagBody.tags
       namespaces.value = namespaceBody.namespaces
       fields.value = fieldBody.fields
@@ -167,15 +215,28 @@ export function usePortal() {
           viewModes: Record<string, ViewMode>
           facetsOpen: boolean
           tileSize: TileSize
+          sidebarCollapsed: boolean
+          groupModes: Record<string, string | null>
         }>('/api/v1/preferences')
         viewOverrides.value = { ...viewOverrides.value, ...preferences.viewModes }
         facetsOpen.value = preferences.facetsOpen
+        sidebarCollapsed.value = preferences.sidebarCollapsed
+        groupModes.value = preferences.groupModes ?? {}
         if (isTileSize(preferences.tileSize)) {
           tileSize.value = preferences.tileSize
         }
       } else if (import.meta.client) {
-        facetsOpen.value = document.cookie.includes('bp-facets=1')
+        sidebarCollapsed.value = document.cookie.includes('bp-sidebar=1')
+        const stored = sessionStorage.getItem('bp-group-modes')
+        if (stored) {
+          try {
+            groupModes.value = JSON.parse(stored) as Record<string, string | null>
+          } catch {
+            groupModes.value = {}
+          }
+        }
       }
+      groupBy.value = groupForTab(tabParam.value || 'all')
       if (
         import.meta.client &&
         sessionStorage.getItem('bp-edit-mode') === '1' &&
@@ -285,6 +346,16 @@ export function usePortal() {
     const index = rows.findIndex((entry) => entry.id === selectedId.value)
     const nextIndex = Math.max(0, Math.min(rows.length - 1, (index < 0 ? 0 : index) + delta))
     selectedId.value = rows[nextIndex]?.id ?? null
+    if (import.meta.client && selectedId.value) {
+      const id = selectedId.value
+      void nextTick(() => {
+        document
+          .querySelector<HTMLElement>(
+            `[data-entry-id="${CSS.escape(id)}"] [data-testid="entry-link"]`,
+          )
+          ?.focus()
+      })
+    }
   }
 
   function toggleSort(key: SortKey) {
@@ -359,6 +430,9 @@ export function usePortal() {
     viewMode,
     columnCount,
     density,
+    allCount,
+    sidebarCollapsed,
+    groupModes,
     facetsOpen,
     tileSize,
     editMode,
@@ -366,6 +440,9 @@ export function usePortal() {
     canAdmin,
     setQuery,
     setTab,
+    setGroup,
+    setGroupsOpen,
+    setSidebarCollapsed,
     load,
     reloadEntries,
     refreshTags,
@@ -379,6 +456,22 @@ export function usePortal() {
     login,
     logout,
   }
+}
+
+function displayFor(namespace: string | null, value: string, tags: PortalTag[]): string {
+  if (namespace === 'state') {
+    if (value === 'online') {
+      return 'Online'
+    }
+    if (value === 'offline') {
+      return 'Offline'
+    }
+    if (value === 'unknown') {
+      return 'Unknown'
+    }
+  }
+  const tag = tags.find((item) => item.namespace === namespace && item.value === value)
+  return tag?.displayLabel || value
 }
 
 let liveSource: EventSource | null = null

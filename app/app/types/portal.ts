@@ -34,6 +34,7 @@ export interface PortalTag {
   namespace: string | null
   value: string
   label: string
+  displayLabel: string | null
 }
 
 export interface PortalNamespace {
@@ -56,6 +57,7 @@ export interface PortalFilter {
   icon: string | null
   isPublic: boolean
   viewMode: 'list' | 'cards' | 'tiles'
+  count: number
 }
 
 export interface PortalField {
@@ -158,7 +160,12 @@ export interface PortalEntry {
   externalKey: string | null
   editMode: 'locked' | 'field_ownership' | 'free' | null
   managedFields: string[]
-  tags: Array<{ namespace: string | null; value: string; label: string }>
+  tags: Array<{
+    namespace: string | null
+    value: string
+    label: string
+    displayLabel: string | null
+  }>
   links: PortalLink[]
   fields: PortalEntryField[]
   checks: PortalCheck[]

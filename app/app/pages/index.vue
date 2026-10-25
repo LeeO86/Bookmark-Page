@@ -3,6 +3,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { isColourMode } from '#shared/theme'
 import type { PortalEntry } from '../types/portal'
 import { apiFetch } from '../utils/api'
+import { version } from '../../package.json'
 import { primaryLink } from '../utils/links'
 
 const portal = usePortal()
@@ -14,7 +15,13 @@ const creating = ref(false)
 const editing = ref<PortalEntry | null>(null)
 const commandOpen = ref(false)
 const historyOnly = ref(false)
+const narrow = ref(false)
+const navDrawer = ref(false)
 let ignoreColour = true
+
+function initials(label: string): string {
+  return (label.trim().charAt(0) || '?').toUpperCase()
+}
 
 watch([portal.queryText, portal.tabParam], () => {
   if (!portal.ready.value) {
@@ -34,6 +41,15 @@ watch(
 
 onMounted(() => {
   ignoreColour = false
+  const media = window.matchMedia('(max-width: 767px)')
+  const updateNarrow = () => {
+    narrow.value = media.matches
+    if (!media.matches) {
+      navDrawer.value = false
+    }
+  }
+  updateNarrow()
+  media.addEventListener('change', updateNarrow)
   void portal.load()
   portal.listen()
   clientChecks.start()
@@ -58,16 +74,6 @@ function openNew() {
   creating.value = true
   editing.value = null
   drawerOpen.value = true
-}
-
-function openAddLink() {
-  const entry =
-    portal.visibleEntries.value.find((item) => item.id === portal.selectedId.value) ??
-    portal.visibleEntries.value[0]
-  if (!entry) {
-    return
-  }
-  openEntry(entry)
 }
 
 function onSaved(entry: PortalEntry) {
@@ -123,6 +129,44 @@ const menuItems = computed<DropdownMenuItem[][]>(() => {
     items.push([{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: () => portal.logout() }])
   }
   return items
+})
+
+const groupItems = computed(() => {
+  const namespaces = [...portal.namespaces.value]
+    .filter((namespace) => namespace.showInSidebar)
+    .sort((left, right) => left.sort - right.sort || left.label.localeCompare(right.label))
+  return [
+    [
+      {
+        label: 'No grouping',
+        onSelect: () => {
+          void portal.setGroup(null)
+        },
+      },
+      ...namespaces.map((namespace) => ({
+        label: namespace.label,
+        onSelect: () => {
+          void portal.setGroup(namespace.name)
+        },
+      })),
+      {
+        label: 'State',
+        onSelect: () => {
+          void portal.setGroup('state')
+        },
+      },
+    ],
+    [
+      {
+        label: 'Expand all',
+        onSelect: () => portal.setGroupsOpen(true),
+      },
+      {
+        label: 'Collapse all',
+        onSelect: () => portal.setGroupsOpen(false),
+      },
+    ],
+  ]
 })
 
 watch(
@@ -203,30 +247,39 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="flex min-h-dvh flex-col px-4 py-6 md:px-6">
+  <div class="portal-page flex min-h-dvh flex-col">
     <a href="#devices" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2">
       Skip to devices
     </a>
-    <header class="flex w-full items-start justify-between gap-4">
+    <header class="portal-banner flex items-center justify-between gap-4 px-4 py-4 md:px-6">
       <div class="flex min-w-0 items-center gap-4">
         <img
           v-if="portal.settings.value?.hasLogo"
           :src="`/api/v1/logo?v=${portal.logoVersion.value}`"
           alt=""
-          class="size-14 object-contain"
+          class="size-12 rounded-xl object-cover md:size-[4.5rem]"
         />
         <div class="min-w-0">
           <h1 class="page-title text-highlighted">
             {{ portal.settings.value?.siteTitle || 'Bookmark-Page' }}
           </h1>
-          <p v-if="portal.settings.value?.siteClaim" class="mt-1 truncate text-base text-muted">
+          <p v-if="portal.settings.value?.siteClaim" class="mt-1 text-base text-muted">
             {{ portal.settings.value.siteClaim }}
           </p>
         </div>
       </div>
-      <UDropdownMenu v-if="portal.actor.value.role !== 'anonymous'" :items="menuItems">
-        <UButton color="neutral" variant="ghost" icon="i-lucide-circle-user" size="lg">
-          {{ portal.actor.value.label }}
+      <UDropdownMenu
+        v-if="portal.actor.value.role !== 'anonymous'"
+        :items="menuItems"
+        :ui="{ content: 'bg-default shadow-lg ring ring-default' }"
+      >
+        <UButton color="neutral" variant="ghost" size="lg" :aria-label="portal.actor.value.label">
+          <span
+            class="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-inverted"
+          >
+            {{ initials(portal.actor.value.label) }}
+          </span>
+          <span class="sr-only">{{ portal.actor.value.label }}</span>
         </UButton>
       </UDropdownMenu>
       <UButton
@@ -242,80 +295,102 @@ function onKeydown(event: KeyboardEvent) {
       </UButton>
     </header>
 
-    <div class="mx-auto mt-8 w-full max-w-3xl">
-      <div class="flex items-start gap-2">
-        <QueryBar class="flex-1" @command="commandOpen = true" />
-        <UButton
-          color="neutral"
-          :variant="portal.facetsOpen.value ? 'soft' : 'outline'"
-          data-testid="filters"
-          :aria-pressed="portal.facetsOpen.value"
-          @click="portal.setFacetsOpen(!portal.facetsOpen.value)"
+    <div class="flex min-h-0 flex-1">
+      <PortalSidebar
+        class="portal-sidebar sticky top-0 hidden h-dvh shrink-0 md:flex"
+        :class="portal.sidebarCollapsed.value ? 'w-16' : 'w-60'"
+        :collapsed="portal.sidebarCollapsed.value"
+      />
+      <div class="min-w-0 flex-1">
+        <div
+          class="portal-toolbar sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-default px-4 py-3 md:px-6"
         >
-          Filters
-        </UButton>
-      </div>
-      <TabBar class="mt-4" />
-      <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <UButton
-          v-for="mode in ['tiles', 'cards', 'list'] as const"
-          :key="mode"
-          size="xs"
-          :color="portal.viewMode.value === mode ? 'primary' : 'neutral'"
-          :variant="portal.viewMode.value === mode ? 'soft' : 'ghost'"
-          :data-testid="`view-${mode}`"
-          @click="portal.setView(mode)"
-        >
-          {{ mode === 'tiles' ? 'Tiles' : mode === 'cards' ? 'Cards' : 'List' }}
-        </UButton>
-        <UButton
-          v-if="portal.viewMode.value === 'tiles'"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          @click="portal.setTileSize(portal.tileSize.value === 'large' ? 'regular' : 'large')"
-        >
-          {{ portal.tileSize.value === 'large' ? 'Large tiles' : 'Regular tiles' }}
-        </UButton>
-        <UButton v-if="portal.editMode.value" size="xs" data-testid="new-entry" @click="openNew">
-          New entry
-        </UButton>
-        <UButton
+          <UButton
+            class="md:hidden"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-panel-left"
+            :aria-label="navDrawer ? 'Close sidebar' : 'Open sidebar'"
+            @click="navDrawer = !navDrawer"
+          />
+          <QueryBar class="min-w-48 flex-1" @command="commandOpen = true" />
+          <div class="flex items-center rounded-lg border border-default p-0.5">
+            <UButton
+              v-for="mode in ['cards', 'tiles', 'list'] as const"
+              :key="mode"
+              size="sm"
+              color="neutral"
+              :variant="portal.viewMode.value === mode ? 'soft' : 'ghost'"
+              :icon="
+                mode === 'cards'
+                  ? 'i-lucide-layout-grid'
+                  : mode === 'tiles'
+                    ? 'i-lucide-grid-2x2'
+                    : 'i-lucide-list'
+              "
+              :aria-label="mode"
+              :aria-pressed="portal.viewMode.value === mode"
+              :data-testid="`view-${mode}`"
+              @click="portal.setView(mode)"
+            />
+          </div>
+          <UButton
+            v-if="portal.viewMode.value === 'tiles'"
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            :icon="portal.tileSize.value === 'large' ? 'i-lucide-shrink' : 'i-lucide-expand'"
+            :aria-label="portal.tileSize.value === 'large' ? 'Regular tiles' : 'Large tiles'"
+            @click="portal.setTileSize(portal.tileSize.value === 'large' ? 'regular' : 'large')"
+          />
+          <UDropdownMenu
+            :items="groupItems"
+            :ui="{ content: 'bg-default shadow-lg ring ring-default' }"
+          >
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="sm"
+              trailing-icon="i-lucide-chevron-down"
+            >
+              Group
+            </UButton>
+          </UDropdownMenu>
+          <UButton v-if="portal.editMode.value" size="sm" data-testid="new-entry" @click="openNew">
+            New entry
+          </UButton>
+        </div>
+
+        <p
           v-if="portal.editMode.value"
-          size="xs"
-          color="neutral"
-          variant="outline"
-          @click="openAddLink"
+          class="mx-4 mt-4 rounded-lg bg-primary/15 px-3 py-2 text-sm text-accent md:mx-6"
+          data-testid="edit-banner"
         >
-          Add link
-        </UButton>
+          Edit mode is on. Shift+E leaves it. Clicks on a device still open its link.
+        </p>
+
+        <main id="devices" class="px-4 py-4 md:px-6">
+          <EntryViews @edit="openEntry($event)" @history="openEntry($event, true)" />
+        </main>
+        <footer class="px-4 py-6 text-right text-xs text-muted md:px-6">
+          Bookmark-Page v{{ version }}
+        </footer>
       </div>
     </div>
 
-    <p
-      v-if="portal.editMode.value"
-      class="mt-4 w-full rounded-lg bg-primary/15 px-3 py-2 text-sm text-accent"
-      data-testid="edit-banner"
-    >
-      Edit mode is on. Shift+E leaves it. Clicks on a device still open its link.
-    </p>
+    <div v-if="narrow && navDrawer" class="fixed inset-0 z-40 md:hidden">
+      <button
+        class="absolute inset-0 bg-inverted/40"
+        aria-label="Close sidebar"
+        @click="navDrawer = false"
+      />
+      <PortalSidebar
+        class="portal-sidebar absolute inset-y-0 left-0 w-72 shadow-xl"
+        :collapsed="false"
+        @navigate="navDrawer = false"
+      />
+    </div>
 
-    <main id="devices" class="mt-8 w-full flex-1">
-      <EntryViews @edit="openEntry($event)" @history="openEntry($event, true)" />
-    </main>
-
-    <footer class="mx-auto mt-10 text-xs text-muted">Bookmark-Page 2.0.0</footer>
-
-    <USlideover
-      :open="portal.facetsOpen.value"
-      title="Filters"
-      description="Click a facet to add it. Shift adds OR. Alt adds NOT."
-      @update:open="portal.setFacetsOpen"
-    >
-      <template #body>
-        <TagSidebar />
-      </template>
-    </USlideover>
     <EntryDrawer
       :open="drawerOpen"
       :creating="creating"

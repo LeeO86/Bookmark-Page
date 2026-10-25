@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { settingsPatchSchema } from '#shared/contracts'
-import { accentPresets, plainTagColour, type AccentPreset } from '#shared/theme'
+import { accentPresets, plainTagColour, suggestedNeutral, type AccentPreset } from '#shared/theme'
 import type { PortalField, PortalNamespace, PortalSettings } from '../../types/portal'
 import { apiFetch } from '../../utils/api'
 
@@ -59,6 +59,10 @@ const error = ref('')
 const settings = ref<AdminSettings | null>(null)
 const users = ref<AdminUser[]>([])
 const namespaces = ref<PortalNamespace[]>([])
+const tagRows = ref<
+  Array<{ id: string; namespace: string | null; value: string; displayLabel: string | null }>
+>([])
+const labelDrafts = reactive<Record<string, string>>({})
 const fields = ref<PortalField[]>([])
 const tokens = ref<AdminToken[]>([])
 const scopes = ref<AdminScope[]>([])
@@ -137,6 +141,7 @@ async function refresh() {
     settingsBody,
     userBody,
     namespaceBody,
+    tagBody,
     fieldBody,
     tokenBody,
     scopeBody,
@@ -146,6 +151,14 @@ async function refresh() {
     apiFetch<AdminSettings>('/api/v1/settings'),
     apiFetch<{ users: AdminUser[] }>('/api/v1/users'),
     apiFetch<{ namespaces: PortalNamespace[] }>('/api/v1/namespaces'),
+    apiFetch<{
+      tags: Array<{
+        id: string
+        namespace: string | null
+        value: string
+        displayLabel: string | null
+      }>
+    }>('/api/v1/tags'),
     apiFetch<{ fields: PortalField[] }>('/api/v1/fields'),
     apiFetch<{ tokens: AdminToken[] }>('/api/v1/tokens'),
     apiFetch<{ scopes: AdminScope[] }>('/api/v1/scopes'),
@@ -155,6 +168,10 @@ async function refresh() {
   settings.value = settingsBody
   users.value = userBody.users
   namespaces.value = namespaceBody.namespaces
+  tagRows.value = tagBody.tags
+  for (const tag of tagBody.tags) {
+    labelDrafts[tag.id] = tag.displayLabel ?? ''
+  }
   fields.value = fieldBody.fields
   tokens.value = tokenBody.tokens
   scopes.value = scopeBody.scopes
@@ -281,6 +298,7 @@ function choosePreset(value: string) {
   if (preset !== 'custom') {
     settings.value.accentColour = accentPresets[preset].seed
   }
+  settings.value.neutralPalette = suggestedNeutral(preset, settings.value.accentColour)
 }
 
 async function uploadTabFavicon(event: Event) {
@@ -434,10 +452,10 @@ function toggleScope(scope: string) {
             </UButton>
           </div>
           <div>
-            <label class="block">Logo (PNG or WebP, up to 512 KB)</label>
+            <label class="block">Title image (PNG, JPEG, WebP, or SVG, up to 1 MB)</label>
             <input
               type="file"
-              accept="image/png,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
               data-testid="logo-file"
               @change="uploadLogo"
             />
@@ -621,6 +639,32 @@ function toggleScope(scope: string) {
               :style="{ background: namespace.colour }"
             />
             <span>{{ namespace.label }} ({{ namespace.name }})</span>
+            <div class="basis-full space-y-1 pl-5">
+              <div
+                v-for="tag in tagRows.filter((item) => item.namespace === namespace.name)"
+                :key="tag.id"
+                class="flex items-center gap-2"
+              >
+                <span class="w-28 truncate text-xs text-muted">{{ tag.value }}</span>
+                <UInput v-model="labelDrafts[tag.id]" class="w-40" placeholder="Display label" />
+                <UButton
+                  type="button"
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  @click="
+                    run(async () => {
+                      await apiFetch(`/api/v1/tags/${tag.id}`, {
+                        method: 'PATCH',
+                        body: { displayLabel: labelDrafts[tag.id] || null },
+                      })
+                    }, 'Label saved')
+                  "
+                >
+                  Save
+                </UButton>
+              </div>
+            </div>
             <UButton
               type="button"
               size="xs"

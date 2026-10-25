@@ -24,13 +24,13 @@ const lucide = computed(() =>
 const failed = ref(false)
 const box = computed(() => {
   if (props.size === 'large') {
-    return 'size-20'
+    return 'size-14'
   }
   if (props.size === 'tile') {
-    return 'size-16'
+    return 'size-12'
   }
   if (props.size === 'card') {
-    return 'size-12'
+    return 'size-10'
   }
   if (props.size === 'mini') {
     return 'size-4'

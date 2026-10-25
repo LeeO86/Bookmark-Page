@@ -18,9 +18,25 @@ export function sortEntries(
 export function groupEntries(
   entries: readonly PortalEntry[],
   namespace: string | null,
+  labelFor: (value: string) => string = (value) => value,
 ): EntryGroup[] {
   if (!namespace) {
     return [{ key: 'all', label: 'All', entries: [...entries] }]
+  }
+  if (namespace === 'state') {
+    const order = ['online', 'offline', 'unknown'] as const
+    const groups: EntryGroup[] = order
+      .map((value) => ({
+        key: value,
+        label: labelFor(value),
+        entries: entries.filter((entry) => statusName(entry.status) === value),
+      }))
+      .filter((group) => group.entries.length > 0)
+    const quiet = entries.filter((entry) => entry.status === null)
+    if (quiet.length > 0) {
+      groups.push({ key: '__ungrouped', label: 'Ungrouped', entries: quiet })
+    }
+    return groups
   }
   const groups = new Map<string, PortalEntry[]>()
   const ungrouped: PortalEntry[] = []
@@ -37,8 +53,8 @@ export function groupEntries(
     }
   }
   const grouped = [...groups.entries()]
-    .sort((left, right) => left[0].localeCompare(right[0]))
-    .map(([value, rows]) => ({ key: value, label: value, entries: rows }))
+    .sort((left, right) => labelFor(left[0]).localeCompare(labelFor(right[0])))
+    .map(([value, rows]) => ({ key: value, label: labelFor(value), entries: rows }))
   if (ungrouped.length > 0) {
     grouped.push({ key: '__ungrouped', label: 'Ungrouped', entries: ungrouped })
   }
@@ -101,6 +117,19 @@ function compareEntries(left: PortalEntry, right: PortalEntry, key: SortKey): nu
     )
   }
   return 0
+}
+
+function statusName(status: PortalEntry['status']): 'online' | 'offline' | 'unknown' | null {
+  if (status === 'up') {
+    return 'online'
+  }
+  if (status === 'down') {
+    return 'offline'
+  }
+  if (status === 'unknown') {
+    return 'unknown'
+  }
+  return null
 }
 
 function statusRank(status: PortalEntry['status']): number {

@@ -56,9 +56,9 @@ function mark(key: string): string {
           v-for="entry in entries"
           :key="entry.id"
           class="group border-t border-default whitespace-nowrap"
+          :data-entry-id="entry.id"
           :class="[
             portal.density.value === 'compact' ? 'h-8' : 'h-9',
-            portal.selectedId.value === entry.id ? 'bg-primary/10' : '',
           ]"
           :draggable="portal.editMode.value"
           @click="portal.selectedId.value = entry.id"
@@ -117,8 +117,8 @@ function mark(key: string): string {
             />
             <span v-else>{{ fieldOf(entry, field.key)?.value }}</span>
           </td>
-          <td class="max-w-48 overflow-hidden px-2 whitespace-nowrap">
-            <EntryTags :tags="entry.tags" nowrap />
+          <td class="max-w-64 px-2">
+            <EntryTags :tags="entry.tags" :limit="22" nowrap />
           </td>
           <td class="px-2">
             <EntryMenu
