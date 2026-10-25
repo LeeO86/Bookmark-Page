@@ -94,7 +94,9 @@ objects also `created_by`, `updated_by`.
 
 ### 4.3 Tags
 Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or plain
-`value` without namespace. Many-to-many with entries.
+`value` without namespace. Many-to-many with entries. A tag may also store
+`display_label`, shown in headings, facets, and badges. The query token stays
+`namespace:value`.
 
 **Tag namespaces** are admin-managed: `name`, `label`, `colour`, `sort`,
 `show_in_sidebar`. Unknown namespaces used via API/Ansible are auto-created with defaults.
@@ -103,7 +105,7 @@ Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or
 `name`, `query` (§5), `owner_user_id` (`null` = global, set by admin), `columns`
 (which custom fields to show and in which order), `group_by` (optional tag namespace),
 `sort`, `icon`, `view_mode` (`list` | `cards` | `tiles`; new filters default to
-`tiles`, and the column default stays `list` so existing rows are unchanged), `public`
+`cards`, and the column default stays `list` so existing rows are unchanged), `public`
 (global filters only: visible to anonymous users).
 
 - Global filters appear first as tabs for everybody who may see them, personal filters
@@ -336,32 +338,33 @@ recognise a device by its icon and open it. Editing is rare. The page is not a d
 there is no status column, latency, or metric in the portal. Check latency stays in
 Prometheus and in the icon tooltip.
 
-Desktop-first, responsive, English only. The portal is a titled page with the site name
-from settings. Admin keeps one collapsible sidebar and a navbar toggle that opens it as a
-drawer on a narrow screen.
+Desktop-first, responsive, English only. The portal is an app shell: a full-width banner,
+a side nav of views and filters, and a content area. Admin keeps its own collapsible
+sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
 
 - **Theme:** one accent and one neutral palette, stored in settings and applied on the
   server so the first paint matches. Named presets use the vivid Tailwind scales Red,
   Yellow (amber), Pink, Green, Cyan, Blue, and Grey (slate). A custom hex keeps its chroma
   and hue and only changes lightness. Filled controls use a step that reaches 4.5:1, not a
-  desaturated seed. The background is `gradient` (default), `tint`, or `plain`. Text on
-  the wash and text on the link surfaces both meet 4.5:1. Tag text uses black or white
-  against the namespace colour (3:1). The status dot meets 3:1 against the light icon
-  plate. The admin sets the default colour mode; a signed-in user can override it, and an
-  anonymous visitor keeps the choice in a cookie.
+  desaturated seed. The background setting (`gradient`, `tint`, or `plain`) paints the
+  banner only. The content area stays neutral. Warm accents suggest the stone neutral and
+  cool accents suggest slate, unless the admin picks another neutral afterwards. Banner
+  text meets 4.5:1 against the banner. Text on cards meets 4.5:1 against the card. Tag
+  text uses black or white against the namespace colour (3:1). The status dot meets 3:1
+  against the light icon plate. The admin sets the default colour mode; a signed-in user
+  can override it, and an anonymous visitor keeps the choice in a cookie.
 - **Browser tab:** a bookmark glyph in the accent colour, or an uploaded PNG/WebP, served
   from `/api/v1/favicon` on this origin.
-- **Header:** optional logo, the site title, and the claim. The right side is the user
-  menu or Sign in. Colour mode, edit mode, Admin, and sign-out live in that menu.
-- **Search:** a centred query bar with `⌘K` and `/`. Typing filters immediately. Chips sit
-  inside the bar. The command palette is that same surface.
-- **Tabs:** pills under the search bar. "+ Save as tab" is last, only for a signed-in
-  user, and it is visually quiet.
-- **Filters:** hidden until the Filters button opens a slide-over. Open or closed is
-  stored for a signed-in user and in the `bp-facets` cookie otherwise. Facets show a
-  namespace colour. The selected facet is highlighted. Click adds AND, Shift adds OR, and
-  Alt adds NOT. `state` is a virtual facet (`online`, `offline`, `unknown`) and is not
-  stored as a tag.
+- **Banner:** optional title image (the logo: PNG, JPEG, WebP, or sanitised SVG, up to
+  1 MB), the site title, and the claim. The right side is an initials avatar or Sign in.
+  Colour mode, edit mode, Admin, and sign-out live in that menu. The banner scrolls away.
+- **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
+  collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only
+  for a signed-in user. Facets show a namespace colour and the tag display label. Click
+  adds AND, Shift adds OR, and Alt adds NOT. `state` is a virtual facet and is not stored
+  as a tag. "Clear filters" clears the query bar.
+- **Toolbar:** sticky query bar with `⌘K` and `/`, a segmented control for cards, tiles,
+  and list, and a group menu. The command palette is that same search surface.
 - **Status:** only the favicon changes. Up is unchanged. Down is greyscale and dimmed,
   with a small red corner dot. Unknown keeps the colour and adds a small amber dot. No
   check shows nothing. The icon tooltip may say when a device went offline.
@@ -370,15 +373,16 @@ drawer on a narrow screen.
   and history to everyone, and Edit to an editor. Edit mode is for editors and admins,
   from the user menu or Shift+E, and it lasts for the browser tab only. It shows a banner,
   edit buttons, New entry, Add link, and drag-sort. `e` opens the selected entry only then.
-- **Views:** tiles are the default, including All. A tab can store another default, and
-  the `view` query parameter still wins. Tiles use a 140px minimum (180px when the user
-  picks large tiles) with the favicon on a plate and the name under it. Cards use a 280px
-  minimum with the host, a clamped description, the tab's fields, labelled links, and up
-  to three tags. The list is a dense table, 36px rows or 32px in compact density, with the
-  favicon, name, and host in one cell, then links, description, fields, and tags. Only a
-  sorted column shows an arrow. Below 768px the list is shown as cards. Grouping is a
-  category heading with a count and a collapse control. A missing icon is a letter in a
-  colour derived from the name. Tags are subtle badges; the tooltip is the full label.
+- **Views:** cards are the default, including All. A tab can store another default, and
+  the `view` query parameter still wins. Cards use a 260px minimum: favicon, a two-line
+  title, host, description, only fields that have a value, labelled secondary links, and
+  up to three tags. Tiles are the compact launcher, 48px or 56px icon. The list is a dense
+  table, 36px rows or 32px in compact density, and it stays a list on a narrow screen.
+  Only a sorted column shows an arrow. Grouping is a heading with the tag display label,
+  a count, and a collapse control. A missing icon is a letter in a colour derived from the
+  name. Tags are subtle badges with a namespace dot; the tooltip is the query token.
+  A tag may store `display_label`. Empty means the value is shown. The query token does
+  not change.
 - **Opening an entry:** the whole tile or card is one primary link (`target="_blank"`,
   `rel="noopener noreferrer"`). Secondary links, secret reveal, and menus are real
   controls above that link. In the list, the entry cell is the primary link. Enter still

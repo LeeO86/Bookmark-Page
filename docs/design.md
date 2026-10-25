@@ -190,4 +190,4 @@ Shots come from the production build, not the Nuxt dev server.
 
 ## Approval
 
-This brief is the plan. Implementation waits until it is approved.
+Approved on 2026-10-25. The layout in this brief is what the portal implements.

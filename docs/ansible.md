@@ -18,15 +18,15 @@ Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and tok
 
 ## Modules
 
-| Module             | Purpose                                           |
-| ------------------ | ------------------------------------------------- |
-| `entry`            | One entry addressed by `scope` and `external_key` |
-| `entries_sync`     | Full list for a scope, with optional `purge`      |
-| `entry_info`       | Query entries with the portal query language      |
-| `tag_namespace`    | One tag namespace                                 |
-| `field_definition` | One custom field                                  |
-| `filter`           | One global tab                                    |
-| `action_template`  | One action template                               |
+| Module             | Purpose                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `entry`            | One entry addressed by `scope` and `external_key`. A tag is a string, or a mapping with `tag` and an optional display `label`. |
+| `entries_sync`     | Full list for a scope, with optional `purge`                                                                                   |
+| `entry_info`       | Query entries with the portal query language                                                                                   |
+| `tag_namespace`    | One tag namespace                                                                                                              |
+| `field_definition` | One custom field                                                                                                               |
+| `filter`           | One global tab                                                                                                                 |
+| `action_template`  | One action template                                                                                                            |
 
 All of them support check mode and `--diff`, and a second run with the same arguments reports `changed: false`.
 
