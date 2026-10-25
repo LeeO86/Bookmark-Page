@@ -57,9 +57,7 @@ function mark(key: string): string {
           :key="entry.id"
           class="group border-t border-default whitespace-nowrap"
           :data-entry-id="entry.id"
-          :class="[
-            portal.density.value === 'compact' ? 'h-8' : 'h-9',
-          ]"
+          :class="[portal.density.value === 'compact' ? 'h-8' : 'h-9']"
           :draggable="portal.editMode.value"
           @click="portal.selectedId.value = entry.id"
           @click.capture="menu.pressClick"
