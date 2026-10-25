@@ -87,14 +87,16 @@ objects also `created_by`, `updated_by`.
 
 - `url_template` supports placeholders (§8.2), most importantly `{{host}}`, e.g.
   `https://{{host}}:8443/admin`. Changing the entry's host updates all links.
-- Clicking the entry row opens the primary link. Other links are shown as compact
-  buttons (icon + label tooltip) in the row.
+- The tile, the card, or the list entry cell opens the primary link. Other links are
+  their own buttons. Reachability is shown on the favicon, not in a status column.
 - Non-HTTP schemes are rendered as links (browser protocol handler) **and** offer a
   copy button as fallback.
 
 ### 4.3 Tags
 Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or plain
-`value` without namespace. Many-to-many with entries.
+`value` without namespace. Many-to-many with entries. A tag may also store
+`display_label`, shown in headings, facets, and badges. The query token stays
+`namespace:value`.
 
 **Tag namespaces** are admin-managed: `name`, `label`, `colour`, `sort`,
 `show_in_sidebar`. Unknown namespaces used via API/Ansible are auto-created with defaults.
@@ -102,7 +104,9 @@ Tags are `namespace:value` (e.g. `type:audio`, `room:studio3`, `vendor:lawo`) or
 ### 4.4 Filters (tabs)
 `name`, `query` (§5), `owner_user_id` (`null` = global, set by admin), `columns`
 (which custom fields to show and in which order), `group_by` (optional tag namespace),
-`sort`, `icon`, `public` (global filters only: visible to anonymous users).
+`sort`, `icon`, `view_mode` (`list` | `cards` | `tiles`; new filters default to
+`cards`, and the column default stays `list` so existing rows are unchanged), `public`
+(global filters only: visible to anonymous users).
 
 - Global filters appear first as tabs for everybody who may see them, personal filters
   after them for their owner.
@@ -137,11 +141,15 @@ primary  := "(" or ")" | term
 term     := ns ":" value                    # namespaced tag, value may end with *
           | "#" value                       # tag without namespace
           | "is:" ("up"|"down"|"unknown"|"managed"|"unmanaged")
+          | "state:" ("online"|"offline"|"unknown")
           | "has:" (link|field_key|check)
           | word | "quoted text"           # free text
 ```
 
 - Operators are case-insensitive (`and`/`AND`). `ns:*` means "has any tag in namespace".
+- `state:online`, `state:offline`, and `state:unknown` are a virtual status, not stored
+  tags. They match only entries that have a check. `is:unknown` still also matches an
+  entry that has no checks.
 - Free text matches name, description, host, link labels and URLs, and values of
   searchable non-secret fields the caller may view.
 - Example: `type:audio (room:studio1 OR room:studio2) -status:spare lawo`.
@@ -325,29 +333,79 @@ Tests: `ansible-test sanity` and integration tests against the app container in 
 
 ## 11. UI
 
-Desktop-first, responsive, compact density (labs have hundreds of entries), English only.
+Bookmark-Page is a start page. The question on the screen is where to go next. People
+recognise a device by its icon and open it. Editing is rare. The page is not a dashboard:
+there is no status column, latency, or metric in the portal. Check latency stays in
+Prometheus and in the icon tooltip.
 
-- **Header:** logo (uploadable), site title, claim, query bar, user menu/login.
-- **Tabs row:** global tabs, then personal tabs, plus "save current query as tab".
-- **Sidebar:** tag namespaces with their values and counts (facets), collapsible.
-- **Main table:** sticky header; columns icon, name, link buttons, status dot,
-  description, configurable custom field columns, tags. Optional grouping by a namespace
-  with collapse/expand per group and for all. Column sorting and manual sort order.
-- **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection,
-  `Enter` opens the primary link.
+Desktop-first, responsive, English only. The portal is an app shell: a full-width banner,
+a side nav of views and filters, and a content area. Admin keeps its own collapsible
+sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
+
+- **Theme:** one accent and one neutral palette, stored in settings and applied on the
+  server so the first paint matches. Named presets use the vivid Tailwind scales Red,
+  Yellow (amber), Pink, Green, Cyan, Blue, and Grey (slate). A custom hex keeps its chroma
+  and hue and only changes lightness. Filled controls use a step that reaches 4.5:1, not a
+  desaturated seed. The background setting (`gradient`, `tint`, or `plain`) paints the
+  banner only. The content area stays neutral. Warm accents suggest the stone neutral and
+  cool accents suggest slate, unless the admin picks another neutral afterwards. Banner
+  text meets 4.5:1 against the banner. Text on cards meets 4.5:1 against the card. Tag
+  text uses black or white against the namespace colour (3:1). The status dot meets 3:1
+  against the light icon plate. The admin sets the default colour mode; a signed-in user
+  can override it, and an anonymous visitor keeps the choice in a cookie.
+- **Browser tab:** a bookmark glyph in the accent colour, or an uploaded PNG/WebP, served
+  from `/api/v1/favicon` on this origin.
+- **Banner:** optional title image (the logo: PNG, JPEG, WebP, or sanitised SVG, up to
+  1 MB), the site title, and the claim. The right side is an initials avatar or Sign in.
+  Colour mode, edit mode, Admin, and sign-out live in that menu. The banner scrolls away.
+- **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
+  collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only
+  for a signed-in user. Facets show a namespace colour and the tag display label. Click
+  adds AND, Shift adds OR, and Alt adds NOT. `state` is a virtual facet and is not stored
+  as a tag. "Clear filters" clears the query bar.
+- **Toolbar:** sticky query bar with `⌘K` and `/`, a segmented control for cards, tiles,
+  and list, and a group menu. The command palette is that same search surface.
+- **Status:** only the favicon changes. Up is unchanged. Down is greyscale and dimmed,
+  with a small red corner dot. Unknown keeps the colour and adds a small amber dot. No
+  check shows nothing. The icon tooltip may say when a device went offline.
+- **Editing:** normal mode is the default for every role. Clicks open links, and `e` does
+  nothing. Right-click, a long press, or the hover menu offers Copy link, Open all links,
+  and history to everyone, and Edit to an editor. Edit mode is for editors and admins,
+  from the user menu or Shift+E, and it lasts for the browser tab only. It shows a banner,
+  edit buttons, New entry, Add link, and drag-sort. `e` opens the selected entry only then.
+- **Views:** cards are the default, including All. A tab can store another default, and
+  the `view` query parameter still wins. Cards use a 260px minimum: favicon, a two-line
+  title, host, description, only fields that have a value, labelled secondary links, and
+  up to three tags. Tiles are the compact launcher, 48px or 56px icon. The list is a dense
+  table, 36px rows or 32px in compact density, and it stays a list on a narrow screen.
+  Only a sorted column shows an arrow. Grouping is a heading with the tag display label,
+  a count, and a collapse control. A missing icon is a letter in a colour derived from the
+  name. Tags are subtle badges with a namespace dot; the tooltip is the query token.
+  A tag may store `display_label`. Empty means the value is shown. The query token does
+  not change.
+- **Opening an entry:** the whole tile or card is one primary link (`target="_blank"`,
+  `rel="noopener noreferrer"`). Secondary links, secret reveal, and menus are real
+  controls above that link. In the list, the entry cell is the primary link. Enter still
+  opens it. `ssh`, `vnc`, `rdp`, `telnet`, and `other` also have a copy button.
+  Secret-backed links stay unresolved until reveal.
+- **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection
+  in visual order, `Enter` opens the primary link, Shift+E toggles edit mode, `e` edits
+  the selection only while edit mode is on, and Ctrl/Cmd+K opens the command palette.
+- **Feedback:** toasts for saves, action results, and errors; skeletons that follow the
+  active view; empty states for no entries, no matches, and no access.
 - **Entry editor** (drawer): name, host, description, tags with autocomplete, link list
   with drag-sort and primary toggle, fields, icon picker (library / upload / fetched /
   letter, with refetch), checks, actions. Duplicate name/host warning. Managed attributes
   shown read-only with explanation.
 - **History:** per entry change history with diffs from the audit log and "restore this
-  version" (addresses V1 #12 undo).
-- **Admin area:** general settings (title, claim, logo, accent colour, browser-tab
-  favicon colour, anonymous visibility, All tab public), users and roles, auth status
-  overview, field definitions, tag namespaces, icon library, API tokens, Ansible scopes and
-  edit modes, check defaults, action templates, audit log, backup/restore, CSV import.
+  version" (addresses V1 #12 undo). Anyone can open it from the entry menu. Restore stays
+  behind edit permission.
+- **Admin area:** one page per section (settings and theme, users, auth status, fields,
+  namespaces, tokens, scopes, icons, action templates, backup, CSV import, audit log).
+  Settings include the page background. Check intervals stay on each check. There is no
+  separate check-defaults page.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
-- Use real anchor elements for links (`target="_blank"`, `rel="noopener noreferrer"`).
 
 ## 12. Import / export / history
 

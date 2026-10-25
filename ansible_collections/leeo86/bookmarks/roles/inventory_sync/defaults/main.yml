@@ -1,0 +1,8 @@
+---
+bookmark_scope: inventory
+bookmark_inventory_group: all
+bookmark_group_include: '.*'
+bookmark_group_exclude: '^(all|ungrouped)$'
+bookmark_tag_namespace: group
+bookmark_group_namespaces: {}
+bookmark_purge: true

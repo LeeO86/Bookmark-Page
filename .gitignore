@@ -1,34 +1,42 @@
-# Prerequisites
-*.d
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Node dependencies
+node_modules
 
-# Precompiled Headers
-*.gch
-*.pch
+# Logs
+logs
+*.log
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
+# Misc
 .DS_Store
+.fleet
+.idea
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# SQLite data
+data/
+*.db
+
+# ansible-test output
+ansible_collections/leeo86/bookmarks/tests/output/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Playwright
+app/test-results/
+app/playwright-report/
+*.db-journal
+*.db-wal
+*.db-shm

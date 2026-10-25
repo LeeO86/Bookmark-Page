@@ -1,0 +1,24 @@
+---
+- name: Import a V1 site over HTTP
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: leeo86.bookmarks.v1_import
+      vars:
+        api_url: "{{ lookup('ansible.builtin.env', 'BOOKMARKS_API_URL') }}"
+        api_token: "{{ lookup('ansible.builtin.env', 'BOOKMARKS_API_TOKEN') }}"
+        v1_url: http://bookmark.example
+        v1_import_secret_fields:
+          - user2
+
+- name: Sync the studio inventory group
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: leeo86.bookmarks.inventory_sync
+      vars:
+        api_url: "{{ lookup('ansible.builtin.env', 'BOOKMARKS_API_URL') }}"
+        api_token: "{{ lookup('ansible.builtin.env', 'BOOKMARKS_API_TOKEN') }}"
+        bookmark_inventory_group: studio
+        bookmark_group_namespaces:
+          audio: type
