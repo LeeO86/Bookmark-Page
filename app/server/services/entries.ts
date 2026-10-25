@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import {
   entryPatchSchema,
+  tagToken,
   type ActionInput,
   type ActionPrompt,
   type CheckInput,
@@ -10,6 +11,7 @@ import {
   type FieldValueInput,
   type LinkInput,
   type SyncEntry,
+  type TagRefInput,
 } from '../../shared/contracts'
 import { parseQuery } from '../../shared/query'
 import { roleAtLeast, type Role } from '../../shared/roles'
@@ -47,6 +49,7 @@ interface TagRow {
   id: string
   namespaceName: string
   value: string
+  displayLabel: string | null
 }
 
 interface LoadedLink {
@@ -122,6 +125,16 @@ interface LoadedEntry {
 export interface EntryWarning {
   code: 'duplicate_name' | 'duplicate_host'
   message: string
+}
+
+export function countEntries(actor: Actor, rawQuery: string): number {
+  const parsed = parseQuery(rawQuery)
+  if (!parsed.ok) {
+    return 0
+  }
+  const db = getDatabase()
+  const where = sql`${visibilitySql(actor.role, publicFilters(db), allTabPublic(db))} and ${compileQuery(parsed.ast, actor.role)}`
+  return db.select({ id: entries.id }).from(entries).where(where).all().length
 }
 
 export function listEntries(actor: Actor, rawQuery: string) {
@@ -602,7 +615,7 @@ function changedPaths(current: LoadedEntry, patch: EntryPatch): string[] {
   if (patch.tags) {
     const currentTags = new Set(current.tags.map((tag) => formatTag(tag.namespaceName, tag.value)))
     const nextTags = new Set(
-      patch.tags.map((tag) => formatTag(...(Object.values(parseTag(tag)) as [string, string]))),
+      patch.tags.map((tag) => formatTag(...pair(parseTag(tagToken(tag).token)))),
     )
     for (const tag of nextTags) {
       if (!currentTags.has(tag)) {
@@ -675,7 +688,7 @@ function replaceChildren(
   db: Db,
   entryId: string,
   input: {
-    tags: string[]
+    tags: TagRefInput[]
     links: LinkInput[]
     fields: FieldValueInput[]
     checks: CheckInput[]
@@ -691,10 +704,11 @@ function replaceChildren(
   replaceActions(db, entryId, input.actions, actorId, timestamp)
 }
 
-function replaceTags(db: Db, entryId: string, values: string[], timestamp: Date): void {
+function replaceTags(db: Db, entryId: string, values: TagRefInput[], timestamp: Date): void {
   db.delete(entryTags).where(eq(entryTags.entryId, entryId)).run()
   for (const value of values) {
-    const tag = ensureTag(db, parseTag(value), timestamp)
+    const ref = tagToken(value)
+    const tag = ensureTag(db, parseTag(ref.token), timestamp, ref.displayLabel)
     db.insert(entryTags)
       .values({
         entryId,
@@ -862,11 +876,12 @@ function insertActions(
 function mergeTags(
   db: Db,
   entry: LoadedEntry,
-  values: string[],
+  values: TagRefInput[],
   previous: Set<string>,
   timestamp: Date,
 ): void {
-  const desired = new Set(values.map((value) => formatTag(...pair(parseTag(value)))))
+  const refs = values.map((value) => tagToken(value))
+  const desired = new Set(refs.map((ref) => formatTag(...pair(parseTag(ref.token)))))
   for (const tag of entry.tags) {
     const formatted = formatTag(tag.namespaceName, tag.value)
     if (previous.has(`tags:${formatted}`) && !desired.has(formatted)) {
@@ -878,9 +893,10 @@ function mergeTags(
   const remaining = new Set(
     mustLoad(db, entry.id).tags.map((tag) => formatTag(tag.namespaceName, tag.value)),
   )
-  for (const value of desired) {
+  for (const ref of refs) {
+    const value = formatTag(...pair(parseTag(ref.token)))
+    const tag = ensureTag(db, parseTag(ref.token), timestamp, ref.displayLabel)
     if (!remaining.has(value)) {
-      const tag = ensureTag(db, parseTag(value), timestamp)
       db.insert(entryTags)
         .values({
           entryId: entry.id,
@@ -1149,6 +1165,7 @@ function ensureTag(
   db: Db,
   parsed: { namespaceName: string; value: string },
   timestamp: Date,
+  displayLabel?: string | null,
 ): TagRow {
   if (parsed.namespaceName) {
     const namespace = db
@@ -1178,8 +1195,18 @@ function ensureTag(
     .from(tags)
     .where(and(eq(tags.namespaceName, parsed.namespaceName), eq(tags.value, parsed.value)))
     .get()
+  const storedLabel = displayLabel ? displayLabel : null
   if (existing) {
-    return existing
+    if (displayLabel !== undefined && existing.displayLabel !== storedLabel) {
+      db.update(tags)
+        .set({ displayLabel: storedLabel, updatedAt: timestamp })
+        .where(eq(tags.id, existing.id))
+        .run()
+    }
+    return {
+      ...existing,
+      displayLabel: displayLabel === undefined ? existing.displayLabel : storedLabel,
+    }
   }
   const id = newId()
   db.insert(tags)
@@ -1187,11 +1214,12 @@ function ensureTag(
       id,
       namespaceName: parsed.namespaceName,
       value: parsed.value,
+      displayLabel: storedLabel,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
     .run()
-  return { id, namespaceName: parsed.namespaceName, value: parsed.value }
+  return { id, namespaceName: parsed.namespaceName, value: parsed.value, displayLabel: storedLabel }
 }
 
 function faviconMap(db: Db): Map<string, string> {
@@ -1309,6 +1337,7 @@ function present(
       namespace: tag.namespaceName || null,
       value: tag.value,
       label: formatTag(tag.namespaceName, tag.value),
+      displayLabel: tag.displayLabel,
     })),
     links: entry.links.map((link) => {
       const resolved = resolveLinkUrl(
@@ -1377,6 +1406,7 @@ function hydrate(db: Db, rows: Array<typeof entries.$inferSelect>): LoadedEntry[
       id: tags.id,
       namespaceName: tags.namespaceName,
       value: tags.value,
+      displayLabel: tags.displayLabel,
     })
     .from(entryTags)
     .innerJoin(tags, eq(tags.id, entryTags.tagId))
@@ -1582,7 +1612,7 @@ function managedPaths(input: SyncEntry): string[] {
     paths.push('sort')
   }
   for (const tag of input.tags ?? []) {
-    paths.push(`tags:${formatTag(...pair(parseTag(tag)))}`)
+    paths.push(`tags:${formatTag(...pair(parseTag(tagToken(tag).token)))}`)
   }
   for (const link of input.links ?? []) {
     paths.push(`links:${link.label}`)
@@ -1639,8 +1669,9 @@ function managedPrefix(current: LoadedEntry, prefix: string): string[] {
     .map((path) => path.slice(prefix.length))
 }
 
-function tagsMatch(current: LoadedEntry, tags: string[]): boolean {
-  const desired = new Set(tags.map((tag) => formatTag(...pair(parseTag(tag)))))
+function tagsMatch(current: LoadedEntry, tags: TagRefInput[]): boolean {
+  const refs = tags.map((tag) => tagToken(tag))
+  const desired = new Set(refs.map((tag) => formatTag(...pair(parseTag(tag.token)))))
   const present = new Set(current.tags.map((tag) => formatTag(tag.namespaceName, tag.value)))
   for (const label of managedPrefix(current, 'tags:')) {
     if (!desired.has(label)) {
@@ -1649,6 +1680,16 @@ function tagsMatch(current: LoadedEntry, tags: string[]): boolean {
   }
   for (const label of desired) {
     if (!present.has(label) || !current.managedFields.includes(`tags:${label}`)) {
+      return false
+    }
+  }
+  for (const ref of refs) {
+    if (ref.displayLabel === undefined) {
+      continue
+    }
+    const token = formatTag(...pair(parseTag(ref.token)))
+    const currentTag = current.tags.find((tag) => formatTag(tag.namespaceName, tag.value) === token)
+    if ((currentTag?.displayLabel ?? null) !== (ref.displayLabel || null)) {
       return false
     }
   }

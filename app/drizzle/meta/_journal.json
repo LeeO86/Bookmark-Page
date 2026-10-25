@@ -43,6 +43,13 @@
       "when": 1791843813132,
       "tag": "0005_start_page_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792915335984,
+      "tag": "0006_app_shell",
+      "breakpoints": true
     }
   ]
 }

@@ -101,13 +101,21 @@ export const actionExecuteSchema = z.object({
   inputs: z.record(z.string(), z.string().max(20000)).default({}),
 })
 
+export const tagRefSchema = z.union([
+  z.string().trim().min(1).max(200),
+  z.object({
+    tag: z.string().trim().min(1).max(200),
+    label: z.string().trim().min(1).max(200).nullable().optional(),
+  }),
+])
+
 export const entryWriteSchema = z.object({
   name: z.string().trim().min(1).max(300),
   description: z.string().max(20_000).default(''),
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
   sort: z.number().int().default(0),
-  tags: z.array(z.string().trim().min(1).max(200)).default([]),
+  tags: z.array(tagRefSchema).default([]),
   links: z.array(linkInputSchema).default([]),
   fields: z.array(fieldValueInputSchema).default([]),
   checks: z.array(checkInputSchema).default([]),
@@ -121,7 +129,7 @@ export const entryPatchSchema = z.object({
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
   sort: z.number().int().optional(),
-  tags: z.array(z.string().trim().min(1).max(200)).optional(),
+  tags: z.array(tagRefSchema).optional(),
   links: z.array(linkInputSchema).optional(),
   fields: z.array(fieldValueInputSchema).optional(),
   checks: z.array(checkInputSchema).optional(),
@@ -136,7 +144,7 @@ export const syncEntrySchema = z.object({
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
   sort: z.number().int().optional(),
-  tags: z.array(z.string().trim().min(1).max(200)).optional(),
+  tags: z.array(tagRefSchema).optional(),
   links: z.array(linkInputSchema).optional(),
   fields: z.array(fieldValueInputSchema).optional(),
   checks: z.array(checkInputSchema).optional(),
@@ -191,6 +199,11 @@ export const namespaceWriteSchema = z.object({
 export const tagWriteSchema = z.object({
   namespace: z.string().trim().min(1).max(64).nullable().default(null),
   value: z.string().trim().min(1).max(200),
+  displayLabel: z.string().trim().min(1).max(200).nullable().optional(),
+})
+
+export const tagPatchSchema = z.object({
+  displayLabel: z.string().trim().min(1).max(200).nullable(),
 })
 
 export const fieldDefinitionSchema = z.object({
@@ -215,7 +228,7 @@ export const filterWriteSchema = z.object({
   icon: z.string().max(200).nullable().optional(),
   isPublic: z.boolean().default(false),
   global: z.boolean().default(false),
-  viewMode: z.enum(viewModes).default('tiles'),
+  viewMode: z.enum(viewModes).default('cards'),
 })
 
 export const checkReportSchema = z.object({
@@ -252,6 +265,11 @@ export const userPatchSchema = z.object({
 })
 
 export const logoWriteSchema = z.object({
+  contentType: z.enum(['image/png', 'image/webp', 'image/jpeg', 'image/svg+xml']),
+  data: z.string().min(1).max(1_400_000),
+})
+
+export const faviconWriteSchema = z.object({
   contentType: z.enum(['image/png', 'image/webp']),
   data: z.string().min(1).max(800_000),
 })
@@ -284,7 +302,18 @@ export const preferencesPatchSchema = z.object({
   viewModes: z.record(z.string().min(1).max(80), z.enum(viewModes)).optional(),
   facetsOpen: z.boolean().optional(),
   tileSize: z.enum(tileSizes).optional(),
+  sidebarCollapsed: z.boolean().optional(),
+  groupModes: z.record(z.string().min(1).max(80), z.string().max(64).nullable()).optional(),
 })
+
+export type TagRefInput = z.infer<typeof tagRefSchema>
+
+export function tagToken(input: TagRefInput): { token: string; displayLabel?: string | null } {
+  if (typeof input === 'string') {
+    return { token: input }
+  }
+  return { token: input.tag, displayLabel: input.label }
+}
 
 export type ActionPrompt = z.infer<typeof actionPromptSchema>
 export type EntryWrite = z.infer<typeof entryWriteSchema>

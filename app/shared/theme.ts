@@ -276,6 +276,19 @@ export function presetSeed(preset: AccentPreset, custom: string): string {
   return accentPresets[preset].seed
 }
 
+export function suggestedNeutral(preset: AccentPreset, accent = ''): NeutralPalette {
+  if (preset === 'red' || preset === 'yellow' || preset === 'pink') {
+    return 'stone'
+  }
+  if (preset === 'custom' && isHexColour(accent)) {
+    const hue = hexToOklch(normalizeHex(accent)).h
+    if (hue >= 330 || hue <= 70) {
+      return 'stone'
+    }
+  }
+  return 'slate'
+}
+
 export function relativeLuminance(colour: string): number {
   const [red, green, blue] = rgbChannels(colour)
   const linear = [red, green, blue].map((channel) =>
@@ -351,7 +364,7 @@ export function themeStylesheet(
     .join('\n')
   const canvas = canvasValue(background, 'light')
   const darkCanvas = canvasValue(background, 'dark')
-  return `html {\n${primaryLines}\n${neutralLines}\n--ui-primary: ${lightPrimary};\n--bp-accent-text: ${lightAccentText};\n--bp-canvas: ${canvas};\n--bp-icon-plate: #ffffff;\n--bp-status-up: ${statusColours.up};\n--bp-status-down: ${statusColours.down};\n--bp-status-unknown: ${statusColours.unknown};\n--bp-status-none: ${statusColours.none};\n${chips}\n}\nhtml.dark {\n--ui-primary: ${darkPrimary};\n--bp-accent-text: ${darkAccentText};\n--bp-canvas: ${darkCanvas};\n}\n`
+  return `html {\n${primaryLines}\n${neutralLines}\n--ui-primary: ${lightPrimary};\n--bp-accent-text: ${lightAccentText};\n--bp-canvas: ${canvas};\n--bp-content: ${neutral[100]};\n--bp-card: ${neutral[50]};\n--bp-icon-plate: #ffffff;\n--bp-status-up: ${statusColours.up};\n--bp-status-down: ${statusColours.down};\n--bp-status-unknown: ${statusColours.unknown};\n--bp-status-none: ${statusColours.none};\n${chips}\n}\nhtml.dark {\n--ui-primary: ${darkPrimary};\n--bp-accent-text: ${darkAccentText};\n--bp-canvas: ${darkCanvas};\n--bp-content: ${neutral[950]};\n--bp-card: ${neutral[900]};\n}\n`
 }
 
 function canvasValue(background: BackgroundStyle, mode: 'light' | 'dark'): string {

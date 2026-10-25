@@ -66,6 +66,7 @@ export const backupDocumentSchema = z.object({
       id: z.string(),
       namespaceName: z.string(),
       value: z.string(),
+      displayLabel: z.string().nullable().optional(),
       createdAt: stamp,
       updatedAt: stamp,
     }),

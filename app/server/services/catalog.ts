@@ -20,7 +20,7 @@ import {
 } from '../db/schema'
 import { badRequest, forbidden, notFound } from '../http/errors'
 import { writeAudit, listAudit } from './audit'
-import { entryVisible } from './entries'
+import { countEntries, entryVisible } from './entries'
 import { adminSettings, defaultEditMode, publicSettings, writeSettings } from './settings'
 
 export function listNamespaces() {
@@ -125,7 +125,10 @@ export function listTags(actor: Actor) {
   return rows.map(presentTag)
 }
 
-export function createTag(actor: Actor, input: { namespace: string | null; value: string }) {
+export function createTag(
+  actor: Actor,
+  input: { namespace: string | null; value: string; displayLabel?: string | null },
+) {
   return transaction((db) => {
     const timestamp = now()
     const namespaceName = input.namespace ?? ''
@@ -158,6 +161,13 @@ export function createTag(actor: Actor, input: { namespace: string | null; value
       .where(and(eq(tags.namespaceName, namespaceName), eq(tags.value, input.value)))
       .get()
     if (existing) {
+      if (input.displayLabel !== undefined && existing.displayLabel !== input.displayLabel) {
+        db.update(tags)
+          .set({ displayLabel: input.displayLabel, updatedAt: timestamp })
+          .where(eq(tags.id, existing.id))
+          .run()
+        return presentTag({ ...existing, displayLabel: input.displayLabel ?? null })
+      }
       return presentTag(existing)
     }
     const id = newId()
@@ -166,6 +176,7 @@ export function createTag(actor: Actor, input: { namespace: string | null; value
         id,
         namespaceName,
         value: input.value,
+        displayLabel: input.displayLabel ?? null,
         createdAt: timestamp,
         updatedAt: timestamp,
       })
@@ -198,7 +209,7 @@ export function listFilters(actor: Actor) {
     .all()
   return rows
     .filter((filter) => canSeeFilter(actor, filter.ownerUserId, filter.isPublic))
-    .map(presentFilter)
+    .map((row) => ({ ...presentFilter(row), count: countEntries(actor, row.query) }))
 }
 
 export function createFilter(
@@ -234,7 +245,7 @@ export function createFilter(
         sort: input.sort,
         icon: input.icon ?? null,
         isPublic: global && input.isPublic,
-        viewMode: input.viewMode ?? 'tiles',
+        viewMode: input.viewMode ?? 'cards',
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: actor.userId,
@@ -762,7 +773,18 @@ function presentTag(row: typeof tags.$inferSelect) {
     namespace: row.namespaceName || null,
     value: row.value,
     label: row.namespaceName ? `${row.namespaceName}:${row.value}` : row.value,
+    displayLabel: row.displayLabel,
   }
+}
+
+export function updateTagLabel(actor: Actor, id: string, displayLabel: string | null) {
+  return transaction((db) => {
+    const current = must(db.select().from(tags).where(eq(tags.id, id)).get(), 'Tag not found')
+    const timestamp = now()
+    db.update(tags).set({ displayLabel, updatedAt: timestamp }).where(eq(tags.id, id)).run()
+    writeAudit(actor, 'tag.update', 'tag', id, { displayLabel }, db)
+    return presentTag({ ...current, displayLabel })
+  })
 }
 
 function presentFilter(row: typeof filters.$inferSelect) {

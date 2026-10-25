@@ -309,7 +309,7 @@ describe('duplicate confirmation, restore, and logo', () => {
     expect(JSON.stringify(listEntryHistory(admin, created.entry.id))).not.toContain('[redacted]')
   })
 
-  it('accepts PNG and WebP logos and rejects other content', async () => {
+  it('accepts PNG, WebP, and sanitised SVG logos and rejects other content', async () => {
     await boot()
     const png =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -321,9 +321,16 @@ describe('duplicate confirmation, restore, and logo', () => {
     webp.write('WEBP', 8)
     saveLogo('image/webp', webp.toString('base64'), null)
     expect(readLogo()?.contentType).toBe('image/webp')
-    expect(() =>
-      saveLogo('image/svg+xml', Buffer.from('<svg></svg>').toString('base64'), null),
-    ).toThrow(HttpError)
+    saveLogo(
+      'image/svg+xml',
+      Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#111111"/></svg>',
+      ).toString('base64'),
+      null,
+    )
+    expect(readLogo()?.contentType).toBe('image/svg+xml')
+    expect(readLogo()?.bytes.toString('utf8')).not.toContain('script')
+    expect(() => saveLogo('image/gif', png, null)).toThrow(HttpError)
     expect(() => saveLogo('image/png', webp.toString('base64'), null)).toThrow(HttpError)
   })
 })

@@ -66,6 +66,7 @@ export const tags = sqliteTable(
     id: text('id').primaryKey(),
     namespaceName: text('namespace_name').notNull().default(''),
     value: text('value').notNull(),
+    displayLabel: text('display_label'),
     createdAt,
     updatedAt,
   },
@@ -203,6 +204,11 @@ export const userPreferences = sqliteTable('user_preferences', {
     .notNull()
     .default({}),
   facetsOpen: integer('facets_open', { mode: 'boolean' }).notNull().default(false),
+  sidebarCollapsed: integer('sidebar_collapsed', { mode: 'boolean' }).notNull().default(false),
+  groupModes: text('group_modes', { mode: 'json' })
+    .$type<Record<string, string | null>>()
+    .notNull()
+    .default({}),
   tileSize: text('tile_size', { enum: ['regular', 'large'] })
     .notNull()
     .default('regular'),

@@ -10,6 +10,8 @@ export interface PreferenceRecord {
   viewModes: Record<string, ViewMode>
   facetsOpen: boolean
   tileSize: TileSize
+  sidebarCollapsed: boolean
+  groupModes: Record<string, string | null>
 }
 
 export function readPreferences(userId: string, db: Db = getDatabase()): PreferenceRecord {
@@ -19,6 +21,8 @@ export function readPreferences(userId: string, db: Db = getDatabase()): Prefere
     viewModes: cleanViewModes(row?.viewModes),
     facetsOpen: row?.facetsOpen === true,
     tileSize: row?.tileSize && isTileSize(row.tileSize) ? row.tileSize : 'regular',
+    sidebarCollapsed: row?.sidebarCollapsed === true,
+    groupModes: cleanGroupModes(row?.groupModes),
   }
 }
 
@@ -29,6 +33,8 @@ export function writePreferences(
     viewModes?: Record<string, ViewMode>
     facetsOpen?: boolean
     tileSize?: TileSize
+    sidebarCollapsed?: boolean
+    groupModes?: Record<string, string | null>
   },
   db: Db = getDatabase(),
 ): PreferenceRecord {
@@ -40,6 +46,12 @@ export function writePreferences(
       : current.viewModes,
     facetsOpen: patch.facetsOpen === undefined ? current.facetsOpen : patch.facetsOpen,
     tileSize: patch.tileSize === undefined ? current.tileSize : patch.tileSize,
+    sidebarCollapsed:
+      patch.sidebarCollapsed === undefined ? current.sidebarCollapsed : patch.sidebarCollapsed,
+    groupModes:
+      patch.groupModes === undefined
+        ? current.groupModes
+        : { ...current.groupModes, ...cleanGroupModes(patch.groupModes) },
   }
   const timestamp = now()
   db.insert(userPreferences)
@@ -49,6 +61,8 @@ export function writePreferences(
       viewModes: next.viewModes,
       facetsOpen: next.facetsOpen,
       tileSize: next.tileSize,
+      sidebarCollapsed: next.sidebarCollapsed,
+      groupModes: next.groupModes,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -59,11 +73,33 @@ export function writePreferences(
         viewModes: next.viewModes,
         facetsOpen: next.facetsOpen,
         tileSize: next.tileSize,
+        sidebarCollapsed: next.sidebarCollapsed,
+        groupModes: next.groupModes,
         updatedAt: timestamp,
       },
     })
     .run()
   return next
+}
+
+function cleanGroupModes(value: unknown): Record<string, string | null> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  const modes: Record<string, string | null> = {}
+  for (const [key, mode] of Object.entries(value)) {
+    if (key.length === 0 || key.length > 80) {
+      continue
+    }
+    if (mode === null) {
+      modes[key] = null
+      continue
+    }
+    if (typeof mode === 'string' && mode.length > 0 && mode.length <= 64) {
+      modes[key] = mode
+    }
+  }
+  return modes
 }
 
 function cleanViewModes(value: unknown): Record<string, ViewMode> {

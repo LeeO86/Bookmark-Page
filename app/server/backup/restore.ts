@@ -364,7 +364,12 @@ function mergeAll(
       .find((tag) => tag.value === row.value)
     if (!current) {
       tx.insert(tags)
-        .values({ ...row, createdAt: date(row.createdAt), updatedAt: date(row.updatedAt) })
+        .values({
+          ...row,
+          displayLabel: row.displayLabel ?? null,
+          createdAt: date(row.createdAt),
+          updatedAt: date(row.updatedAt),
+        })
         .run()
       tagIds.set(row.id, row.id)
     } else {

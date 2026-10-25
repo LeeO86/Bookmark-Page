@@ -20,6 +20,7 @@ import {
   filterWriteSchema,
   iconWriteSchema,
   loginSchema,
+  faviconWriteSchema,
   logoWriteSchema,
   namespaceWriteSchema,
   scopeWriteSchema,
@@ -27,6 +28,7 @@ import {
   settingsPatchSchema,
   syncBodySchema,
   syncEntrySchema,
+  tagPatchSchema,
   tagWriteSchema,
   tokenWriteSchema,
   userPatchSchema,
@@ -76,6 +78,7 @@ import {
   updateUser,
   listFieldDefinitions,
   listFilters,
+  updateTagLabel,
   listNamespaces,
   listScopes,
   listTags,
@@ -91,6 +94,7 @@ import {
   createEntry,
   deleteEntry,
   deleteManagedEntry,
+  countEntries,
   getEntry,
   listEntries,
   refreshEntryFavicons,
@@ -302,6 +306,11 @@ export default defineEventHandler(async (event) => {
       return createTag(actor, tagWriteSchema.parse(await readBody(event)))
     }
     const tagId = match(path, /^\/api\/v1\/tags\/([^/]+)$/)
+    if (tagId && method === 'PATCH') {
+      requireWrite(actor)
+      const body = tagPatchSchema.parse(await readBody(event))
+      return updateTagLabel(actor, decodeURIComponent(tagId), body.displayLabel)
+    }
     if (tagId && method === 'DELETE') {
       requireAdmin(actor)
       deleteTag(actor, decodeURIComponent(tagId))
@@ -309,7 +318,7 @@ export default defineEventHandler(async (event) => {
     }
 
     if (method === 'GET' && path === '/api/v1/filters') {
-      return { filters: listFilters(actor) }
+      return { filters: listFilters(actor), allCount: countEntries(actor, '') }
     }
     if (method === 'POST' && path === '/api/v1/filters') {
       requireRole(actor, 'viewer')
@@ -561,7 +570,7 @@ export default defineEventHandler(async (event) => {
     }
     if (method === 'POST' && path === '/api/v1/settings/favicon') {
       requireAdmin(actor)
-      const body = logoWriteSchema.parse(await readBody(event))
+      const body = faviconWriteSchema.parse(await readBody(event))
       saveTabFavicon(body.contentType, body.data, actor.userId)
       writeAudit(actor, 'settings.update', 'settings', null, { tabFavicon: body.contentType })
       return readSettings(actor)

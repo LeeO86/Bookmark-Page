@@ -15,6 +15,7 @@ import {
 import { getDatabase, type Db } from '../db/client'
 import { now } from '../db/ids'
 import { settings } from '../db/schema'
+import { sanitizeSvg } from '../icons/sanitize'
 import { badRequest } from '../http/errors'
 
 const defaults = {
@@ -84,7 +85,8 @@ export function publicSettings(db: Db = getDatabase()) {
   }
 }
 
-const logoLimit = 512 * 1024
+const logoLimit = 1024 * 1024
+const faviconLimit = 512 * 1024
 
 export function saveLogo(
   contentType: string,
@@ -111,13 +113,22 @@ function saveImage(
   db: Db,
 ): void {
   const label = key === 'logo' ? 'Logo' : 'Tab favicon'
-  if (contentType !== 'image/png' && contentType !== 'image/webp') {
-    throw badRequest(`${label} must be a PNG or WebP image`)
+  const allowed =
+    key === 'logo'
+      ? ['image/png', 'image/webp', 'image/jpeg', 'image/svg+xml']
+      : ['image/png', 'image/webp']
+  if (!allowed.includes(contentType)) {
+    throw badRequest(
+      key === 'logo'
+        ? 'Logo must be a PNG, JPEG, WebP, or SVG image'
+        : 'Tab favicon must be a PNG or WebP image',
+    )
   }
   const normalized = dataBase64.replace(/\s/g, '')
-  const bytes = Buffer.from(normalized, 'base64')
-  if (bytes.length === 0 || bytes.length > logoLimit || bytes.toString('base64') !== normalized) {
-    throw badRequest(`${label} must be standard Base64 up to 512 KB`)
+  let bytes = Buffer.from(normalized, 'base64')
+  const limit = key === 'logo' ? logoLimit : faviconLimit
+  if (bytes.length === 0 || bytes.length > limit || bytes.toString('base64') !== normalized) {
+    throw badRequest(`${label} must be standard Base64 up to ${key === 'logo' ? '1 MB' : '512 KB'}`)
   }
   if (contentType === 'image/png' && !isPng(bytes)) {
     throw badRequest(`${label} content is not a PNG image`)
@@ -125,18 +136,36 @@ function saveImage(
   if (contentType === 'image/webp' && !isWebp(bytes)) {
     throw badRequest(`${label} content is not a WebP image`)
   }
+  if (contentType === 'image/jpeg' && !isJpeg(bytes)) {
+    throw badRequest(`${label} content is not a JPEG image`)
+  }
+  let stored = normalized
+  let storedType = contentType
+  if (contentType === 'image/svg+xml') {
+    const clean = sanitizeSvg(bytes.toString('utf8'))
+    bytes = Buffer.from(clean, 'utf8')
+    if (bytes.length > limit) {
+      throw badRequest(`${label} must be standard Base64 up to 1 MB`)
+    }
+    stored = bytes.toString('base64')
+    storedType = 'image/svg+xml'
+  }
   const timestamp = now()
   db.insert(settings)
     .values({
       key,
-      value: { contentType, data: normalized },
+      value: { contentType: storedType, data: stored },
       createdAt: timestamp,
       updatedAt: timestamp,
       updatedBy: actorId,
     })
     .onConflictDoUpdate({
       target: settings.key,
-      set: { value: { contentType, data: normalized }, updatedAt: timestamp, updatedBy: actorId },
+      set: {
+        value: { contentType: storedType, data: stored },
+        updatedAt: timestamp,
+        updatedBy: actorId,
+      },
     })
     .run()
 }
@@ -177,6 +206,10 @@ function isPng(bytes: Buffer): boolean {
     bytes[2] === 0x4e &&
     bytes[3] === 0x47
   )
+}
+
+function isJpeg(bytes: Buffer): boolean {
+  return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
 }
 
 function isWebp(bytes: Buffer): boolean {
