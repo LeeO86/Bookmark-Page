@@ -61,8 +61,10 @@ options:
   tags:
     description:
       - Tag strings such as C(type:audio) or a plain value.
+      - A mapping with C(tag) and optional C(label) sets the display label, for example C(room:control-a) shown as C(Control A).
+      - A string does not erase a display label that is already stored.
     type: list
-    elements: str
+    elements: raw
   links:
     description:
       - Links that belong to the entry.
@@ -233,7 +235,7 @@ def main():
         host=dict(type='str'),
         icon=dict(type='str'),
         sort=dict(type='int'),
-        tags=dict(type='list', elements='str'),
+        tags=dict(type='list', elements='raw'),
         links=link_spec(),
         fields=field_value_spec(),
         checks=check_spec(),

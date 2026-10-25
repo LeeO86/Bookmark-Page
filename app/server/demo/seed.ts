@@ -2,16 +2,19 @@ import { eq } from 'drizzle-orm'
 import type { Actor } from '../auth/permissions'
 import { writeStatus } from '../checks/run'
 import { getDatabase } from '../db/client'
-import { fieldDefinitions, settings, tagNamespaces, users } from '../db/schema'
+import { fieldDefinitions, icons, settings, tagNamespaces, users } from '../db/schema'
 import { now } from '../db/ids'
 import { createEntry, deleteEntry } from '../services/entries'
 import {
   createFieldDefinition,
   createFilter,
+  createIcon,
   createNamespace,
   deleteFilter,
+  listTags,
+  updateTagLabel,
 } from '../services/catalog'
-import { writeSettings } from '../services/settings'
+import { saveLogo, writeSettings } from '../services/settings'
 
 const demoSettingKey = 'demo_seed'
 
@@ -565,12 +568,22 @@ export function seedDemo(): { entries: number; filters: number } {
   ensureNamespaces(actor)
   ensureFields(actor)
   const entryIds: string[] = []
+  const vendorIcons = new Map<string, string>()
+  for (const vendor of new Set(devices.map((item) => item.vendor))) {
+    vendorIcons.set(vendor, vendorIcon(actor, vendor))
+  }
   for (const [index, item] of devices.entries()) {
+    const iconRef =
+      index === 0 || index === 8
+        ? `lucide:${item.icon}`
+        : index === 3 || index === 21
+          ? null
+          : (vendorIcons.get(item.vendor) ?? null)
     const created = createEntry(actor, {
       name: item.name,
       description: item.description,
       host: item.host,
-      iconRef: `lucide:${item.icon}`,
+      iconRef,
       sort: index,
       tags: [`type:${item.type}`, `room:${item.room}`, `vendor:${item.vendor}`],
       links: item.links.map((link, linkIndex) => ({
@@ -633,7 +646,7 @@ export function seedDemo(): { entries: number; filters: number } {
     icon: 'lucide:layout-grid',
     isPublic: true,
     global: true,
-    viewMode: 'tiles',
+    viewMode: 'cards',
   })
   const audio = createFilter(actor, {
     name: 'Audio desk',
@@ -644,8 +657,10 @@ export function seedDemo(): { entries: number; filters: number } {
     icon: 'lucide:audio-lines',
     isPublic: true,
     global: true,
-    viewMode: 'tiles',
+    viewMode: 'cards',
   })
+  labelDemoTags(actor)
+  saveLogo('image/svg+xml', Buffer.from(titleMark(), 'utf8').toString('base64'), actor.userId)
   writeDemoRecord({ entryIds, filterIds: [rooms.id, audio.id] })
   writeSettings(
     {
@@ -657,6 +672,63 @@ export function seedDemo(): { entries: number; filters: number } {
     actor.userId,
   )
   return { entries: entryIds.length, filters: 2 }
+}
+
+const vendorColours: Record<string, string> = {
+  lawo: '#0f766e',
+  genelec: '#b45309',
+  clearcom: '#be123c',
+  sony: '#1d4ed8',
+  blackmagic: '#c2410c',
+  ross: '#7c3aed',
+  harmonic: '#0e7490',
+  editshare: '#0369a1',
+  dell: '#334155',
+  cisco: '#047857',
+  netgear: '#4338ca',
+  aten: '#a16207',
+  autoscript: '#9f1239',
+  comrex: '#9a3412',
+  ma: '#6d28d9',
+  meinberg: '#155e75',
+  sensaphone: '#9f1239',
+  sonifex: '#3f6212',
+}
+
+function vendorIcon(actor: Actor, vendor: string): string {
+  const name = `vendor-${vendor}`
+  const existing = getDatabase().select().from(icons).where(eq(icons.name, name)).get()
+  if (existing) {
+    return `upload:${existing.id}`
+  }
+  const created = createIcon(actor, {
+    name,
+    mediaType: 'image/svg+xml',
+    data: Buffer.from(vendorSvg(vendor, vendorColours[vendor] ?? '#475569'), 'utf8'),
+  })
+  return `upload:${created.id}`
+}
+
+function vendorSvg(vendor: string, colour: string): string {
+  const initials = vendor.slice(0, 2).toUpperCase()
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${colour}"/><circle cx="32" cy="24" r="8" fill="#ffffff"/><text x="32" y="48" text-anchor="middle" font-size="16" font-family="sans-serif" fill="#ffffff">${initials}</text></svg>`
+}
+
+function titleMark(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0f172a"/><path fill="#38bdf8" d="M18 12h28a2 2 0 0 1 2 2v36l-16-9-16 9V14a2 2 0 0 1 2-2z"/></svg>`
+}
+
+function labelDemoTags(actor: Actor): void {
+  for (const tag of listTags(actor)) {
+    updateTagLabel(actor, tag.id, pretty(tag.value))
+  }
+}
+
+function pretty(value: string): string {
+  return value
+    .split('-')
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ')
 }
 
 function device(

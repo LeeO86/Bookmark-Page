@@ -254,7 +254,7 @@ def build_entry(params):
     if params.get('sort') is not None:
         payload['sort'] = params['sort']
     if params.get('tags') is not None:
-        payload['tags'] = list(params['tags'])
+        payload['tags'] = [tag_token(item) and item for item in params['tags']]
     if params.get('links') is not None:
         payload['links'] = build_links(params['links'])
     if params.get('fields') is not None:
@@ -326,8 +326,19 @@ def entry_matches(current, desired):
     return True
 
 
+def tag_token(item):
+    if isinstance(item, dict):
+        token = item.get('tag')
+        if not token or not isinstance(token, str):
+            raise BookmarkBuildError('A tag mapping needs a tag string')
+        return token
+    if not isinstance(item, str) or not item:
+        raise BookmarkBuildError('Tags must be strings or mappings with a tag')
+    return item
+
+
 def tags_match(current, desired_tags):
-    desired = set(desired_tags)
+    desired = set(tag_token(item) for item in desired_tags)
     present = set(tag.get('label') for tag in current.get('tags') or [])
     for label in managed_labels(current, 'tags:'):
         if label not in desired:
@@ -335,6 +346,11 @@ def tags_match(current, desired_tags):
     for label in desired:
         if label not in present or not claimed(current, 'tags:%s' % label):
             return False
+    current_labels = {tag.get('label'): tag.get('displayLabel') for tag in current.get('tags') or []}
+    for item in desired_tags:
+        if isinstance(item, dict) and 'label' in item:
+            if (current_labels.get(tag_token(item)) or None) != (item.get('label') or None):
+                return False
     return True
 
 

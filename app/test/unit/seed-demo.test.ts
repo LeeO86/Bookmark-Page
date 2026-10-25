@@ -44,7 +44,7 @@ describe('seedDemo', () => {
 
     const tabs = getDatabase().select().from(filters).where(eq(filters.isPublic, true)).all()
     expect(tabs.map((tab) => tab.name).sort()).toEqual(['Audio desk', 'Control rooms'])
-    expect(tabs.every((tab) => tab.viewMode === 'tiles' && tab.groupBy === 'room')).toBe(true)
+    expect(tabs.every((tab) => tab.viewMode === 'cards' && tab.groupBy === 'room')).toBe(true)
 
     const listed = await import('../../server/services/entries').then((module) =>
       module.listEntries(
