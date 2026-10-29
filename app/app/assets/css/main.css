@@ -102,3 +102,51 @@ body {
   background: var(--bp-status-unknown);
   color: var(--bp-status-unknown);
 }
+
+/* Native stretched links cover passive content; explicit controls stay above them. */
+.entry-launcher.has-primary-link {
+  isolation: isolate;
+}
+.entry-launcher > .entry-primary-link {
+  z-index: 10;
+}
+.entry-launcher.has-primary-link > :not(.entry-primary-link) {
+  pointer-events: none;
+}
+.entry-launcher.has-primary-link
+  :is(
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [contenteditable],
+    a:not(.entry-primary-link)
+  ) {
+  z-index: 20;
+  pointer-events: auto;
+}
+.entry-launcher.has-primary-link
+  :is(
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [contenteditable],
+    a:not(.entry-primary-link)
+  ):not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
+.entry-launcher.has-primary-link.selecting-text > .entry-primary-link {
+  pointer-events: none;
+}
+.entry-launcher.has-primary-link.selecting-text > :not(.entry-primary-link) {
+  pointer-events: auto;
+  user-select: text;
+}
+.entry-launcher.has-primary-link.selecting-text {
+  cursor: text;
+}

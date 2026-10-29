@@ -11,6 +11,7 @@ defineEmits<{
 }>()
 const portal = usePortal()
 const menu = useEntryMenu()
+const activation = useEntryActivation()
 
 function href(entry: PortalEntry): string | null {
   return primaryLink(entry)?.url ?? null
@@ -36,10 +37,13 @@ function shownFields(entry: PortalEntry) {
       v-for="entry in entries"
       :key="entry.id"
       :data-entry-id="entry.id"
-      class="portal-card group relative flex flex-col gap-3 rounded-xl border border-default p-4"
+      class="portal-card entry-launcher group relative flex flex-col gap-3 rounded-xl border border-default p-4"
+      :class="{ 'has-primary-link': href(entry), 'selecting-text': activation.selectingText.value }"
       @click="portal.selectedId.value = entry.id"
       @click.capture="menu.pressClick"
-      @contextmenu.prevent="menu.open(entry.id)"
+      @contextmenu="activation.contextMenu($event, () => menu.open(entry.id))"
+      @pointerenter="activation.syncModifiers"
+      @pointerdown.capture="activation.syncModifiers"
       @pointerdown="menu.pressStart(entry.id, $event)"
       @pointerup="menu.pressEnd"
       @pointercancel="menu.pressEnd"
@@ -52,10 +56,11 @@ function shownFields(entry: PortalEntry) {
         :href="href(entry) ?? undefined"
         target="_blank"
         rel="noopener noreferrer"
-        class="absolute inset-0 rounded-xl"
+        class="entry-primary-link absolute inset-0 rounded-xl"
         :aria-label="entry.name"
-        :title="statusTooltip(entry)"
+        :title="`${statusTooltip(entry)} · Shift: select text · Alt-click: new window`"
         data-testid="entry-link"
+        @click="activation.primaryClick"
       />
       <div class="relative flex items-start gap-3">
         <button
@@ -70,6 +75,7 @@ function shownFields(entry: PortalEntry) {
           ⋮⋮
         </button>
         <EntryIcon
+          data-testid="entry-favicon"
           :name="entry.name"
           :icon-ref="entry.iconRef"
           :src="entry.iconUrl"
@@ -77,7 +83,11 @@ function shownFields(entry: PortalEntry) {
           size="card"
         />
         <div class="min-w-0 flex-1">
-          <p class="card-title line-clamp-2 text-highlighted" :title="entry.name">
+          <p
+            data-testid="entry-title"
+            class="card-title line-clamp-2 text-highlighted"
+            :title="entry.name"
+          >
             {{ entry.name }}
           </p>
           <p v-if="entry.host" class="truncate font-mono text-xs text-muted">{{ entry.host }}</p>

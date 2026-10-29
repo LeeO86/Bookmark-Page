@@ -19,13 +19,13 @@ The fourteen findings from the ICM review of `55ebdf5` are corrected on `fix/v2-
 | F13: secret links           | Add an audited, field-authorized, non-cacheable reveal endpoint and explicit reveal/anchor controls in each view.                                                                  | Unit/HTTP denial cases and browser reveal flow.                                        |
 | F14: managed favicons       | Queue discovery after committed managed changes; skip dry runs and unchanged upserts.                                                                                              | Real HTTP favicon test including dry-run and idempotence assertions.                   |
 
-Additional corrections include status-tooltip details, stale UI documentation and gating release publication on the reusable CI workflow.
+Additional corrections include status-tooltip details, stale UI documentation and gating release publication on the reusable CI workflow. Cards and tiles now activate through favicon, text and empty space; Shift enables copying without navigation and Alt-click requests a separate window. Focused secondary links and buttons retain their own Enter action.
 
 ## Validation
 
 - `pnpm lint` and `pnpm typecheck`: passed.
 - `pnpm test`: 59 tests passed in 18 files.
-- `pnpm test:smoke`: three Chromium tests passed.
+- `pnpm test:smoke`: five Chromium tests passed, including physical-coordinate card/tile clicks, Shift selection, Alt window requests, Ctrl/Cmd/middle-click, secondary links, editing controls and keyboard activation.
 - Production image: built and exercised on amd64 with disposable SQLite data and the non-root runtime.
 - Original review probes against the production image: 30 API assertions, 14 browser assertions, the spaced-tag check and all three V1 planner checks pass.
 - Ansible integration: 57 tasks OK, 17 changed, zero failed; both roles and repeated/idempotent operations executed against the disposable image.

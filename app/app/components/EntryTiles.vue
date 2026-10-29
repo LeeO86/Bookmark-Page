@@ -11,6 +11,7 @@ defineEmits<{
 }>()
 const portal = usePortal()
 const menu = useEntryMenu()
+const activation = useEntryActivation()
 
 function href(entry: PortalEntry): string | null {
   return primaryLink(entry)?.url ?? null
@@ -30,10 +31,13 @@ function href(entry: PortalEntry): string | null {
       v-for="entry in entries"
       :key="entry.id"
       :data-entry-id="entry.id"
-      class="portal-card group relative flex min-h-36 flex-col items-center rounded-xl border border-default px-3 py-4 text-center"
+      class="portal-card entry-launcher group relative flex min-h-36 flex-col items-center rounded-xl border border-default px-3 py-4 text-center"
+      :class="{ 'has-primary-link': href(entry), 'selecting-text': activation.selectingText.value }"
       @click="portal.selectedId.value = entry.id"
       @click.capture="menu.pressClick"
-      @contextmenu.prevent="menu.open(entry.id)"
+      @contextmenu="activation.contextMenu($event, () => menu.open(entry.id))"
+      @pointerenter="activation.syncModifiers"
+      @pointerdown.capture="activation.syncModifiers"
       @pointerdown="menu.pressStart(entry.id, $event)"
       @pointerup="menu.pressEnd"
       @pointercancel="menu.pressEnd"
@@ -46,10 +50,11 @@ function href(entry: PortalEntry): string | null {
         :href="href(entry) ?? undefined"
         target="_blank"
         rel="noopener noreferrer"
-        class="absolute inset-0 rounded-xl"
+        class="entry-primary-link absolute inset-0 rounded-xl"
         :aria-label="entry.name"
-        :title="entry.name"
+        :title="`${statusTooltip(entry)} · Shift: select text · Alt-click: new window`"
         data-testid="entry-link"
+        @click="activation.primaryClick"
       />
       <button
         v-if="portal.editMode.value"
@@ -64,6 +69,7 @@ function href(entry: PortalEntry): string | null {
       </button>
       <span class="relative" :title="statusTooltip(entry)">
         <EntryIcon
+          data-testid="entry-favicon"
           :name="entry.name"
           :icon-ref="entry.iconRef"
           :src="entry.iconUrl"
@@ -71,7 +77,11 @@ function href(entry: PortalEntry): string | null {
           :size="portal.tileSize.value === 'large' ? 'large' : 'tile'"
         />
       </span>
-      <p class="tile-name relative mt-3 line-clamp-3 text-highlighted" :title="entry.name">
+      <p
+        data-testid="entry-title"
+        class="tile-name relative mt-3 line-clamp-3 text-highlighted"
+        :title="entry.name"
+      >
         {{ entry.name }}
       </p>
       <div class="relative z-10 mt-auto pt-3">

@@ -183,3 +183,123 @@ test('manages personal views, filters spaced tags and reveals secret links', asy
   expect((await api('GET', '/api/v1/entries/' + created.entry.id)).links[0].url).toBeNull()
   await api('DELETE', '/api/v1/filters/' + first.id)
 })
+
+for (const view of ['cards', 'tiles'] as const) {
+  test(`${view}: whole launcher opens its primary link and modifiers preserve selection and controls`, async ({
+    page,
+    goto,
+    context,
+  }) => {
+    await goto('/', { waitUntil: 'networkidle' })
+    await signIn(page)
+    const base = new URL(page.url()).origin
+    const primary = base + '/api/health?launcher=' + view
+    const secondary = base + '/api/health?secondary=' + view
+    const response = await page.request.post(base + '/api/v1/entries', {
+      headers: { Origin: base },
+      data: {
+        name: `Launcher ${view}`,
+        host: `${view}.example.invalid`,
+        iconRef: 'lucide:camera',
+        description: 'Selectable launcher description',
+        links: [
+          { label: 'Main', urlTemplate: primary, type: 'web', isPrimary: true },
+          { label: 'Secondary', urlTemplate: secondary, type: 'web', isPrimary: false },
+        ],
+      },
+    })
+    expect(response.ok()).toBe(true)
+    const { entry } = await response.json()
+    await page.goto(`${base}/?q=Launcher&view=${view}`, { waitUntil: 'networkidle' })
+    const card = page.locator(`[data-entry-id="${entry.id}"]`)
+    const title = card.getByTestId('entry-title')
+    const icon = card.getByTestId('entry-favicon')
+    const center = async (locator: import('@playwright/test').Locator) => {
+      const box = await locator.boundingBox()
+      if (!box) throw new Error('Missing launcher target')
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    }
+    const openAt = async (
+      position: { x: number; y: number },
+      options: { button?: 'left' | 'middle'; modifier?: 'Alt' | 'Control' | 'Meta' } = {},
+    ) => {
+      const popupPromise = context.waitForEvent('page', { timeout: 15_000 })
+      if (options.modifier) await page.keyboard.down(options.modifier)
+      try {
+        await page.mouse.click(position.x, position.y, { button: options.button ?? 'left' })
+      } finally {
+        if (options.modifier) await page.keyboard.up(options.modifier)
+      }
+      const popup = await popupPromise
+      await popup.waitForURL(primary)
+      expect(await popup.evaluate(() => window.opener === null)).toBe(true)
+      await popup.close()
+    }
+    // Physical coordinates exercise actual browser hit-testing through overlaid text/icons.
+    await openAt(await center(icon))
+    await openAt(await center(title))
+    const box = await card.boundingBox()
+    if (!box) throw new Error('Missing card')
+    await openAt({ x: box.x + box.width - 4, y: box.y + box.height / 2 })
+    if (view === 'cards')
+      await openAt(
+        await center(card.locator('p').filter({ hasText: 'Selectable launcher description' })),
+      )
+    await openAt(await center(title), { button: 'middle' })
+    await openAt(await center(icon), {
+      modifier: process.platform === 'darwin' ? 'Meta' : 'Control',
+    })
+    await page.evaluate(() => {
+      const calls: Array<string | undefined> = []
+      Object.defineProperty(window, 'launcherWindowFeatures', { value: calls, configurable: true })
+      const original = window.open.bind(window)
+      window.open = (url, target, features) => {
+        calls.push(features)
+        return original(url, target, features)
+      }
+    })
+    await openAt(await center(title), { modifier: 'Alt' })
+    const features = await page.evaluate(
+      () => (window as unknown as { launcherWindowFeatures: Array<string> }).launcherWindowFeatures,
+    )
+    expect(features).toHaveLength(1)
+    expect(features[0]).toContain('popup=yes')
+    expect(features[0]).toContain('noopener')
+    expect(features[0]).toContain('noreferrer')
+    const pagesBefore = context.pages().length
+    await page.keyboard.down('Shift')
+    await expect(card).toHaveClass(/selecting-text/)
+    const point = await center(title)
+    await page.mouse.click(point.x, point.y)
+    await page.mouse.click(point.x, point.y, { clickCount: 3 })
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toContain('Launcher')
+    expect(context.pages()).toHaveLength(pagesBefore)
+    await page.keyboard.up('Shift')
+    await expect(card).not.toHaveClass(/selecting-text/)
+    await page.evaluate(() => window.getSelection()?.removeAllRanges())
+    const secondPage = context.waitForEvent('page', { timeout: 15_000 })
+    await card.locator(`a[href="${secondary}"]`).click()
+    const second = await secondPage
+    await second.waitForURL(secondary)
+    await second.close()
+    await card.locator(`a[href="${secondary}"]`).focus()
+    const secondaryKeyboardPage = context.waitForEvent('page', { timeout: 15_000 })
+    await page.keyboard.press('Enter')
+    const secondaryKeyboard = await secondaryKeyboardPage
+    await secondaryKeyboard.waitForURL(secondary)
+    await secondaryKeyboard.close()
+    expect(context.pages()).toHaveLength(pagesBefore)
+    await page.keyboard.press('Shift+E')
+    await card.getByTestId('edit-entry').click()
+    await expect(page.getByTestId('entry-name')).toHaveValue(`Launcher ${view}`)
+    expect(context.pages()).toHaveLength(pagesBefore)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Shift+E')
+    await card.getByTestId('entry-link').focus()
+    const keyboardPage = context.waitForEvent('page', { timeout: 15_000 })
+    await page.keyboard.press('Enter')
+    const keyboard = await keyboardPage
+    await keyboard.waitForURL(primary)
+    await keyboard.close()
+  })
+}

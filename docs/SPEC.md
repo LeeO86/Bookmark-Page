@@ -29,7 +29,8 @@ collection.
 - Per-instance title, claim, accent colour/theme and coloured browser-tab favicon so
   several instances can be told apart (#22).
 - Open in new tab by default, new window via modifier key (#21) → use real `<a>` elements
-  so native browser behaviour (Ctrl/Cmd/middle click, Shift) just works.
+  so native browser behaviour (Ctrl/Cmd/middle click) works. On the primary launcher,
+  Shift enables text selection without navigation and Alt-click requests a separate window.
 - Duplicate name/host warning on save (#20).
 - Sticky table header (#18), custom logo in header (#29), readable footer in all themes (#27).
 
@@ -387,6 +388,10 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   `rel="noopener noreferrer"`). Secondary links, secret reveal, and menus are real
   controls above that link. In the list, the entry cell is the primary link. Enter still
   opens it. `ssh`, `vnc`, `rdp`, `telnet`, and `other` also have a copy button.
+  Shift held over a card/tile temporarily disables its launcher overlay, allowing text
+  selection and copying without opening the link. Alt-click on the primary link requests
+  a new window; Ctrl/Cmd and middle-click retain native link behavior. Explicit secondary
+  links, menus, drag handles, and secret controls remain independent.
   Secret-backed links stay unresolved until reveal.
 - **Keyboard:** `/` focuses the query bar, `Esc` clears it, arrow keys move the selection
   in visual order, `Enter` opens the primary link, Shift+E toggles edit mode, `e` edits

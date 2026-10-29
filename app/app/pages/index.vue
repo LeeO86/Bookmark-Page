@@ -232,6 +232,13 @@ function onKeydown(event: KeyboardEvent) {
     portal.moveSelection(event.key === 'ArrowDown' || event.key === 'ArrowRight' ? step : -step)
     return
   }
+  if (
+    event.key === 'Enter' &&
+    target instanceof HTMLElement &&
+    target.closest('a, button, summary, [role="button"]')
+  ) {
+    return
+  }
   if (event.key === 'Enter' && !event.shiftKey && (!typing || queryFocused)) {
     if (queryFocused && portal.suggestionsOpen.value) {
       return

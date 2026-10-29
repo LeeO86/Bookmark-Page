@@ -11,6 +11,7 @@ defineEmits<{
 }>()
 const portal = usePortal()
 const menu = useEntryMenu()
+const activation = useEntryActivation()
 
 function href(entry: PortalEntry): string | null {
   return primaryLink(entry)?.url ?? null
@@ -79,6 +80,7 @@ function mark(key: string): string {
               class="flex items-center gap-2"
               data-testid="entry-link"
               :title="statusTooltip(entry)"
+              @click="activation.primaryClick"
             >
               <EntryIcon
                 :name="entry.name"
