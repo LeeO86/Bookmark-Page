@@ -160,7 +160,7 @@ export async function executeNamedAction(
     ok,
     status,
     latencyMs,
-    message,
+    message: redactSecretValues(message, secrets),
     body: redactSecretValues(responseBody, secrets).slice(0, bodyLimit),
   }
 }

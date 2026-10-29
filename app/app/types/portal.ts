@@ -1,3 +1,5 @@
+import type { RequestSpec } from '#shared/contracts'
+
 export interface PortalActor {
   role: 'anonymous' | 'viewer' | 'editor' | 'admin'
   label: string
@@ -81,6 +83,7 @@ export interface PortalLink {
   iconRef: string | null
   url: string | null
   urlError: string | null
+  requiresReveal?: boolean
   iconUrl: string | null
 }
 
@@ -103,7 +106,7 @@ export interface PortalCheck {
   host: string | null
   port: number | null
   linkId: string | null
-  requestSpec: { method?: string; urlTemplate?: string } | null
+  requestSpec: RequestSpec | null
   state: 'up' | 'down' | 'unknown' | null
   latencyMs: number | null
   statusMessage: string
@@ -115,7 +118,7 @@ export interface PortalAction {
   id: string
   name: string
   icon: string | null
-  requestSpec: { method: string; urlTemplate: string }
+  requestSpec: RequestSpec
   inputs: ActionPrompt[]
   confirm: boolean
   minRole: string

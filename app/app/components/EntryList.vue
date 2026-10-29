@@ -105,7 +105,7 @@ function mark(key: string): string {
               <span class="truncate font-medium">{{ entry.name }}</span>
             </span>
           </td>
-          <td class="px-2"><LinkButtons :links="entry.links" /></td>
+          <td class="px-2"><LinkButtons :entry-id="entry.id" :links="entry.links" /></td>
           <td class="max-w-xs truncate px-2 text-toned">{{ entry.description }}</td>
           <td v-for="field in portal.columns.value" :key="field.key" class="px-2">
             <SecretValue

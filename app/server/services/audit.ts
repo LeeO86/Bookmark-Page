@@ -43,14 +43,6 @@ export function writeAudit(
 }
 
 export function listAudit(role: Role, db: Db = getDatabase()) {
-  const secretKeys = new Set(
-    db
-      .select()
-      .from(fieldDefinitions)
-      .all()
-      .filter((field) => field.type === 'secret' || !roleAtLeast(role, field.minRoleToView))
-      .map((field) => field.key),
-  )
   return db
     .select()
     .from(auditLog)
@@ -65,7 +57,7 @@ export function listAudit(role: Role, db: Db = getDatabase()) {
       action: row.action,
       targetType: row.targetType,
       targetId: row.targetId,
-      diff: redact(row.diff, secretKeys),
+      diff: visibleAuditDiff(row.diff, role, db),
       createdAt: row.createdAt.toISOString(),
     }))
 }
@@ -77,4 +69,47 @@ export function purgeAudit(db: Db = getDatabase()): void {
   }
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
   db.delete(auditLog).where(lt(auditLog.createdAt, cutoff)).run()
+}
+
+export function visibleAuditDiff(value: unknown, role: Role, db: Db = getDatabase()): unknown {
+  const visible = new Set(
+    db
+      .select()
+      .from(fieldDefinitions)
+      .all()
+      .filter((field) => field.type !== 'secret' && roleAtLeast(role, field.minRoleToView))
+      .map((field) => field.key),
+  )
+  const visit = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(visit)
+    if (!item || typeof item !== 'object') return item
+    const out: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(item)) {
+      if (key === 'fields' && Array.isArray(child)) {
+        out[key] = child
+          .filter(
+            (field) =>
+              field &&
+              typeof field === 'object' &&
+              typeof field.key === 'string' &&
+              visible.has(field.key),
+          )
+          .map(visit)
+      } else if (key === 'actions' && Array.isArray(child)) {
+        out[key] = child
+          .filter(
+            (action) =>
+              action && typeof action === 'object' && roleAtLeast(role, action.minRole ?? 'admin'),
+          )
+          .map(visit)
+      } else if (key === 'paths' && Array.isArray(child)) {
+        out[key] = child.filter(
+          (path) =>
+            typeof path !== 'string' || !path.startsWith('fields:') || visible.has(path.slice(7)),
+        )
+      } else out[key] = visit(child)
+    }
+    return out
+  }
+  return redact(visit(value))
 }

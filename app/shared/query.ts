@@ -99,6 +99,20 @@ class Parser {
     }
     if (token.type === 'word' || token.type === 'phrase') {
       this.index += 1
+      const next = this.peek()
+      if (
+        token.type === 'word' &&
+        (token.value.endsWith(':') || token.value === '#') &&
+        next?.type === 'phrase' &&
+        next.position === token.position + token.value.length
+      ) {
+        this.index += 1
+        return tagTerm(
+          token.value === '#' ? null : token.value.slice(0, -1),
+          next.value,
+          token.position,
+        )
+      }
       return token.type === 'phrase' ? { type: 'text', value: token.value } : termFromWord(token)
     }
     throw new ParseError('Unexpected token', token.position)

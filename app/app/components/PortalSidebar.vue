@@ -139,6 +139,20 @@ async function deleteTab(filter: PortalFilter) {
   await portal.load()
 }
 
+async function moveView(filter: PortalFilter, direction: -1 | 1) {
+  const peers =
+    filter.ownerUserId === null ? portal.globalFilters.value : portal.personalFilters.value
+  const index = peers.findIndex((item) => item.id === filter.id)
+  const neighbor = peers[index + direction]
+  if (!neighbor || !canEdit(filter) || !canEdit(neighbor)) return
+  const next = [...peers]
+  next[index] = neighbor
+  next[index + direction] = filter
+  for (const [sort, item] of next.entries())
+    await apiFetch(`/api/v1/filters/${item.id}`, { method: 'PATCH', body: { sort } })
+  await portal.load()
+}
+
 function canEdit(filter: PortalFilter): boolean {
   return portal.actor.value.role === 'admin' || filter.ownerUserId === portal.actor.value.userId
 }
@@ -239,6 +253,15 @@ function mask(name: string) {
           <span class="inline-block size-4 shrink-0 bg-current" :style="mask('bookmark')" />
           <span v-if="!collapsed" class="min-w-0 flex-1 truncate">{{ filter.name }}</span>
           <span v-if="!collapsed" class="text-xs text-muted">{{ filter.count }}</span>
+        </button>
+        <button
+          v-if="!collapsed && canEdit(filter)"
+          type="button"
+          class="rounded px-1 text-muted"
+          :aria-label="`Edit ${filter.name}`"
+          @click="openMenu(filter)"
+        >
+          …
         </button>
       </div>
       <button
@@ -356,6 +379,32 @@ function mask(name: string) {
           /></UFormField>
           <div class="flex flex-wrap gap-2">
             <UButton type="submit" size="sm">Rename</UButton>
+            <UButton
+              type="button"
+              size="sm"
+              color="neutral"
+              :disabled="
+                (menuFilter.ownerUserId === null
+                  ? portal.globalFilters.value
+                  : portal.personalFilters.value
+                ).findIndex((item) => item.id === menuFilter?.id) === 0
+              "
+              @click="moveView(menuFilter, -1)"
+              >Move up</UButton
+            >
+            <UButton
+              type="button"
+              size="sm"
+              color="neutral"
+              :disabled="
+                (menuFilter.ownerUserId === null
+                  ? portal.globalFilters.value
+                  : portal.personalFilters.value
+                ).at(-1)?.id === menuFilter.id
+              "
+              @click="moveView(menuFilter, 1)"
+              >Move down</UButton
+            >
             <UButton
               type="button"
               size="sm"

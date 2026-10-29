@@ -4,7 +4,7 @@ import { getDatabase } from '../db/client'
 import { decryptSecret } from '../db/crypto'
 import { now } from '../db/ids'
 import { checks, checkStatus, entries, fieldDefinitions, fieldValues } from '../db/schema'
-import { resolveLinkUrl } from '../services/placeholders'
+import { resolvePlaceholders, redactSecretValues } from '../services/placeholders'
 import { publishLive } from '../services/live'
 import { probeHttp, probeIcmp, probeTcp, type ProbeResult } from './probe'
 
@@ -81,22 +81,37 @@ async function runHttp(
     return { state: 'unknown', latencyMs: null, message: 'HTTP checks need a request spec' }
   }
   const fields = fieldMap(entry.id)
-  const resolved = resolveLinkUrl(
-    spec.urlTemplate,
-    { host: host || null, name: entry.name, fields: fields.values },
-    new Set(),
-  )
-  if (!resolved.url) {
-    return { state: 'unknown', latencyMs: null, message: resolved.error ?? 'Check URL is invalid' }
+  const context = { host: host || null, name: entry.name, fields: fields.values, inputs: {} }
+  const secrets = secretValues(entry.id)
+  try {
+    const url = resolvePlaceholders(spec.urlTemplate, context)
+    const headers = Object.fromEntries(
+      Object.entries(spec.headers).map(([key, value]) => [
+        key,
+        resolvePlaceholders(value, context),
+      ]),
+    )
+    const body = spec.bodyTemplate === null ? null : resolvePlaceholders(spec.bodyTemplate, context)
+    const result = await probeHttp(
+      url,
+      spec.expectation,
+      check.tlsVerify,
+      check.timeoutMs,
+      spec.method,
+      body,
+      headers,
+    )
+    return { ...result, message: redactSecretValues(result.message, secrets) }
+  } catch (error) {
+    return {
+      state: 'unknown',
+      latencyMs: null,
+      message: redactSecretValues(
+        error instanceof Error ? error.message : 'Invalid HTTP check',
+        secrets,
+      ),
+    }
   }
-  return probeHttp(
-    resolved.url,
-    spec.expectation,
-    check.tlsVerify,
-    check.timeoutMs,
-    spec.method,
-    spec.bodyTemplate,
-  )
 }
 
 function fieldMap(entryId: string): { values: Record<string, string> } {
@@ -166,4 +181,14 @@ function numberEnv(name: string, fallback: number): number {
   }
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function secretValues(entryId: string): string[] {
+  return getDatabase()
+    .select()
+    .from(fieldValues)
+    .where(eq(fieldValues.entryId, entryId))
+    .all()
+    .filter((value) => value.valueSecret !== null)
+    .map((value) => decryptSecret(value.valueSecret!))
 }

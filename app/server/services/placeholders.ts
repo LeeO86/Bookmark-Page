@@ -55,7 +55,7 @@ export function resolvePlaceholders(
 export function redactSecretValues(text: string, secrets: readonly string[]): string {
   let output = text
   for (const secret of secrets) {
-    if (secret.length < 4) {
+    if (secret.length === 0) {
       continue
     }
     output = output.split(secret).join('[redacted]')

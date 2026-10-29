@@ -325,3 +325,5 @@ export type CheckInput = z.infer<typeof checkInputSchema>
 export type ActionInput = z.infer<typeof actionInputSchema>
 export type RequestSpec = z.infer<typeof requestSpecSchema>
 export type EditMode = (typeof editModes)[number]
+
+export const checkLeaseSchema = z.object({ limit: z.number().int().min(1).max(20).default(5) })

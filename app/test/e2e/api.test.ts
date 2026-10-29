@@ -152,6 +152,80 @@ describe('HTTP API', async () => {
     })
     expect(await headerUser.json()).toMatchObject({ actor: { role: 'anonymous' } })
   })
+  it('blocks token scope escalation and audits authorized secret-link reveal', async () => {
+    const admin = await login('admin', 'admin-pass-1')
+    const reader = await jsonRequest(admin.cookie, 'POST', '/api/v1/tokens', {
+      name: 'restricted-reader',
+      scopes: ['read'],
+    })
+    const writer = await jsonRequest(admin.cookie, 'POST', '/api/v1/tokens', {
+      name: 'restricted-writer',
+      scopes: ['write'],
+    })
+    const call = (token: string, path: string, body: unknown) =>
+      fetch(path, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    expect(
+      (
+        await call(reader.body.token, '/api/v1/filters', {
+          name: 'Exposure',
+          global: true,
+          isPublic: true,
+        })
+      ).status,
+    ).toBe(403)
+    expect(
+      (await call(writer.body.token, '/api/v1/tokens', { name: 'Escalated', scopes: ['admin'] }))
+        .status,
+    ).toBe(403)
+    expect((await call(reader.body.token, '/api/v1/checks/lease', { limit: 1 })).status).toBe(403)
+    const entry = await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'Secret URL',
+      tags: ['type:audio'],
+      fields: [{ key: 'password', value: 'pin' }],
+      links: [
+        {
+          label: 'Secret',
+          type: 'web',
+          isPrimary: true,
+          urlTemplate: 'https://device.invalid/?p={{field.password}}',
+        },
+      ],
+    })
+    const response = await fetch(`/api/v1/entries/${entry.body.entry.id}`, {
+      headers: { cookie: admin.cookie },
+    })
+    const detail = (await response.json()) as { links: Array<{ id: string; url: string | null }> }
+    expect(detail.links[0]?.url).toBeNull()
+    const reveal = `/api/v1/entries/${entry.body.entry.id}/links/${detail.links[0]?.id}/reveal`
+    expect(
+      (
+        await fetch(reveal, {
+          method: 'POST',
+          headers: { origin: new URL(url('/')).origin, 'content-type': 'application/json' },
+          body: '{}',
+        })
+      ).status,
+    ).toBe(403)
+    const revealed = await fetch(reveal, {
+      method: 'POST',
+      headers: {
+        cookie: admin.cookie,
+        origin: new URL(url('/')).origin,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    })
+    expect(revealed.headers.get('cache-control')).toBe('no-store')
+    expect(await revealed.json()).toEqual({ url: 'https://device.invalid/?p=pin' })
+    const history = await fetch(`/api/v1/entries/${entry.body.entry.id}/history`, {
+      headers: { cookie: admin.cookie },
+    })
+    expect(await history.text()).not.toContain('p=pin')
+  })
 })
 
 async function login(username: string, password: string) {

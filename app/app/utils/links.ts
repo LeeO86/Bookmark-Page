@@ -1,6 +1,6 @@
 import type { PortalEntry, PortalLink } from '../types/portal'
 
-export function statusTooltip(entry: PortalEntry): string {
+function statusSummary(entry: PortalEntry): string {
   if (entry.status === 'down') {
     const when = entry.checks.find((check) => check.state === 'down')?.checkedAt
     if (!when) {
@@ -15,6 +15,21 @@ export function statusTooltip(entry: PortalEntry): string {
     return 'Online'
   }
   return entry.name
+}
+
+export function statusTooltip(entry: PortalEntry): string {
+  const details = entry.checks.map((check) =>
+    [
+      check.name,
+      check.checkedAt ? new Date(check.checkedAt).toLocaleString() : 'Not checked',
+      check.reportedBy,
+      check.latencyMs === null ? null : `${check.latencyMs} ms`,
+      check.statusMessage,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  )
+  return [statusSummary(entry), ...details].join('\n')
 }
 
 const typeIcons: Record<string, string> = {

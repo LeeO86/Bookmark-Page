@@ -93,7 +93,9 @@ export function suggestionToken(input: string, cursor = input.length): string {
 
 export function applySuggestion(input: string, suggestion: string, cursor = input.length): string {
   const token = activeQueryToken(input, cursor)
-  const replacement = token.text.startsWith('-') ? `-${suggestion}` : suggestion
+  const replacement = token.text.startsWith('-')
+    ? `-${formatTerm(suggestion)}`
+    : formatTerm(suggestion)
   const before = input.slice(0, token.start)
   const after = input.slice(token.end)
   const prefix = before.length > 0 && !/\s$/.test(before) ? `${before} ` : before
@@ -196,6 +198,8 @@ function scanChips(input: string): QueryChip[] {
       }
       index += 1
     }
+    if (input[index] === '"' && /(?:^#|:)$/.test(input.slice(start, index)))
+      index = closingQuote(input, index)
     const word = input.slice(start, index)
     const keyword = word.toLowerCase()
     if (!negated && (keyword === 'and' || keyword === 'or')) {
@@ -235,10 +239,14 @@ export function chipKind(text: string): QueryChipKind {
 }
 
 function formatTerm(term: string): string {
-  if (/[\s()"]/.test(term)) {
-    return `"${term.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  const quote = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  if (!/[\s()"]/.test(term)) return term
+  const match = /^(#[^]*|[^:]+:[^]*)$/.exec(term)
+  if (match) {
+    const split = term.startsWith('#') ? 1 : term.indexOf(':') + 1
+    return term.slice(0, split) + quote(term.slice(split))
   }
-  return term
+  return quote(term)
 }
 
 function matchingParen(input: string, open: number): number {

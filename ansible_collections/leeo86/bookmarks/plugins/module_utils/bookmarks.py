@@ -595,7 +595,11 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group'):
         raise BookmarkBuildError('V1 bookmarks must be a JSON object')
     secrets = set(str(item) for item in (secret_fields or []))
     namespace = namespace or 'group'
-    fields = v1_field_definitions(settings, secrets)
+    populated = {key for items in (bookmarks.get('bookmarks') or {}).values()
+                 for item in (items or []) if isinstance(item, Mapping)
+                 for key in ('user%d' % index for index in range(1, 9))
+                 if text_of(item.get(key)) != ''}
+    fields = v1_field_definitions(settings, secrets, populated)
     allowed = [field['key'] for field in fields]
     merged = {}
     order = []
@@ -613,17 +617,24 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group'):
                 tag = '%s:%s' % (namespace, group)
                 if tag not in merged[external]['tags']:
                     merged[external]['tags'].append(tag)
+                current_fields = {field['key']: field['value'] for field in merged[external]['fields']}
+                for key in allowed:
+                    value = text_of(bookmark.get(key))
+                    if value and key not in current_fields:
+                        merged[external]['fields'].append({'key': key, 'value': value})
+                    elif value and current_fields.get(key) != value:
+                        raise BookmarkBuildError('V1 entry %s has conflicting values for %s' % (external, key))
     for entry in merged.values():
         entry['tags'] = sorted(set(entry['tags']))
     return {'fields': fields, 'entries': [merged[key] for key in order]}
 
 
-def v1_field_definitions(settings, secrets):
+def v1_field_definitions(settings, secrets, populated=None):
     fields = []
     for index in range(1, 9):
         key = 'user%d' % index
         label = text_of(settings.get('nameU%d' % index)).strip()
-        if not label and key not in secrets:
+        if not label and key not in secrets and key not in (populated or set()):
             continue
         hidden = text_of(settings.get('hideU%d' % index)).strip() == '1'
         field_type = 'secret' if key in secrets else 'text'
@@ -646,14 +657,14 @@ def v1_entry(bookmark, group, allowed, namespace):
         links.append({
             'label': 'Open',
             'url_template': link,
-            'type': 'web',
+            'type': v1_link_type(link),
             'primary': True,
             'sort': 0,
         })
     external = text_of(bookmark.get('id')).strip()
     fields = []
     for key in allowed:
-        value = text_of(bookmark.get(key)).strip()
+        value = text_of(bookmark.get(key))
         if value:
             fields.append({'key': key, 'value': value})
     return {
@@ -672,7 +683,7 @@ def v1_entry(bookmark, group, allowed, namespace):
 
 def v1_host(link):
     parsed = urlparse(link)
-    if parsed.scheme in ('http', 'https') and parsed.hostname:
+    if parsed.hostname:
         return parsed.hostname
     return ''
 
@@ -695,3 +706,10 @@ def text_of(value):
     if value is None:
         return ''
     return str(value)
+
+
+def v1_link_type(link):
+    scheme = urlparse(link).scheme.lower()
+    if scheme in ('http', 'https'):
+        return 'web'
+    return scheme if scheme in ('ssh', 'vnc', 'rdp', 'telnet') else 'other'

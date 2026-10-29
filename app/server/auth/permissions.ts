@@ -42,7 +42,7 @@ export function requireAdmin(actor: Actor): void {
   requireTokenScope(actor, ['admin'])
 }
 
-function requireTokenScope(actor: Actor, allowed: readonly TokenScope[]): void {
+export function requireTokenScope(actor: Actor, allowed: readonly TokenScope[]): void {
   if (!actor.tokenId) {
     return
   }

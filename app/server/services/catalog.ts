@@ -1,3 +1,4 @@
+import { requireTokenScope, requireAdmin } from '../auth/permissions'
 import { and, asc, eq } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
 import type { EditMode } from '../../shared/contracts'
@@ -226,6 +227,8 @@ export function createFilter(
     viewMode?: 'list' | 'cards' | 'tiles'
   },
 ) {
+  requireTokenScope(actor, ['write', 'admin'])
+  if (input.global || input.isPublic) requireAdmin(actor)
   assertQuery(input.query)
   return transaction((db) => {
     const global = actor.role === 'admin' && input.global
@@ -281,6 +284,8 @@ export function updateFilter(
       db.select().from(filters).where(eq(filters.id, id)).get(),
       'Filter not found',
     )
+    requireTokenScope(actor, ['write', 'admin'])
+    if (current.ownerUserId === null || current.ownerUserId !== actor.userId) requireAdmin(actor)
     if (actor.role !== 'admin' && current.ownerUserId !== actor.userId) {
       throw forbidden()
     }
@@ -319,6 +324,8 @@ export function deleteFilter(actor: Actor, id: string): void {
       db.select().from(filters).where(eq(filters.id, id)).get(),
       'Filter not found',
     )
+    requireTokenScope(actor, ['write', 'admin'])
+    if (current.ownerUserId === null || current.ownerUserId !== actor.userId) requireAdmin(actor)
     if (actor.role !== 'admin' && current.ownerUserId !== actor.userId) {
       throw forbidden()
     }
@@ -609,6 +616,14 @@ export async function createToken(
     expiresAt?: string | null
   },
 ) {
+  requireTokenScope(actor, ['write', 'admin'])
+  if (input.scopes.includes('admin') || (input.userId && input.userId !== actor.userId))
+    requireAdmin(actor)
+  const parent = actor.tokenId
+    ? getDatabase().select().from(apiTokens).where(eq(apiTokens.id, actor.tokenId)).get()
+    : undefined
+  if (parent?.expiresAt && (!input.expiresAt || new Date(input.expiresAt) > parent.expiresAt))
+    throw forbidden('A child token cannot outlive its parent')
   const userId = input.userId ?? actor.userId
   if (!userId) {
     throw badRequest('Token user is required')
@@ -651,6 +666,7 @@ export async function createToken(
 }
 
 export function deleteToken(actor: Actor, id: string): void {
+  requireTokenScope(actor, ['write', 'admin'])
   const current = must(
     getDatabase().select().from(apiTokens).where(eq(apiTokens.id, id)).get(),
     'Token not found',
@@ -658,6 +674,7 @@ export function deleteToken(actor: Actor, id: string): void {
   if (actor.role !== 'admin' && current.userId !== actor.userId) {
     throw forbidden()
   }
+  if (current.userId !== actor.userId) requireAdmin(actor)
   getDatabase().delete(apiTokens).where(eq(apiTokens.id, id)).run()
   writeAudit(actor, 'token.delete', 'token', id, { name: current.name })
 }

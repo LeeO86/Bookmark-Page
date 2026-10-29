@@ -15,11 +15,6 @@ const menu = useEntryMenu()
 function href(entry: PortalEntry): string | null {
   return primaryLink(entry)?.url ?? null
 }
-
-function secondaries(entry: PortalEntry) {
-  const primary = primaryLink(entry)
-  return entry.links.filter((link) => link.url && link.id !== primary?.id)
-}
 </script>
 
 <template>
@@ -79,20 +74,11 @@ function secondaries(entry: PortalEntry) {
       <p class="tile-name relative mt-3 line-clamp-3 text-highlighted" :title="entry.name">
         {{ entry.name }}
       </p>
-      <div v-if="secondaries(entry).length" class="relative z-10 mt-auto flex gap-1 pt-3">
-        <a
-          v-for="link in secondaries(entry)"
-          :key="link.id"
-          :href="link.url ?? undefined"
-          target="_blank"
-          rel="noopener noreferrer"
-          :title="link.label"
-          class="inline-flex size-7 items-center justify-center rounded-md text-default hover:bg-elevated"
-          @click.stop
-        >
-          <LinkGlyph :link="link" />
-          <span class="sr-only">{{ link.label }}</span>
-        </a>
+      <div class="relative z-10 mt-auto pt-3">
+        <LinkButtons
+          :entry-id="entry.id"
+          :links="entry.links.filter((link) => !link.isPrimary || link.requiresReveal)"
+        />
       </div>
       <EntryMenu
         v-show="portal.editMode.value || menu.menuId.value === entry.id"

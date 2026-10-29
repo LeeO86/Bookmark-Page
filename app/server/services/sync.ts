@@ -2,7 +2,7 @@ import type { SyncEntry } from '../../shared/contracts'
 import type { Actor } from '../auth/permissions'
 import { getDatabase, transaction } from '../db/client'
 import { badRequest } from '../http/errors'
-import { deleteManagedEntries, upsertManagedEntry } from './entries'
+import { deleteManagedEntries, upsertManagedEntry, queueManagedFavicons } from './entries'
 import { ensureScope } from './catalog'
 import { publishLive } from './live'
 
@@ -27,7 +27,7 @@ export function syncScope(
         throw badRequest(`Duplicate external key ${entry.externalKey}`)
       }
       seen.add(entry.externalKey)
-      const status = upsertManagedEntry(scope, entry, actor)
+      const status = upsertManagedEntry(scope, entry, actor, true)
       result[status].push({ externalKey: entry.externalKey, name: entry.name })
     }
     if (input.purge) {
@@ -37,6 +37,8 @@ export function syncScope(
   }
   if (!input.dryRun) {
     const result = transaction(run)
+    for (const entry of [...result.created, ...result.updated])
+      queueManagedFavicons(scope, entry.externalKey)
     publishLive({ type: 'entries' })
     return result
   }

@@ -39,8 +39,8 @@ import {
 import { badRequest, confirmDuplicate, forbidden, notFound } from '../http/errors'
 import { queueFavicon } from '../icons/favicon'
 import { publishLive } from './live'
-import { writeAudit } from './audit'
-import { assertKnownPlaceholders, resolveLinkUrl } from './placeholders'
+import { writeAudit, visibleAuditDiff } from './audit'
+import { assertKnownPlaceholders, resolveLinkUrl, resolvePlaceholders } from './placeholders'
 import { allTabPublic } from './settings'
 
 const namespaceColour = '#64748b'
@@ -169,6 +169,7 @@ export function getEntry(actor: Actor, id: string) {
 }
 
 export function createEntry(actor: Actor, input: EntryWrite) {
+  assertWritableChildren(actor.role, input.fields, input.actions)
   const existing = duplicateWarningsFor(getDatabase(), input.name, emptyToNull(input.host), null)
   if (existing.length > 0 && !input.confirmDuplicates) {
     throw confirmDuplicate(existing)
@@ -227,7 +228,7 @@ export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
   }
   const result = transaction((db) => {
     const current = mustLoad(db, id)
-    const effective = withKeptSecrets(current, patch)
+    const effective = withKeptSecrets(current, patch, actor.role)
     const paths = changedPaths(current, effective)
     assertMutable(current, paths, false)
     const timestamp = now()
@@ -339,6 +340,40 @@ export function revealField(actor: Actor, entryId: string, key: string) {
   return { key, value: decryptSecret(field.valueSecret) }
 }
 
+export function revealLink(actor: Actor, entryId: string, linkId: string) {
+  const db = getDatabase()
+  assertVisible(db, actor.role, entryId)
+  const entry = mustLoad(db, entryId)
+  const link = entry.links.find((item) => item.id === linkId)
+  if (!link) throw notFound('Link not found')
+  const values: Record<string, string> = {}
+  for (const match of link.urlTemplate.matchAll(/\{\{\s*field\.([A-Za-z0-9_]+)\s*\}\}/g)) {
+    const field = entry.fields.find((item) => item.key === match[1])
+    if (!field || !roleAtLeast(actor.role, field.minRoleToView))
+      throw notFound('Link field not found')
+    values[field.key] =
+      field.type === 'secret' && field.valueSecret
+        ? decryptSecret(field.valueSecret)
+        : (field.valueText ?? '')
+  }
+  const url = resolvePlaceholders(link.urlTemplate, {
+    host: entry.host,
+    name: entry.name,
+    fields: values,
+    inputs: {},
+  })
+  if (
+    /^\s*(javascript|data|vbscript):/i.test(
+      Array.from(url)
+        .filter((char) => char.codePointAt(0)! > 32)
+        .join(''),
+    )
+  )
+    throw badRequest('Unsafe link scheme')
+  writeAudit(actor, 'link.reveal', 'entry', entryId, { linkId })
+  return { url }
+}
+
 export function listEntryHistory(actor: Actor, id: string) {
   const db = getDatabase()
   assertVisible(db, actor.role, id)
@@ -356,7 +391,7 @@ export function listEntryHistory(actor: Actor, id: string) {
       actorLabel: row.actorLabel,
       actorType: row.actorType,
       createdAt: row.createdAt.toISOString(),
-      diff: row.diff,
+      diff: visibleAuditDiff(row.diff, actor.role, db),
       restorable: hasSnapshot(row.diff),
     }))
 }
@@ -368,7 +403,9 @@ export function restoreEntry(actor: Actor, entryId: string, auditId: string) {
   if (!row || row.targetId !== entryId || row.targetType !== 'entry' || !hasSnapshot(row.diff)) {
     throw badRequest('This version cannot be restored')
   }
-  const snapshot = row.diff.snapshot as ReturnType<typeof entrySnapshot>
+  const snapshot = (
+    visibleAuditDiff(row.diff, actor.role, db) as { snapshot: ReturnType<typeof entrySnapshot> }
+  ).snapshot
   const patch = entryPatchSchema.parse({
     name: snapshot.name,
     description: snapshot.description,
@@ -412,6 +449,7 @@ export function upsertManagedEntry(
   scope: string,
   input: SyncEntry,
   actor: Actor,
+  deferFavicons = false,
 ): 'created' | 'updated' | 'unchanged' {
   const db = getDatabase()
   const source = `ansible:${scope}`
@@ -422,6 +460,7 @@ export function upsertManagedEntry(
     .get()
   if (!existing) {
     insertManaged(db, scope, input, actor)
+    if (!deferFavicons) queueManagedFavicons(scope, input.externalKey)
     return 'created'
   }
   const before = mustLoad(db, existing.id)
@@ -429,6 +468,7 @@ export function upsertManagedEntry(
     return 'unchanged'
   }
   mergeManaged(db, before, input, actor)
+  if (!deferFavicons) queueManagedFavicons(scope, input.externalKey)
   return 'updated'
 }
 
@@ -1353,6 +1393,10 @@ function present(
         ...link,
         url: resolved.url,
         urlError: resolved.error,
+        requiresReveal:
+          resolved.url === null &&
+          /\{\{\s*field\./.test(link.urlTemplate) &&
+          [...secretFields].some((key) => link.urlTemplate.includes(`field.${key}`)),
         iconUrl: iconUrl(link.iconRef, httpOrigin(resolved.url), icons),
       }
     }),
@@ -1558,13 +1602,24 @@ function entryStatus(rows: LoadedCheck[]): 'up' | 'down' | 'unknown' | null {
   return 'unknown'
 }
 
-function withKeptSecrets(current: LoadedEntry, patch: EntryPatch): EntryPatch {
+function withKeptSecrets(current: LoadedEntry, patch: EntryPatch, role: Role): EntryPatch {
+  assertWritableChildren(role, patch.fields ?? [], patch.actions ?? [])
+  if (patch.actions) {
+    const hidden = current.actions.filter((action) => !roleAtLeast(role, action.minRole))
+    if (patch.actions.some((action) => hidden.some((item) => item.name === action.name)))
+      throw forbidden('Action is not editable')
+    patch = { ...patch, actions: [...patch.actions, ...hidden.map(actionToInput)] }
+  }
   if (!patch.fields) {
     return patch
   }
   const presentKeys = new Set(patch.fields.map((field) => field.key))
   const kept = current.fields
-    .filter((field) => field.type === 'secret' && !presentKeys.has(field.key))
+    .filter(
+      (field) =>
+        (field.type === 'secret' || !roleAtLeast(role, field.minRoleToView)) &&
+        !presentKeys.has(field.key),
+    )
     .map((field) => ({
       key: field.key,
       value: field.valueSecret ? decryptSecret(field.valueSecret) : '',
@@ -1916,4 +1971,26 @@ function namedChanges(current: string[], next: string[], prefix: string): string
     }
   }
   return paths
+}
+
+function assertWritableChildren(
+  role: Role,
+  fields: FieldValueInput[],
+  actions: ActionInput[],
+): void {
+  for (const field of fields) {
+    if (!roleAtLeast(role, definitionByKey(getDatabase(), field.key).minRoleToView))
+      throw forbidden('Field is not editable')
+  }
+  if (actions.some((action) => !roleAtLeast(role, action.minRole)))
+    throw forbidden('Action is not editable')
+}
+
+export function queueManagedFavicons(scope: string, externalKey: string): void {
+  const row = getDatabase()
+    .select()
+    .from(entries)
+    .where(and(eq(entries.source, `ansible:${scope}`), eq(entries.externalKey, externalKey)))
+    .get()
+  if (row) for (const url of serverUrls(mustLoad(getDatabase(), row.id))) queueFavicon(url, true)
 }

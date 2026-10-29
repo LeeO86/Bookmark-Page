@@ -13,6 +13,7 @@ import {
   actionExecuteSchema,
   actionTemplateSchema,
   checkReportSchema,
+  checkLeaseSchema,
   entryPatchSchema,
   entryWriteSchema,
   fieldDefinitionSchema,
@@ -48,7 +49,13 @@ import { completeOidcLogin, authorizationRedirect, newOidcTransaction } from '..
 import { authOptions, authStatus } from '../../auth/status'
 import { peerIp, resolveActor } from '../../auth/resolve'
 import { sessionConfig, type AppSession } from '../../auth/session'
-import { requireAdmin, requireRead, requireRole, requireWrite } from '../../auth/permissions'
+import {
+  requireAdmin,
+  requireRead,
+  requireRole,
+  requireWrite,
+  requireTokenScope,
+} from '../../auth/permissions'
 import { getRuntimeEnv } from '../../config/env'
 import { getDatabase } from '../../db/client'
 import { users } from '../../db/schema'
@@ -101,6 +108,7 @@ import {
   listEntryHistory,
   restoreEntry,
   revealField,
+  revealLink,
   updateEntry,
   upsertManagedEntry,
 } from '../../services/entries'
@@ -229,6 +237,16 @@ export default defineEventHandler(async (event) => {
       deleteEntry(actor, decodeURIComponent(entryId))
       return { ok: true }
     }
+    const linkReveal = matchAll(path, /^\/api\/v1\/entries\/([^/]+)\/links\/([^/]+)\/reveal$/)
+    if (linkReveal && method === 'POST') {
+      requireRead(actor)
+      event.res.headers.set('cache-control', 'no-store')
+      return revealLink(
+        actor,
+        decodeURIComponent(linkReveal[0] ?? ''),
+        decodeURIComponent(linkReveal[1] ?? ''),
+      )
+    }
     const historyId = match(path, /^\/api\/v1\/entries\/([^/]+)\/history$/)
     if (historyId && method === 'GET') {
       return { history: listEntryHistory(actor, decodeURIComponent(historyId)) }
@@ -322,12 +340,14 @@ export default defineEventHandler(async (event) => {
     }
     if (method === 'POST' && path === '/api/v1/filters') {
       requireRole(actor, 'viewer')
+      requireTokenScope(actor, ['write', 'admin'])
       setResponseStatus(event, 201)
       return createFilter(actor, filterWriteSchema.parse(await readBody(event)))
     }
     const filterId = match(path, /^\/api\/v1\/filters\/([^/]+)$/)
     if (filterId && method === 'PATCH') {
       requireRole(actor, 'viewer')
+      requireTokenScope(actor, ['write', 'admin'])
       return updateFilter(
         actor,
         decodeURIComponent(filterId),
@@ -336,6 +356,7 @@ export default defineEventHandler(async (event) => {
     }
     if (filterId && method === 'DELETE') {
       requireRole(actor, 'viewer')
+      requireTokenScope(actor, ['write', 'admin'])
       deleteFilter(actor, decodeURIComponent(filterId))
       return { ok: true }
     }
@@ -472,11 +493,7 @@ export default defineEventHandler(async (event) => {
     }
 
     if (method === 'POST' && path === '/api/v1/checks/lease') {
-      const body = await readBody(event)
-      const limit =
-        body && typeof body === 'object' && 'limit' in body && typeof body.limit === 'number'
-          ? body.limit
-          : 5
+      const { limit } = checkLeaseSchema.parse((await readBody(event)) ?? {})
       return { checks: leaseChecks(actor, limit) }
     }
     const report = match(path, /^\/api\/v1\/checks\/([^/]+)\/report$/)
@@ -497,6 +514,7 @@ export default defineEventHandler(async (event) => {
     }
     if (method === 'POST' && path === '/api/v1/action-templates') {
       requireAdmin(actor)
+      setResponseStatus(event, 201)
       setResponseStatus(event, 201)
       return createActionTemplate(actor, actionTemplateSchema.parse(await readBody(event)))
     }
@@ -542,6 +560,7 @@ export default defineEventHandler(async (event) => {
     }
     if (method === 'PATCH' && path === '/api/v1/preferences') {
       requireRole(actor, 'viewer')
+      requireTokenScope(actor, ['write', 'admin'])
       if (!actor.userId) {
         setResponseStatus(event, 403)
         return { error: { code: 'forbidden', message: 'Sign in to save preferences' } }

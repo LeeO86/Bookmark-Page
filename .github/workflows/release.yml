@@ -10,7 +10,10 @@ permissions:
   packages: write
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
   image:
+    needs: verify
     name: Publish container image
     runs-on: ubuntu-latest
     steps:

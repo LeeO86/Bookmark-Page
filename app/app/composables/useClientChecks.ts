@@ -74,6 +74,12 @@ async function probe(check: LeasedCheck): Promise<{
     }
   }
   const started = performance.now()
+  let blocked = false
+  const onPolicyViolation = (event: SecurityPolicyViolationEvent) => {
+    if (event.effectiveDirective === 'connect-src' && check.url?.startsWith(event.blockedURI))
+      blocked = true
+  }
+  document.addEventListener('securitypolicyviolation', onPolicyViolation)
   try {
     await fetch(check.url, { mode: 'no-cors', signal: AbortSignal.timeout(check.timeoutMs) })
     return {
@@ -82,10 +88,15 @@ async function probe(check: LeasedCheck): Promise<{
       message: 'Browser probe started. Status codes are not visible.',
     }
   } catch {
+    await new Promise((resolve) => setTimeout(resolve, 0))
     return {
-      state: 'down',
+      state: blocked ? 'unknown' : 'down',
       latencyMs: Math.round(performance.now() - started),
-      message: 'Browser probe failed',
+      message: blocked
+        ? 'Browser security policy prevented this probe'
+        : 'Browser probe failed; network or certificate restrictions may be responsible',
     }
+  } finally {
+    document.removeEventListener('securitypolicyviolation', onPolicyViolation)
   }
 }

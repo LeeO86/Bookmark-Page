@@ -392,7 +392,8 @@
           - (field_body.json.fields | selectattr('key', 'equalto', 'user2') | map(attribute='type') | first) == 'secret'
           - (field_body.json.fields | selectattr('key', 'equalto', 'user2') | map(attribute='showAsColumnDefault') | first) | bool == false
           - (field_body.json.fields | selectattr('key', 'equalto', 'user1') | map(attribute='showAsColumnDefault') | first) | bool
-          - field_body.json.fields | selectattr('key', 'equalto', 'user3') | list | length == 0
+          - (field_body.json.fields | selectattr('key', 'equalto', 'user3') | map(attribute='label') | first) == 'user3'
+          - (v1_mixer[0].fields | selectattr('key', 'equalto', 'user3') | map(attribute='value') | first) == 'ignored'
       vars:
         v1_mixer: "{{ v1_mixer_info.entries | selectattr('scope', 'equalto', 'v1-import') | list }}"
         v1_mixer_tags: "{{ v1_mixer[0].tags | map(attribute='label') | list }}"

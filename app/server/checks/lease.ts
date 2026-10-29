@@ -1,3 +1,4 @@
+import { requireTokenScope } from '../auth/permissions'
 import { eq } from 'drizzle-orm'
 import type { RequestSpec } from '../../shared/contracts'
 import type { Actor } from '../auth/permissions'
@@ -29,6 +30,7 @@ export interface LeasedCheck {
 }
 
 export function leaseChecks(actor: Actor, limit = 5): LeasedCheck[] {
+  requireTokenScope(actor, ['write', 'admin'])
   if (actor.role === 'anonymous' && !clientChecksAnonymous()) {
     throw forbidden('Sign in to report browser checks')
   }
@@ -118,6 +120,7 @@ export function reportCheck(
     message: string
   },
 ): void {
+  requireTokenScope(actor, ['write', 'admin'])
   if (actor.role === 'anonymous' && !clientChecksAnonymous()) {
     throw forbidden('Sign in to report browser checks')
   }

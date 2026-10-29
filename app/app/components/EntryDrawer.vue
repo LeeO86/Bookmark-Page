@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
+import { requestSpecSchema, type RequestSpec } from '#shared/contracts'
 import type { ActionPrompt, HistoryRow, PortalEntry } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 import { isPathLocked } from '../utils/view'
@@ -56,13 +57,16 @@ interface DraftCheck {
   linkLabel: string
   method: string
   urlTemplate: string
+  requestSpec: RequestSpec | null
 }
 interface DraftAction {
+  icon: string | null
   name: string
   confirm: boolean
   minRole: (typeof roles)[number]
   method: string
   urlTemplate: string
+  requestSpec: RequestSpec | null
   inputs: ActionPrompt[]
 }
 
@@ -195,11 +199,14 @@ function fill(entry: PortalEntry) {
     host: check.host ?? '',
     port: check.port === null ? '' : String(check.port),
     linkLabel: entry.links.find((link) => link.id === check.linkId)?.label ?? '',
+    requestSpec: check.requestSpec ? requestSpecSchema.parse(check.requestSpec) : null,
     method: check.requestSpec?.method ?? 'GET',
     urlTemplate: check.requestSpec?.urlTemplate ?? '',
   }))
   actions.value = entry.actions.map((action) => ({
     name: action.name,
+    icon: action.icon,
+    requestSpec: requestSpecSchema.parse(action.requestSpec),
     confirm: action.confirm,
     minRole: roles.includes(action.minRole as (typeof roles)[number])
       ? (action.minRole as (typeof roles)[number])
@@ -300,6 +307,7 @@ function addCheck() {
   checks.value = [
     ...checks.value,
     {
+      requestSpec: null,
       name: 'Ping',
       kind: 'icmp',
       executor: 'server',
@@ -319,6 +327,8 @@ function addAction() {
   actions.value = [
     ...actions.value,
     {
+      icon: null,
+      requestSpec: requestSpec('POST', 'https://{{host}}/', false, 5000),
       name: 'Request',
       confirm: true,
       minRole: 'editor',
@@ -347,6 +357,17 @@ function requestSpec(method: string, urlTemplate: string, tlsVerify: boolean, ti
   }
 }
 
+watchEffect(() => {
+  for (const check of checks.value)
+    if (check.kind === 'http' && !check.requestSpec)
+      check.requestSpec = requestSpec(
+        check.method,
+        check.urlTemplate,
+        check.tlsVerify,
+        check.timeoutMs,
+      )
+})
+
 function buildBody(confirmDuplicates: boolean) {
   return {
     name: name.value,
@@ -370,23 +391,34 @@ function buildBody(confirmDuplicates: boolean) {
       kind: check.kind,
       executor: check.executor,
       intervalSeconds: check.intervalSeconds,
-      timeoutMs: check.timeoutMs,
-      tlsVerify: check.tlsVerify,
+      timeoutMs:
+        check.kind === 'http' ? (check.requestSpec?.timeoutMs ?? check.timeoutMs) : check.timeoutMs,
+      tlsVerify:
+        check.kind === 'http' ? (check.requestSpec?.tlsVerify ?? check.tlsVerify) : check.tlsVerify,
       host: check.host || null,
       port: check.port ? Number(check.port) : null,
       linkLabel: check.linkLabel || null,
       requestSpec:
         check.kind === 'http'
-          ? requestSpec(check.method, check.urlTemplate, check.tlsVerify, check.timeoutMs)
+          ? {
+              ...(check.requestSpec ??
+                requestSpec(check.method, check.urlTemplate, check.tlsVerify, check.timeoutMs)),
+              method: check.method,
+              urlTemplate: check.urlTemplate,
+            }
           : null,
     })),
     actions: actions.value.map((action) => ({
       name: action.name,
       confirm: action.confirm,
       minRole: action.minRole,
-      icon: null,
+      icon: action.icon,
       inputs: action.inputs,
-      requestSpec: requestSpec(action.method, action.urlTemplate, false, 5000),
+      requestSpec: {
+        ...(action.requestSpec ?? requestSpec(action.method, action.urlTemplate, false, 5000)),
+        method: action.method,
+        urlTemplate: action.urlTemplate,
+      },
     })),
     confirmDuplicates,
   }
@@ -772,6 +804,46 @@ function diffText(diff: Record<string, unknown>): string {
               <UInput v-model="check.method" class="w-24" />
               <UInput v-model="check.urlTemplate" class="flex-1" placeholder="URL template" />
             </div>
+            <div class="flex flex-wrap gap-2">
+              <label
+                >Executor<select
+                  v-model="check.executor"
+                  :disabled="locked(`checks:${check.name}`)"
+                >
+                  <option value="server">Server</option>
+                  <option value="client">Browser</option>
+                </select></label
+              >
+              <label
+                >Interval (s)<input
+                  v-model.number="check.intervalSeconds"
+                  type="number"
+                  min="1"
+                  :disabled="locked(`checks:${check.name}`)"
+                  class="w-20 rounded border"
+              /></label>
+              <label
+                >Timeout (ms)<input
+                  v-model.number="check.timeoutMs"
+                  type="number"
+                  min="1"
+                  :disabled="locked(`checks:${check.name}`)"
+                  class="w-24 rounded border"
+              /></label>
+              <label
+                ><input
+                  v-model="check.tlsVerify"
+                  type="checkbox"
+                  :disabled="locked(`checks:${check.name}`)"
+                />
+                Verify TLS</label
+              >
+            </div>
+            <HttpRequestEditor
+              v-if="check.kind === 'http' && check.requestSpec"
+              v-model="check.requestSpec"
+              :disabled="locked(`checks:${check.name}`)"
+            />
             <button
               v-if="!locked(`checks:${check.name}`)"
               type="button"
@@ -816,6 +888,19 @@ function diffText(diff: Record<string, unknown>): string {
               <UInput v-model="action.method" class="w-24" />
               <UInput v-model="action.urlTemplate" class="flex-1" />
             </div>
+            <HttpRequestEditor
+              v-if="action.requestSpec"
+              v-model="action.requestSpec"
+              :disabled="locked(`actions:${action.name}`)"
+            />
+            <label class="block"
+              >Minimum role<select
+                v-model="action.minRole"
+                :disabled="locked(`actions:${action.name}`)"
+              >
+                <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
+              </select></label
+            >
             <label class="flex items-center gap-1">
               <input v-model="action.confirm" type="checkbox" />
               Ask before running

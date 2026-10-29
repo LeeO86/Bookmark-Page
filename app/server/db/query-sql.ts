@@ -40,7 +40,7 @@ function compileNode(node: QueryNode, role: Role): SQL {
     case 'state':
       return stateSql(node.value)
     case 'has':
-      return hasSql(node.value)
+      return hasSql(node.value, role)
     case 'text':
       return textSql(node.value, role)
   }
@@ -114,7 +114,7 @@ function stateSql(value: 'online' | 'offline' | 'unknown'): SQL {
   )`
 }
 
-function hasSql(value: string): SQL {
+function hasSql(value: string, role: Role): SQL {
   if (value === 'link') {
     return sql`exists (select 1 from links l where l.entry_id = ${entries.id})`
   }
@@ -126,6 +126,10 @@ function hasSql(value: string): SQL {
     inner join field_definitions fd on fd.id = fv.field_id
     where fv.entry_id = ${entries.id}
       and fd.key = ${value}
+      and fd.min_role_to_view in (${joinSql(
+        roles.filter((item) => roleAtLeast(role, item)).map((item) => sql`${item}`),
+        ', ',
+      )})
   )`
 }
 

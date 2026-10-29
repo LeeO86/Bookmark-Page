@@ -22,6 +22,7 @@ import {
   tagNamespaces,
   tags,
   users,
+  userPreferences,
 } from '../db/schema'
 import { badRequest } from '../http/errors'
 import { writeAudit } from '../services/audit'
@@ -57,6 +58,11 @@ export function createBackup(
         createdAt: iso(row.createdAt),
         updatedAt: iso(row.updatedAt),
       })),
+    preferences: db
+      .select()
+      .from(userPreferences)
+      .all()
+      .map((row) => ({ ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) })),
     tokens: db
       .select()
       .from(apiTokens)

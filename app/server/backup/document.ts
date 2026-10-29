@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { actionPromptSchema } from '../../shared/contracts'
+import { preferencesPatchSchema, actionPromptSchema } from '../../shared/contracts'
 
 const stamp = z.string()
 const stampOrNull = z.string().nullable()
@@ -32,6 +32,15 @@ export const backupDocumentSchema = z.object({
       updatedBy: z.string().nullable(),
     }),
   ),
+  preferences: z
+    .array(
+      preferencesPatchSchema.extend({
+        userId: z.string(),
+        createdAt: stamp,
+        updatedAt: stamp,
+      }),
+    )
+    .default([]),
   tokens: z.array(
     z.object({
       id: z.string(),

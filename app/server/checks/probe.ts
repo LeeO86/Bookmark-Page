@@ -55,11 +55,13 @@ export async function probeHttp(
   timeoutMs: number,
   method = 'GET',
   body: string | null = null,
+  headers: Record<string, string> = {},
 ): Promise<ProbeResult> {
   const started = Date.now()
   try {
     const response = await limitedRequest(url, {
       method,
+      headers,
       body,
       timeoutMs,
       maxBytes: 65_536,

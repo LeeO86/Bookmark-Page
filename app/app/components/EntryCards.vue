@@ -110,7 +110,11 @@ function shownFields(entry: PortalEntry) {
         </div>
       </dl>
       <div class="relative z-10 mt-auto">
-        <LinkButtons :links="entry.links.filter((link) => !link.isPrimary)" labelled />
+        <LinkButtons
+          :entry-id="entry.id"
+          :links="entry.links.filter((link) => !link.isPrimary || link.requiresReveal)"
+          labelled
+        />
       </div>
       <div class="relative flex flex-wrap items-center gap-1">
         <EntryTags :tags="entry.tags.slice(0, 3)" />

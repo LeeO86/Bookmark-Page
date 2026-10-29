@@ -23,6 +23,7 @@ import {
   tagNamespaces,
   tags,
   users,
+  userPreferences,
 } from '../db/schema'
 import { badRequest } from '../http/errors'
 import { writeAudit } from '../services/audit'
@@ -158,6 +159,11 @@ function insertDocument(
 ): void {
   for (const row of document.users) {
     tx.insert(users)
+      .values({ ...row, createdAt: date(row.createdAt), updatedAt: date(row.updatedAt) })
+      .run()
+  }
+  for (const row of document.preferences) {
+    tx.insert(userPreferences)
       .values({ ...row, createdAt: date(row.createdAt), updatedAt: date(row.updatedAt) })
       .run()
   }
@@ -333,6 +339,20 @@ function mergeAll(
         updatedAt: date(row.updatedAt),
       })
       .where(eq(users.id, current.id))
+      .run()
+  }
+  for (const row of document.preferences) {
+    const userId = userIds.get(row.userId)
+    if (!userId) continue
+    const values = {
+      ...row,
+      userId,
+      createdAt: date(row.createdAt),
+      updatedAt: date(row.updatedAt),
+    }
+    tx.insert(userPreferences)
+      .values(values)
+      .onConflictDoUpdate({ target: userPreferences.userId, set: values })
       .run()
   }
   for (const row of document.namespaces) {
