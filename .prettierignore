@@ -1,0 +1,16 @@
+node_modules
+.nuxt
+.output
+.nitro
+.data
+.cache
+dist
+pnpm-lock.yaml
+coverage
+docs/SPEC.md
+app/test-results
+app/playwright-report
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

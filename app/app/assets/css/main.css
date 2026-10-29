@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+html,
+body {
+  background: var(--bp-content, var(--ui-bg));
+}
+
+.portal-banner {
+  background: var(--bp-canvas);
+}
+
+.portal-toolbar,
+.portal-sidebar {
+  background: var(--bp-content, var(--ui-bg));
+}
+
+.portal-card {
+  background: var(--bp-card, var(--ui-bg));
+}
+
+.portal-card:hover {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ui-text) 8%, transparent);
+}
+
+[role='menu'] {
+  background-color: var(--ui-bg);
+  backdrop-filter: none;
+}
+
+.portal-card:focus-within:has(:focus-visible) {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  overflow-wrap: break-word;
+}
+
+.section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+body {
+  color: var(--ui-text);
+  font-family: 'Inter Variable', Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+}
+
+.page-title {
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+@media (max-width: 767px) {
+  .page-title {
+    font-size: 1.75rem;
+  }
+}
+
+.tile-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow-wrap: break-word;
+}
+
+.icon-plate {
+  background: var(--bp-icon-plate);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.text-accent {
+  color: var(--bp-accent-text);
+}
+
+.status-mark {
+  background: var(--bp-status-none);
+  color: var(--bp-status-none);
+  box-shadow: 0 0 0 2px var(--bp-icon-plate);
+}
+
+.status-up {
+  background: var(--bp-status-up);
+  color: var(--bp-status-up);
+}
+
+.status-down {
+  background: var(--bp-status-down);
+  color: var(--bp-status-down);
+}
+
+.status-unknown {
+  background: var(--bp-status-unknown);
+  color: var(--bp-status-unknown);
+}
+
+/* Native stretched links cover passive content; explicit controls stay above them. */
+.entry-launcher.has-primary-link {
+  isolation: isolate;
+}
+.entry-launcher > .entry-primary-link {
+  z-index: 10;
+}
+.entry-launcher.has-primary-link > :not(.entry-primary-link) {
+  pointer-events: none;
+}
+.entry-launcher.has-primary-link
+  :is(
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [contenteditable],
+    a:not(.entry-primary-link)
+  ) {
+  z-index: 20;
+  pointer-events: auto;
+}
+.entry-launcher.has-primary-link
+  :is(
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role='button'],
+    [contenteditable],
+    a:not(.entry-primary-link)
+  ):not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
+.entry-launcher.has-primary-link.selecting-text > .entry-primary-link {
+  pointer-events: none;
+}
+.entry-launcher.has-primary-link.selecting-text > :not(.entry-primary-link) {
+  pointer-events: auto;
+  user-select: text;
+}
+.entry-launcher.has-primary-link.selecting-text {
+  cursor: text;
+}

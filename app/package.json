@@ -1,0 +1,58 @@
+{
+  "name": "bookmark-page",
+  "version": "2.0.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "NODE_OPTIONS='--env-file-if-exists=../.env' nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "NODE_OPTIONS='--env-file-if-exists=../.env' nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint . && prettier --check --config ../.prettierrc.json --ignore-path ../.prettierignore ..",
+    "format": "eslint . --fix && prettier --write --config ../.prettierrc.json --ignore-path ../.prettierignore ..",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "test:smoke": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "seed:demo": "jiti scripts/seed-demo.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@node-rs/argon2": "2.2.2",
+    "@nuxt/fonts": "1.0.1",
+    "@nuxt/ui": "4.11.3",
+    "@xmldom/xmldom": "0.9.12",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4",
+    "fflate": "0.8.3",
+    "lucide-static": "1.55.0",
+    "nuxt": "4.6.3",
+    "openid-client": "6.8.8",
+    "tailwindcss": "4.3.3",
+    "uuid": "14.0.3",
+    "vue": "3.5.43",
+    "vue-router": "5.4.0",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "1.17.0",
+    "@nuxt/test-utils": "4.3.3",
+    "@playwright/test": "1.63.0",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "^24.19.2",
+    "@vue/test-utils": "2.5.1",
+    "drizzle-kit": "0.31.11",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "happy-dom": "20.14.6",
+    "jiti": "2.7.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3",
+    "vue-tsc": "3.3.13"
+  }
+}

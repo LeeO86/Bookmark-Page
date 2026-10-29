@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Package patches preserve upstream context indentation verbatim.
+patches/*.patch -whitespace

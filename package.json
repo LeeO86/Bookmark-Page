@@ -1,0 +1,19 @@
+{
+  "name": "bookmark-page-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "scripts": {
+    "dev": "pnpm --dir app dev",
+    "build": "pnpm --dir app build",
+    "preview": "pnpm --dir app preview",
+    "lint": "pnpm --dir app lint",
+    "typecheck": "pnpm --dir app typecheck",
+    "test": "pnpm --dir app test",
+    "test:smoke": "pnpm --dir app test:smoke",
+    "seed:demo": "pnpm --dir app seed:demo",
+    "format": "pnpm --dir app format"
+  }
+}

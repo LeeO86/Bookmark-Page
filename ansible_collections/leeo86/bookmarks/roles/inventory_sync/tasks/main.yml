@@ -1,0 +1,32 @@
+---
+- name: Require the inventory group
+  ansible.builtin.assert:
+    that:
+      - bookmark_inventory_group in groups
+    fail_msg: Inventory group {{ bookmark_inventory_group }} does not exist.
+  delegate_to: localhost
+  run_once: true
+
+- name: Build entries from inventory hosts
+  ansible.builtin.set_fact:
+    bookmark_entries: "{{ groups[bookmark_inventory_group] | map('extract', hostvars) | map('leeo86.bookmarks.bookmark_inventory_entry', bookmark_group_include, bookmark_group_exclude, bookmark_tag_namespace, bookmark_group_namespaces) | list }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Sync inventory entries
+  leeo86.bookmarks.entries_sync:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    scope: '{{ bookmark_scope }}'
+    purge: '{{ bookmark_purge }}'
+    entries: '{{ bookmark_entries }}'
+  delegate_to: localhost
+  run_once: true
+  register: bookmark_sync_result
+
+- name: Publish the sync result
+  ansible.builtin.set_fact:
+    bookmark_sync: '{{ bookmark_sync_result }}'
+  delegate_to: localhost
+  run_once: true

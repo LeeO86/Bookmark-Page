@@ -1,0 +1,8 @@
+import { startMonitors } from '../checks/monitor'
+import { bootApplication } from '../db/boot'
+import { readSettings } from '../db/settings'
+
+export default defineNitroPlugin(async () => {
+  await bootApplication(readSettings(process.env))
+  startMonitors()
+})

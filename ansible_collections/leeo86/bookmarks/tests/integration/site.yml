@@ -1,0 +1,400 @@
+---
+- name: Exercise the Bookmark-Page collection
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    leeo86.bookmarks.entry:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.entries_sync:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.entry_info:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.tag_namespace:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.field_definition:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.filter:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+    leeo86.bookmarks.action_template:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+  tasks:
+    - name: Ensure the type namespace
+      leeo86.bookmarks.tag_namespace:
+        name: type
+        label: Type
+        colour: '#0f766e'
+      register: namespace_created
+
+    - name: Leave the type namespace unchanged
+      leeo86.bookmarks.tag_namespace:
+        name: type
+        label: Type
+        colour: '#0f766e'
+      register: namespace_same
+
+    - name: Ensure a note field
+      leeo86.bookmarks.field_definition:
+        key: note
+        label: Note
+        type: text
+        min_role: viewer
+        searchable: true
+        show_as_column: true
+      register: note_created
+
+    - name: Rename the note field
+      leeo86.bookmarks.field_definition:
+        key: note
+        label: Notes
+        type: text
+        min_role: viewer
+        searchable: true
+        show_as_column: true
+      register: note_renamed
+
+    - name: Leave the renamed note field unchanged
+      leeo86.bookmarks.field_definition:
+        key: note
+        label: Notes
+        type: text
+        min_role: viewer
+        searchable: true
+        show_as_column: true
+      register: note_same
+
+    - name: Ensure a secret field
+      leeo86.bookmarks.field_definition:
+        key: password
+        label: Password
+        type: secret
+        min_role: viewer
+        searchable: true
+        show_as_column: false
+
+    - name: Ensure a public audio tab
+      leeo86.bookmarks.filter:
+        name: Audio
+        query: type:audio
+        is_public: true
+        icon: audio-lines
+      register: filter_created
+
+    - name: Leave the audio tab unchanged
+      leeo86.bookmarks.filter:
+        name: Audio
+        query: type:audio
+        is_public: true
+        icon: audio-lines
+      register: filter_same
+
+    - name: Ensure a health action template
+      leeo86.bookmarks.action_template:
+        name: Health
+        query: type:audio
+        method: GET
+        url_template: http://10.0.0.8/health
+        confirm: false
+      register: template_created
+
+    - name: Leave the health template unchanged
+      leeo86.bookmarks.action_template:
+        name: Health
+        query: type:audio
+        method: GET
+        url_template: http://10.0.0.8/health
+        confirm: false
+      register: template_same
+
+    - name: Ensure a desk entry
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: desk-1
+        name: Desk
+        host: 10.0.0.8
+        icon: camera
+        tags:
+          - type:audio
+        links:
+          - label: Admin
+            url_template: http://10.0.0.8/
+            primary: true
+        fields:
+          - key: note
+            value: Lawo
+        checks:
+          - name: Ping
+            kind: icmp
+      register: desk_created
+
+    - name: Leave the desk entry unchanged
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: desk-1
+        name: Desk
+        host: 10.0.0.8
+        icon: camera
+        tags:
+          - type:audio
+        links:
+          - label: Admin
+            url_template: http://10.0.0.8/
+            primary: true
+        fields:
+          - key: note
+            value: Lawo
+        checks:
+          - name: Ping
+            kind: icmp
+      register: desk_same
+
+    - name: Preview an entry without writing it
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: preview
+        name: Preview
+      check_mode: true
+      register: preview
+
+    - name: Store a secret on an entry
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: secret-1
+        name: Secret
+        fields:
+          - key: password
+            value: secret-pass
+
+    - name: Check mode ignores a masked secret change
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: secret-1
+        name: Secret
+        fields:
+          - key: password
+            value: next-secret
+      check_mode: true
+      register: secret_preview
+
+    - name: Create and remove a temporary entry
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: temp
+        name: Temp
+      register: temp_created
+
+    - name: Remove the temporary entry
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: temp
+        state: absent
+      register: temp_removed
+
+    - name: Leave the missing temporary entry absent
+      leeo86.bookmarks.entry:
+        scope: manual
+        external_key: temp
+        state: absent
+      register: temp_absent
+
+    - name: Sync a batch of entries
+      leeo86.bookmarks.entries_sync:
+        scope: batch
+        purge: true
+        entries:
+          - external_key: one
+            name: One
+            host: 10.2.0.1
+            tags:
+              - type:audio
+          - external_key: two
+            name: Two
+            host: 10.2.0.2
+      register: batch_first
+
+    - name: Sync the same batch again
+      leeo86.bookmarks.entries_sync:
+        scope: batch
+        purge: true
+        entries:
+          - external_key: one
+            name: One
+            host: 10.2.0.1
+            tags:
+              - type:audio
+          - external_key: two
+            name: Two
+            host: 10.2.0.2
+      register: batch_second
+
+    - name: Query the batch
+      leeo86.bookmarks.entry_info:
+        query: One
+      register: batch_info
+
+    - name: Catalog and entry modules are idempotent
+      ansible.builtin.assert:
+        that:
+          - namespace_created is changed
+          - namespace_same is not changed
+          - note_created is changed
+          - note_renamed is changed
+          - note_same is not changed
+          - filter_created is changed
+          - filter_same is not changed
+          - template_created is changed
+          - template_same is not changed
+          - desk_created is changed
+          - desk_same is not changed
+          - preview is changed
+          - secret_preview is not changed
+          - temp_created is changed
+          - temp_removed is changed
+          - temp_absent is not changed
+          - batch_first is changed
+          - batch_first.created | length == 2
+          - batch_second is not changed
+          - batch_info.entries | selectattr('externalKey', 'equalto', 'one') | list | length == 1
+          - batch_info.entries | selectattr('externalKey', 'equalto', 'preview') | list | length == 0
+
+    - name: Sync the studio inventory
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.inventory_sync
+      vars:
+        bookmark_inventory_group: studio
+        bookmark_scope: inventory
+        bookmark_group_namespaces:
+          audio: type
+
+    - name: Remember the first inventory result
+      ansible.builtin.set_fact:
+        inventory_first_changed: '{{ bookmark_sync.changed }}'
+
+    - name: Sync the studio inventory again
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.inventory_sync
+      vars:
+        bookmark_inventory_group: studio
+        bookmark_scope: inventory
+        bookmark_group_namespaces:
+          audio: type
+
+    - name: Read inventory entries
+      leeo86.bookmarks.entry_info:
+        query: Mixer
+      register: inventory_info
+
+    - name: Inventory sync is idempotent and maps groups to tags
+      ansible.builtin.assert:
+        that:
+          - inventory_first_changed | bool
+          - bookmark_sync is not changed
+          - inventory_mixer.iconRef == 'lucide:camera'
+          - inventory_mixer.host == '10.0.0.8'
+          - "'group:studio' in inventory_tags"
+          - "'type:audio' in inventory_tags"
+          - (inventory_mixer.fields | selectattr('key', 'equalto', 'note') | map(attribute='value') | first) == 'desk'
+      vars:
+        inventory_rows: "{{ inventory_info.entries | selectattr('scope', 'equalto', 'inventory') | list }}"
+        inventory_mixer: "{{ inventory_rows | selectattr('externalKey', 'equalto', 'mixer') | first }}"
+        inventory_tags: "{{ inventory_mixer.tags | map(attribute='label') | list }}"
+
+    - name: Preview a purge without deleting inventory entries
+      leeo86.bookmarks.entries_sync:
+        scope: inventory
+        purge: true
+        entries: []
+      check_mode: true
+      register: inventory_dry
+
+    - name: Read inventory entries after the dry run
+      leeo86.bookmarks.entry_info:
+        query: Camera
+      register: inventory_after_dry
+
+    - name: The dry run reports deletions and keeps the entries
+      ansible.builtin.assert:
+        that:
+          - inventory_dry is changed
+          - inventory_dry.deleted | length == 2
+          - inventory_after_dry.entries | selectattr('scope', 'equalto', 'inventory') | list | length == 1
+
+    - name: Import the V1 fixture
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields:
+          - user2
+        v1_scope: v1-import
+
+    - name: Remember the first import result
+      ansible.builtin.set_fact:
+        v1_first_changed: '{{ v1_sync.changed }}'
+
+    - name: Import the V1 fixture again
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields:
+          - user2
+        v1_scope: v1-import
+
+    - name: Read the imported mixer
+      leeo86.bookmarks.entry_info:
+        query: Mixer
+      register: v1_mixer_info
+
+    - name: Read the imported camera
+      leeo86.bookmarks.entry_info:
+        query: Camera
+      register: v1_camera_info
+
+    - name: Read field definitions
+      ansible.builtin.uri:
+        url: '{{ api_url }}/api/v1/fields'
+        headers:
+          Authorization: 'Bearer {{ api_token }}'
+        return_content: true
+      register: field_body
+
+    - name: V1 import merges groups and keeps secrets masked
+      ansible.builtin.assert:
+        that:
+          - v1_first_changed | bool
+          - v1_sync is not changed
+          - v1_mixer | length == 1
+          - "'group:Audio' in v1_mixer_tags"
+          - "'group:Video' in v1_mixer_tags"
+          - v1_mixer[0].iconRef == 'lucide:sliders'
+          - v1_mixer[0].description == 'Lawo desk'
+          - v1_mixer[0].sort == 2
+          - v1_mixer[0].host == 'mixer.example'
+          - (v1_mixer[0].fields | selectattr('key', 'equalto', 'user1') | map(attribute='value') | first) == 'admin'
+          - (v1_mixer[0].fields | selectattr('key', 'equalto', 'user2') | map(attribute='masked') | first) | bool
+          - v1_camera | length == 1
+          - v1_camera[0].iconRef is none
+          - v1_camera[0].host == '10.1.1.9'
+          - v1_camera[0].sort == 4
+          - v1_camera[0].description == ''
+          - (field_body.json.fields | selectattr('key', 'equalto', 'user2') | map(attribute='type') | first) == 'secret'
+          - (field_body.json.fields | selectattr('key', 'equalto', 'user2') | map(attribute='showAsColumnDefault') | first) | bool == false
+          - (field_body.json.fields | selectattr('key', 'equalto', 'user1') | map(attribute='showAsColumnDefault') | first) | bool
+          - (field_body.json.fields | selectattr('key', 'equalto', 'user3') | map(attribute='label') | first) == 'user3'
+          - (v1_mixer[0].fields | selectattr('key', 'equalto', 'user3') | map(attribute='value') | first) == 'ignored'
+      vars:
+        v1_mixer: "{{ v1_mixer_info.entries | selectattr('scope', 'equalto', 'v1-import') | list }}"
+        v1_mixer_tags: "{{ v1_mixer[0].tags | map(attribute='label') | list }}"
+        v1_camera: "{{ v1_camera_info.entries | selectattr('scope', 'equalto', 'v1-import') | selectattr('externalKey', 'equalto', '8') | list }}"
