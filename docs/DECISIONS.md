@@ -133,3 +133,15 @@ Backup format 1 gains optional preferences, defaulting to an empty list for old 
 **Decision:** A primary anchor covers the full card/tile, including favicon, title, host, description, fields and empty space. Passive content passes pointer events to that real anchor; explicit controls remain interactive above it. Holding Shift disables the overlay and restores ordinary text selection and the browser context menu without navigation. Alt-click requests a new window with popup features and noopener/noreferrer. Ctrl/Cmd, middle-click and keyboard activation retain native anchor behavior. Focused links/buttons handle Enter themselves instead of the global selected-entry shortcut.
 
 **Reason:** The user reported that text and favicon layers swallowed launcher clicks and explicitly requested Shift for copying and Alt for a new window. This supersedes the earlier Shift-as-native-new-window convention. Browsers retain the final decision about a new window versus a tab; the feature requests a separate window without weakening opener isolation. Real-coordinate Chromium tests cover the full surface and modifiers in cards and tiles, plus secondary controls and keyboard activation.
+
+## 2026-10-29 — Release V2 from main
+
+**Decision:** Merge the complete tested V2 work into a new `main` default branch and release `v2.0.0` through the existing CI-gated GHCR workflow for amd64 and arm64. Preserve the legacy `master` and `v1` branches. Label release images with source, commit and version; pin the home-lab deployment by registry digest after backing up data, configuration and encryption keys.
+
+**Reason:** The user explicitly requested the main-branch merge, v2.0.0 release and update of the existing V2 deployment. This supersedes the earlier instruction to keep V2 off the primary branch. The repository previously had no `main` branch; the preserved legacy branches keep V1 available. Public Ansible installation examples pin the release tag instead of pointing to the legacy branch.
+
+## 2026-10-29 — Use a real public demo in the README
+
+**Decision:** Replace the generated README banner with an unmodified application screenshot showing twelve public websites, their real favicons, colourful category namespaces and the built-in pink light theme. Capture it against an isolated demo database; retain no private deployment data in the image.
+
+**Reason:** The user requested a colourful demo with public links and favicons and removal of the generated image before the v2.0.0 release.

@@ -33,6 +33,8 @@ The image runs as the non-root `node` user, uid 1000. The database file is `/dat
 
 `docker/docker-compose.traefik.yml` is the same service with Traefik labels. It expects an external Docker network named `traefik`.
 
+Pull the v2.0.0 release with `docker pull ghcr.io/leeo86/bookmark-page:2.0.0`. Keep the existing `/data` volume and `BOOKMARK_SECRET_KEY` when updating an installation.
+
 Release images are published to `ghcr.io/leeo86/bookmark-page`. A git tag `v2.x.y` publishes image tags `2.x.y`, `2.x`, `2`, and `latest`.
 
 ## Ansible

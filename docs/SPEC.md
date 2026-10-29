@@ -55,7 +55,7 @@ relying on memory. Justify any substitution in `docs/DECISIONS.md`.
 ## 3. Repository layout and branches
 
 ```
-/                     # master = V2
+/                     # main = V2
 ├── app/              # Nuxt application
 ├── ansible_collections/leeo86/bookmarks/
 ├── docs/             # SPEC.md, DECISIONS.md, user/admin docs
@@ -65,9 +65,9 @@ relying on memory. Justify any substitution in `docs/DECISIONS.md`.
 └── README.md
 ```
 
-- Before changing anything, create branch **`v1`** from the current `master` if it does not
-  exist. V1 lives on unchanged there. Remove V1 files (`www/`, `dump/`, old compose files,
-  old Dockerfile) from `master` as part of milestone 0.
+- V2 is released from **`main`**, the default branch. Preserve the legacy `v1` and
+  `master` branches. The user authorized the V2 main-branch merge and v2.0.0 release
+  on 2026-10-29; this supersedes the earlier temporary separate-branch restriction.
 - README states clearly: V1 is on branch `v1` (legacy image `adihilber/bookmark-page`),
   V2 images are published to GHCR.
 
@@ -271,7 +271,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,master"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.0.0"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,
@@ -453,7 +453,7 @@ Work strictly milestone by milestone. At the end of each: all tests green, app r
 container, docs updated, a short report (what was built, deviations, open questions).
 Stop and wait for review before starting the next milestone.
 
-**M0 – Foundation:** `v1` branch, remove V1 files from master, Nuxt scaffold, lint/format,
+**M0 – Foundation:** `v1` branch, remove V1 files from the V2 branch, Nuxt scaffold, lint/format,
 Drizzle setup with first migration, Dockerfile, compose example, CI skeleton, health endpoint.
 
 **M1 – Core backend:** full data model and migrations, auth (local, OIDC, trusted header),

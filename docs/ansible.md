@@ -5,7 +5,7 @@ The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,master"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.0.0"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
