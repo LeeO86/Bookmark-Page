@@ -4,7 +4,7 @@
 
 Authentication is a session cookie, `Authorization: Bearer <token>`, or trusted proxy headers. See `docs/configuration.md`. A cookie request that changes data must send an `Origin` whose host matches the `Host` header. Bearer tokens are not subject to that check.
 
-Tokens have scopes `read`, `write`, and `admin`. The token is shown once. Only its hash is stored.
+Tokens have scopes `read`, `write`, and `admin`. Scope restrictions apply in addition to the owner role, including personal-view, preference and check-report writes. Global view management and issuing an admin token require admin scope. A child token cannot outlive its parent. The token is shown once. Only its hash is stored.
 
 ## Examples
 
@@ -60,4 +60,12 @@ Signed-in preferences also store `sidebarCollapsed` and per-tab `groupModes`.
 
 The query language accepts `state:online`, `state:offline`, and `state:unknown` beside `is:up`, `is:down`, and `is:unknown`. `state:` matches entries that have a check. It is not a tag.
 
-Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images and connections from this origin, plus `data:` images for the component icon set. Scripts stay on this origin. Styles allow `'unsafe-inline'` because the component library injects them.
+Responses include `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and a locked-down `Permissions-Policy`. `/api/icons/*` keeps `Content-Security-Policy: default-src 'none'`. The page policy allows images from this origin plus `data:` images for the component icon set. Connections permit HTTP(S) destinations for browser device probes; scripts remain restricted to this origin. Scripts stay on this origin. Styles allow `'unsafe-inline'` because the component library injects them.
+
+The OpenAPI document derives request shapes from the shared Zod validators and documents path/query parameters, response envelopes, errors and session/Bearer authentication. Cookie writes also require a matching Origin header.
+
+`POST /api/v1/entries/{id}/links/{linkId}/reveal` explicitly resolves a secret-backed link for a signed-in reader whose role can view every referenced field. The response is `{ "url": "..." }` with `Cache-Control: no-store`. The audit records only the link id. Normal entry responses keep the URL unresolved and expose `requiresReveal: true` for an available secret-link control. Reveal then click the resulting real anchor, preserving native browser modifiers.
+
+Entry history uses current field permissions and omits deleted definitions and fields now classified as secrets. Saving an entry preserves fields and actions above the caller's role and rejects attempts to overwrite them. The drawer preserves the full stored HTTP request, including headers, body, expectations, icon, TLS and timeout.
+
+Backups include user preferences. Format-1 archives from older versions still restore; missing preferences use their defaults. Both merge and replace restore preferences by the corresponding user.

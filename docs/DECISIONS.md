@@ -107,3 +107,23 @@
 **Decision:** The accent wash paints the banner only. The content area uses a neutral surface, stone for warm accents and slate for cool ones, unless the admin picks a neutral after the preset. Cards are the default view. The side nav lists views and facets; the filter slide-over is unused and `facets_open` stays in the database. Sidebar collapse is `user_preferences.sidebar_collapsed` or the `bp-sidebar` cookie. Per-tab grouping is `group_modes`. A tag's `display_label` is separate from its query token. The logo accepts PNG, JPEG, WebP, and sanitised SVG up to 1 MB. Below 768px the list stays a list. Edit controls and drag handles are visible only in edit mode. Focus rings use `:focus-visible`.
 
 **Reason:** The round-2 page read as a tinted poster. The Linkwarden shell keeps the start-page behaviour and puts navigation where it can stay out of the cards. Display labels let `control-a` read as "Control A" without changing saved queries.
+
+## 2026-10-29 — Readiness corrections
+
+**Decision:** Correct the fourteen findings from the ICM readiness review on `fix/v2-readiness-2026-10-29`, based on the separate V2 branch. The user's request to fix all reviewed problems authorizes this corrective batch; V1 and master remain outside the coding scope.
+
+Current field permissions govern historical responses and restore inputs, including definitions deleted or changed to secret. Hidden fields/actions survive ordinary editor saves, and forged writes to them are denied. Token scope checks apply to viewer-level writes too; global view management and admin-token issuance require admin scope. Child tokens cannot outlive the presenting token.
+
+The drawer retains complete HTTP requests and exposes the advanced request options. Server HTTP checks use the same strict placeholder resolver for URLs, headers and bodies as actions. Every nonempty secret, regardless of length, is redacted from action output and audit URLs. Explicit link reveal is a signed-in, field-authorized, audited POST and returns a non-cacheable URL; ordinary responses remain masked.
+
+The page CSP permits HTTP(S) connections because browser checks intentionally contact lab-device origins. Script sources stay restricted. A detected policy block is unknown. Tag quoting uses `namespace:"quoted value"`, preserving the distinction from a free-text phrase. Personal views use the active sidebar's edit dialog and move controls.
+
+Backup format 1 gains optional preferences, defaulting to an empty list for old archives. No database schema migration is necessary. V1 values are copied exactly, populated unnamed columns get fallback labels, and supported non-HTTP schemes retain their type and host. Managed favicon work is deferred until commit and skipped for dry runs and unchanged upserts. Release publishing now depends on the reusable CI checks.
+
+**Reason:** Passing baseline tests did not cover the reproduced permission and data-loss failures. Regression tests exercise malicious requests, historical permission changes, real HTTP requests, browser saves and migration edge cases. The user requested all findings be corrected together rather than another milestone implementation cycle.
+
+## 2026-10-29 — Dependency security maintenance
+
+**Decision:** Update Nuxt from 4.6.1 to the current patch 4.6.3 and pin targeted overrides for Undici 8.12.2 and fontless's esbuild 0.28.2. Registry metadata and GitHub advisories were checked on this date. The deepmerge 4.3.1 build dependency has no published fixed version for GHSA-gcqx-w48m-w2h4; apply a lockfile-bound pnpm patch rejecting prototype-bearing keys on both target and source, with an exploit regression test. Docker copies the patch before frozen installation. Other direct dependency versions remain pinned.
+
+**Reason:** A fresh registry audit found additional advisories after the original review. Nuxt's patch removes the affected Nuxt/serializer/devtools dependencies; the targeted overrides address the fetch/font paths without a broad major-version upgrade. The upstream deepmerge advisory will remain visible to version-only audit tools even though the installed code is patched. No advisory is silently ignored.

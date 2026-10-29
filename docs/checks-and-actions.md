@@ -4,7 +4,7 @@ Server checks and browser checks run in this version. Actions also run on the se
 
 ## Server checks
 
-The process schedules due checks whose executor is `server`. TCP checks open a connection. HTTP checks send the stored request and compare the status, body text, body pattern, and a dot-separated JSON path. ICMP uses the `ping` command. Without `CAP_NET_RAW` the command cannot open a raw socket; startup logs that, and ICMP checks are stored as `unknown` with that reason instead of being reported as down.
+The process schedules due checks whose executor is `server`. TCP checks open a connection. HTTP checks resolve URL, header and body placeholders on the server, send the stored request, and compare the status, body text, body pattern, and a dot-separated JSON path. ICMP uses the `ping` command. Without `CAP_NET_RAW` the command cannot open a raw socket; startup logs that, and ICMP checks are stored as `unknown` with that reason instead of being reported as down.
 
 A container that should send ICMP needs `cap_add: [NET_RAW]`. The image installs `iputils-ping` so the command exists once the capability is granted.
 
@@ -18,7 +18,7 @@ The browser probe is deliberately weak:
 
 - It uses `fetch` with `mode: "no-cors"` or stops before the request. A successful probe means the request started, not that the device returned a healthy status code.
 - An HTTPS page cannot probe an `http://` target. Mixed content is reported as `unknown`.
-- Certificate errors and opaque responses make the result unreliable.
+- Certificate errors and opaque responses make the result unreliable. An explicitly detected CSP block is `unknown`, rather than a device outage. The application permits HTTP(S) probe connections; a reverse proxy may impose a stricter CSP.
 - Field values are not sent to the browser. A check URL that uses `{{field.*}}` is not given to the client.
 - TCP and ICMP checks leased to a browser are probed as an HTTP request to that host, not as a real TCP or ICMP packet.
 
@@ -26,7 +26,7 @@ The browser probe is deliberately weak:
 
 An action is an HTTP request made by this server, not by the browser. Entry actions belong to one entry. An action template has a query and appears on every visible entry that matches it. The default role is editor. A non-GET action asks for confirmation unless that was turned off.
 
-`POST /api/v1/entries/{id}/actions/{name}/execute` with `{ "confirmed": true, "inputs": {} }` runs it. Placeholders `{{host}}`, `{{entry.name}}`, `{{field.<key>}}`, and `{{input.<name>}}` are filled on the server. Secret field values and password inputs are removed from the result and from the audit log. The response body shown in the UI is limited to 4 KB.
+`POST /api/v1/entries/{id}/actions/{name}/execute` with `{ "confirmed": true, "inputs": {} }` runs it. Placeholders `{{host}}`, `{{entry.name}}`, `{{field.<key>}}`, and `{{input.<name>}}` are filled on the server. All nonempty secret field values and password inputs, including short PINs, are removed from the result and from the audit log. The response body shown in the UI is limited to 4 KB.
 
 This is intentional access from the server to the target URL, which may be a private device. Only a caller whose role and token scope allow the action can run it. Executions are rate-limited per user (`ACTION_RATE_LIMIT`, default 30 per 15 minutes).
 

@@ -24,9 +24,11 @@ The default scope is `v1-import`. A second run updates that scope and, with the 
 ## What is copied
 
 - V1 groups become tags `group:<name>`. A bookmark in several groups becomes one entry. The external key is the V1 id.
-- Remarks become the description. The link becomes one primary link named Open. An `http` or `https` link also sets the host.
+- Remarks become the description. The link becomes one primary link named Open. The host is inferred from all URLs with a hostname. HTTP(S) stays `web`; SSH, VNC, RDP and telnet retain their protocol type.
 - `nameU1` through `nameU8` become field labels. `hideU1` through `hideU8` set to `1` hides that column.
-- `user1` through `user8` become field values. Columns named in `v1_import_secret_fields` are secret fields.
+- `user1` through `user8` become field values without trimming whitespace. Populated columns without labels receive their `userN` key as a fallback label. Columns named in `v1_import_secret_fields` are secret fields.
+- Group values with spaces or punctuation remain exact tags; the sidebar builds quoted-value queries such as `group:"Control Room"`.
+- Changed managed links queue favicon discovery after commit; a dry run does not fetch icons.
 - `img/icons/<name>.svg` becomes the Lucide icon `<name>`. Sort order is kept.
 
 ## What is not copied
