@@ -356,8 +356,8 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   can override it, and an anonymous visitor keeps the choice in a cookie.
 - **Browser tab:** a bookmark glyph in the accent colour, or an uploaded PNG/WebP, served
   from `/api/v1/favicon` on this origin.
-- **Banner:** optional title image (the logo: PNG, JPEG, WebP, or sanitised SVG, up to
-  1 MB), the site title, and the claim. The right side is an initials avatar or Sign in.
+- **Banner:** a bundled colourful app icon is the default title image; an uploaded logo overrides it and removing the upload restores it. Custom logos accept PNG, JPEG, WebP, or sanitised SVG up to
+  1 MB. The banner also shows the site title and the claim. The right side is an initials avatar or Sign in.
   Colour mode, edit mode, Admin, and sign-out live in that menu. The banner scrolls away.
 - **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
   collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only

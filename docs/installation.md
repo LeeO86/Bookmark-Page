@@ -29,6 +29,8 @@ The app is http://127.0.0.1:3000. Health is `GET /api/health`. The process exits
 docker compose --env-file .env -f docker/docker-compose.yml up --build
 ```
 
+The bundled app icon appears in the banner automatically, including on existing installations with no custom logo. An uploaded site logo takes precedence.
+
 The image runs as the non-root `node` user, uid 1000. The database file is `/data/bookmark.db` on the `bookmark-data` volume.
 
 `docker/docker-compose.traefik.yml` is the same service with Traefik labels. It expects an external Docker network named `traefik`.

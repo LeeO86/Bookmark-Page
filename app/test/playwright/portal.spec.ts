@@ -69,6 +69,49 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'admin', exact: true })).toBeVisible()
 }
 
+test('uses the bundled banner icon and preserves custom logo precedence', async ({
+  page,
+  goto,
+}) => {
+  await goto('/', { waitUntil: 'networkidle' })
+  const logo = page.getByTestId('site-logo')
+  const bundled = '/branding/bookmark-page-icon.png'
+  await expect(logo).toHaveAttribute('src', bundled)
+  await expect
+    .poll(() =>
+      logo.evaluate(
+        (image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
+      ),
+    )
+    .toBe(true)
+  await signIn(page)
+  const base = new URL(page.url()).origin
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#ec4899"/></svg>'
+  const uploaded = await page.request.post(base + '/api/v1/settings/logo', {
+    headers: { Origin: base },
+    data: { contentType: 'image/svg+xml', data: Buffer.from(svg).toString('base64') },
+  })
+  expect(uploaded.ok()).toBe(true)
+  await page.reload({ waitUntil: 'networkidle' })
+  await expect(logo).toHaveAttribute('src', /\/api\/v1\/logo\?v=/)
+  await expect(logo).toHaveJSProperty('naturalWidth', 16)
+  const removed = await page.request.delete(base + '/api/v1/settings/logo', {
+    headers: { Origin: base },
+    data: {},
+  })
+  expect(removed.ok()).toBe(true)
+  await page.reload({ waitUntil: 'networkidle' })
+  await expect(logo).toHaveAttribute('src', bundled)
+  await expect
+    .poll(() =>
+      logo.evaluate(
+        (image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
+      ),
+    )
+    .toBe(true)
+})
+
 test('preserves advanced requests through an unchanged editor save', async ({ page, goto }) => {
   await goto('/', { waitUntil: 'networkidle' })
   await signIn(page)

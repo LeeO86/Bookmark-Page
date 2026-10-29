@@ -25,7 +25,7 @@ Additional corrections include status-tooltip details, stale UI documentation an
 
 - `pnpm lint` and `pnpm typecheck`: passed.
 - `pnpm test`: 59 tests passed in 18 files.
-- `pnpm test:smoke`: five Chromium tests passed, including physical-coordinate card/tile clicks, Shift selection, Alt window requests, Ctrl/Cmd/middle-click, secondary links, editing controls and keyboard activation.
+- `pnpm test:smoke`: six Chromium tests passed, including physical-coordinate card/tile clicks, Shift selection, Alt window requests, Ctrl/Cmd/middle-click, secondary links, editing controls, keyboard activation and default/custom logo precedence.
 - Production image: built and exercised on amd64 with disposable SQLite data and the non-root runtime.
 - Original review probes against the production image: 30 API assertions, 14 browser assertions, the spaced-tag check and all three V1 planner checks pass.
 - Ansible integration: 57 tasks OK, 17 changed, zero failed; both roles and repeated/idempotent operations executed against the disposable image.

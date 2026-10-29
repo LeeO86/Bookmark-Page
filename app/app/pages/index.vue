@@ -261,10 +261,14 @@ function onKeydown(event: KeyboardEvent) {
     <header class="portal-banner flex items-center justify-between gap-4 px-4 py-4 md:px-6">
       <div class="flex min-w-0 items-center gap-4">
         <img
-          v-if="portal.settings.value?.hasLogo"
-          :src="`/api/v1/logo?v=${portal.logoVersion.value}`"
+          :src="
+            portal.settings.value?.hasLogo
+              ? `/api/v1/logo?v=${portal.logoVersion.value}`
+              : '/branding/bookmark-page-icon.png'
+          "
           alt=""
-          class="size-12 rounded-xl object-cover md:size-[4.5rem]"
+          data-testid="site-logo"
+          class="size-12 shrink-0 rounded-xl object-contain md:size-[4.5rem]"
         />
         <div class="min-w-0">
           <h1 class="page-title text-highlighted">

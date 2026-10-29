@@ -142,6 +142,12 @@ Backup format 1 gains optional preferences, defaulting to an empty list for old 
 
 ## 2026-10-29 — Use a real public demo in the README
 
-**Decision:** Replace the generated README banner with an unmodified application screenshot showing twelve public websites, their real favicons, colourful category namespaces and the built-in pink light theme. Capture it against an isolated demo database; retain no private deployment data in the image.
+**Decision:** Replace the generated README banner with an unmodified application screenshot showing 28 public websites, their real favicons, colourful category namespaces and the built-in pink dark theme. Capture only the viewport so more entries continue below the visible area. Capture it against an isolated demo database; retain no private deployment data in the image.
 
-**Reason:** The user requested a colourful demo with public links and favicons and removal of the generated image before the v2.0.0 release.
+**Reason:** The user requested a colourful demo with public links and favicons, then asked for dark mode and enough links to overflow the screen, and removal of the generated image before the v2.0.0 release.
+
+## 2026-10-29 — Ship a default app icon
+
+**Decision:** Include a transparent, colourful bookmark app icon as a public asset and show it in the banner whenever no custom site logo is uploaded. Keep uploaded-logo precedence and restore the bundled icon after removing the upload. Preserve the original generated alpha channel and render both default and custom logos with their full aspect ratio. Keep the independently configurable browser-tab favicon unchanged.
+
+**Reason:** The user requested a generated app icon as the default banner image in the v2.0.0 deployment. A frontend fallback works for both new and existing databases without overwriting branding or migrating settings. A browser regression exercises the bundled asset, a custom upload and removal back to the default.
