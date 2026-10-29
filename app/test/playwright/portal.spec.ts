@@ -266,6 +266,8 @@ for (const view of ['cards', 'tiles'] as const) {
       position: { x: number; y: number },
       options: { button?: 'left' | 'middle'; modifier?: 'Alt' | 'Control' | 'Meta' } = {},
     ) => {
+      // Restore real user focus after closing the previous native tab/window.
+      await page.bringToFront()
       const popupPromise = context.waitForEvent('page', { timeout: 15_000 })
       if (options.modifier) await page.keyboard.down(options.modifier)
       try {
@@ -274,7 +276,8 @@ for (const view of ['cards', 'tiles'] as const) {
         if (options.modifier) await page.keyboard.up(options.modifier)
       }
       const popup = await popupPromise
-      await popup.waitForURL(primary)
+      await expect(popup).toHaveURL(primary)
+      await popup.waitForLoadState()
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
       await popup.close()
     }
