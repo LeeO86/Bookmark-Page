@@ -8,6 +8,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
 WORKDIR /src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY app/package.json app/package.json
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 COPY . .
