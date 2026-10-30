@@ -273,6 +273,15 @@ for (const view of ['cards', 'tiles'] as const) {
     const base = new URL(page.url()).origin
     const primary = base + '/api/health?launcher=' + view
     const secondary = base + '/api/health?secondary=' + view
+    // A plain HTML target avoids Chromium's background JSON-viewer load lifecycle.
+    for (const url of [primary, secondary]) {
+      await context.route(url, (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: '<!doctype html><title>Launcher target</title>',
+        }),
+      )
+    }
     const response = await page.request.post(base + '/api/v1/entries', {
       headers: { Origin: base },
       data: {
@@ -312,7 +321,7 @@ for (const view of ['cards', 'tiles'] as const) {
       }
       const popup = await popupPromise
       await expect(popup).toHaveURL(primary)
-      await popup.waitForLoadState()
+      await expect(popup).toHaveTitle('Launcher target')
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
       await popup.close()
     }
