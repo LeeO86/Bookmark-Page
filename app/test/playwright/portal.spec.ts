@@ -22,6 +22,41 @@ test.use({
   },
 })
 
+test('renders UI icons and loads fonts without external browser requests', async ({
+  page,
+  goto,
+  context,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error('Missing local test server URL')
+  const origin = new URL(baseURL).origin
+  const external: string[] = []
+  await context.route('**/*', async (route) => {
+    if (new URL(route.request().url()).origin === origin) await route.continue()
+    else {
+      external.push(route.request().url())
+      await route.abort()
+    }
+  })
+  await goto('/', { waitUntil: 'networkidle' })
+  for (const view of ['cards', 'tiles', 'list']) {
+    const icon = page.getByTestId('view-' + view).locator('.iconify')
+    await expect(icon).toBeVisible()
+    await expect
+      .poll(() => icon.evaluate((element) => getComputedStyle(element).maskImage))
+      .not.toBe('none')
+  }
+  const fonts = await page.evaluate(async () => {
+    const faces = [...document.fonts].filter(
+      (font) => font.family.replace(/^['"]|['"]$/g, '') === 'Inter Variable',
+    )
+    await Promise.all(faces.map((font) => font.load()))
+    return faces.length
+  })
+  expect(fonts).toBeGreaterThan(0)
+  expect(external).toEqual([])
+})
+
 test('signs in from the portal', async ({ page, goto }) => {
   await goto('/', { waitUntil: 'networkidle' })
   await expect(page.getByRole('heading', { name: 'Bookmark-Page' })).toBeVisible()

@@ -51,6 +51,9 @@ relying on memory. Justify any substitution in `docs/DECISIONS.md`.
 - **Ansible collection:** Python, stdlib + `ansible.module_utils.urls.open_url` only
   (no `requests` dependency), `ansible-test sanity` clean.
 - **Container:** single image, non-root, multi-arch (amd64, arm64), data in `/data`.
+- **Offline UI assets:** bundle UI icons and fonts locally. With dependencies installed,
+  compilation works without internet; the running UI serves assets from its own origin,
+  including dynamically selected Lucide icons, with no public icon/font API fallback.
 
 ## 3. Repository layout and branches
 

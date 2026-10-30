@@ -42,3 +42,18 @@ Release images are published to `ghcr.io/leeo86/bookmark-page`. A git tag `v2.x.
 ## Ansible
 
 The collection is `ansible_collections/leeo86/bookmarks`. See `docs/ansible.md`.
+
+## Offline labs
+
+The UI serves its Lucide icons, Inter font files and default branding from the app origin. The complete Lucide collection is bundled on the server so icon names selected at runtime also work. The browser does not fall back to Iconify, and the font module uses installed packages with remote providers disabled.
+
+Package installation, pulling base images and installing operating-system packages require access to their registries or a populated local mirror/cache. The application compilation step in `docker/Dockerfile` explicitly runs with networking disabled. Optional device checks, favicon discovery, actions and identity providers use their configured target services.
+
+Verify a locally built production image without any container network access:
+
+```sh
+docker build -f docker/Dockerfile -t bookmark-page:offline .
+bash docker/test-offline.sh bookmark-page:offline
+```
+
+The smoke test uses disposable data and checks the page, navigation and dynamic Lucide icons, the entry-icon endpoint, every WOFF2 font referenced by the page or built CSS, and local rejection of an unbundled icon collection. CI runs the same test. The Playwright suite additionally renders UI icons and loads Inter with external browser requests rejected.

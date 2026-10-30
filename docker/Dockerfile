@@ -12,7 +12,8 @@ COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build \
+# Dependency installation is online; compiling the application must work offline.
+RUN --network=none NUXT_TELEMETRY_DISABLED=1 pnpm build \
   && mkdir -p /src/docker-lucide \
   && cp -aL /src/app/node_modules/lucide-static/icons /src/docker-lucide/icons
 
