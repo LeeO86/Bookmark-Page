@@ -312,14 +312,17 @@ for (const view of ['cards', 'tiles'] as const) {
     ) => {
       // Restore real user focus after closing the previous native tab/window.
       await page.bringToFront()
-      const popupPromise = context.waitForEvent('page', { timeout: 15_000 })
-      if (options.modifier) await page.keyboard.down(options.modifier)
-      try {
-        await page.mouse.click(position.x, position.y, { button: options.button ?? 'left' })
-      } finally {
-        if (options.modifier) await page.keyboard.up(options.modifier)
-      }
-      const popup = await popupPromise
+      const link = card.getByTestId('entry-link')
+      const bounds = await link.boundingBox()
+      if (!bounds) throw new Error('Missing launcher anchor')
+      const [popup] = await Promise.all([
+        context.waitForEvent('page', { timeout: 15_000 }),
+        link.click({
+          position: { x: position.x - bounds.x, y: position.y - bounds.y },
+          button: options.button ?? 'left',
+          modifiers: options.modifier ? [options.modifier] : [],
+        }),
+      ])
       await expect(popup).toHaveURL(primary)
       await expect(popup).toHaveTitle('Launcher target')
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
