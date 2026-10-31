@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { faviconCacheKey } from '../../shared/favicon'
 import { getDatabase } from '../db/client'
 import { newId, now } from '../db/ids'
 import { faviconCache } from '../db/schema'
@@ -16,13 +17,13 @@ export function faviconFetchEnabled(): boolean {
   return process.env.BOOKMARK_FAVICON_FETCH !== '0'
 }
 
-export function queueFavicon(url: string | null, force = false): void {
+export function queueFavicon(url: string | null, force = false, direct = false): void {
   if (!faviconFetchEnabled() || !url) {
     return
   }
   let origin: string
   try {
-    origin = parseHttpUrl(url).origin
+    origin = faviconCacheKey(parseHttpUrl(url).href, direct)
   } catch {
     return
   }
@@ -33,9 +34,14 @@ export function queueFavicon(url: string | null, force = false): void {
     return
   }
   inflight.add(origin)
-  void storeFavicon(origin, url)
+  void storeFavicon(origin, url, direct)
     .catch((error: unknown) => {
-      rememberFailure(origin, error instanceof Error ? error.message : 'Favicon fetch failed')
+      rememberFailure(
+        origin,
+        url,
+        direct,
+        error instanceof Error ? error.message : 'Favicon fetch failed',
+      )
     })
     .finally(() => {
       inflight.delete(origin)
@@ -52,13 +58,14 @@ export async function refreshStaleFavicons(): Promise<void> {
     if (row.fetchedAt && row.fetchedAt.getTime() > cutoff) {
       continue
     }
-    queueFavicon(row.origin, true)
+    queueFavicon(row.sourceUrl ?? row.origin, true, row.direct)
   }
 }
 
 export async function fetchFaviconBytes(
   pageUrl: string,
   tlsVerify = faviconTlsVerify(),
+  direct = false,
 ): Promise<{ mediaType: string; bytes: Buffer }> {
   const page = await limitedRequest(pageUrl, {
     timeoutMs: timeoutMs(),
@@ -67,6 +74,12 @@ export async function fetchFaviconBytes(
     tlsVerify,
   })
   const type = headerValue(page.headers['content-type'])
+  if ((direct || type.startsWith('image/')) && (page.status < 200 || page.status >= 300)) {
+    throw new Error(`Favicon request returned ${page.status}`)
+  }
+  if (direct) {
+    return normalizeImage(type, page.body)
+  }
   if (type.startsWith('image/')) {
     return normalizeImage(type, page.body)
   }
@@ -103,15 +116,17 @@ export async function fetchFaviconBytes(
   return normalizeImage(headerValue(icon.headers['content-type']), icon.body, chosen?.svg === true)
 }
 
-async function storeFavicon(origin: string, pageUrl: string): Promise<void> {
+async function storeFavicon(origin: string, pageUrl: string, direct: boolean): Promise<void> {
   try {
-    const image = await fetchFaviconBytes(pageUrl)
+    const image = await fetchFaviconBytes(pageUrl, faviconTlsVerify(), direct)
     const timestamp = now()
     getDatabase()
       .insert(faviconCache)
       .values({
         id: newId(),
         origin,
+        sourceUrl: direct ? pageUrl : null,
+        direct,
         status: 'ok',
         mediaType: image.mediaType,
         byteSize: image.bytes.length,
@@ -124,6 +139,8 @@ async function storeFavicon(origin: string, pageUrl: string): Promise<void> {
       .onConflictDoUpdate({
         target: faviconCache.origin,
         set: {
+          sourceUrl: direct ? pageUrl : null,
+          direct,
           status: 'ok',
           mediaType: image.mediaType,
           byteSize: image.bytes.length,
@@ -135,17 +152,29 @@ async function storeFavicon(origin: string, pageUrl: string): Promise<void> {
       })
       .run()
   } catch (error) {
-    rememberFailure(origin, error instanceof Error ? error.message : 'Favicon fetch failed')
+    rememberFailure(
+      origin,
+      pageUrl,
+      direct,
+      error instanceof Error ? error.message : 'Favicon fetch failed',
+    )
   }
 }
 
-function rememberFailure(origin: string, message: string): void {
+function rememberFailure(
+  origin: string,
+  sourceUrl: string,
+  direct: boolean,
+  message: string,
+): void {
   const timestamp = now()
   getDatabase()
     .insert(faviconCache)
     .values({
       id: newId(),
       origin,
+      sourceUrl: direct ? sourceUrl : null,
+      direct,
       status: 'error',
       mediaType: null,
       byteSize: null,
@@ -158,6 +187,8 @@ function rememberFailure(origin: string, message: string): void {
     .onConflictDoUpdate({
       target: faviconCache.origin,
       set: {
+        sourceUrl: direct ? sourceUrl : null,
+        direct,
         status: 'error',
         error: message.slice(0, 500),
         fetchedAt: timestamp,

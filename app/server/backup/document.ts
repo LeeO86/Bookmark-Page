@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { preferencesPatchSchema, actionPromptSchema } from '../../shared/contracts'
+import {
+  preferencesPatchSchema,
+  actionPromptSchema,
+  entryFaviconSchema,
+} from '../../shared/contracts'
 
 const stamp = z.string()
 const stampOrNull = z.string().nullable()
@@ -103,6 +107,7 @@ export const backupDocumentSchema = z.object({
       description: z.string(),
       host: z.string().nullable(),
       iconRef: z.string().nullable(),
+      faviconUrl: entryFaviconSchema.default(null),
       sort: z.number(),
       source: z.string().nullable(),
       externalKey: z.string().nullable(),
@@ -186,6 +191,8 @@ export const backupDocumentSchema = z.object({
     z.object({
       id: z.string(),
       origin: z.string(),
+      sourceUrl: z.string().nullable().default(null),
+      direct: z.boolean().default(false),
       status: z.string(),
       mediaType: z.string().nullable(),
       byteSize: z.number().nullable(),

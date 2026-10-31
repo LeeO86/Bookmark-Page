@@ -156,6 +156,7 @@ export interface PortalEntry {
   description: string
   host: string | null
   iconRef: string | null
+  faviconUrl: string | null
   iconUrl: string | null
   sort: number
   source: string | null

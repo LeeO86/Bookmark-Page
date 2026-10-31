@@ -23,10 +23,10 @@ def bookmark_inventory_entry(host, include, exclude, namespace, mapping=None):
         raise AnsibleFilterError(str(error)) from error
 
 
-def v1_import_plan(settings, bookmarks, secret_fields, namespace='group'):
+def v1_import_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url=''):
     """Build field definitions and entries from a V1 JSON export."""
     try:
-        return v1_plan(settings, bookmarks, secret_fields, namespace)
+        return v1_plan(settings, bookmarks, secret_fields, namespace, tag_fields, v1_url)
     except BookmarkBuildError as error:
         raise AnsibleFilterError(str(error)) from error
 

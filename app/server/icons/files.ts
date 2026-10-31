@@ -4,7 +4,7 @@ import type { Actor } from '../auth/permissions'
 import { getDatabase } from '../db/client'
 import { entries, faviconCache, icons, links } from '../db/schema'
 import { badRequest } from '../http/errors'
-import { entryVisible } from '../services/entries'
+import { entryVisible, listEntries } from '../services/entries'
 import { readLucideSvg, searchLucide } from './lucide'
 import { sanitizeSvg } from './sanitize'
 
@@ -83,7 +83,7 @@ export function readPublicIcon(
   }
   if (kind === 'favicon') {
     const row = getDatabase().select().from(faviconCache).where(eq(faviconCache.id, name)).get()
-    if (!row?.data || row.status !== 'ok' || !row.mediaType || !faviconVisible(actor, row.origin)) {
+    if (!row?.data || row.status !== 'ok' || !row.mediaType || !faviconVisible(actor, row.id)) {
       return null
     }
     return { bytes: row.data, mediaType: row.mediaType }
@@ -120,28 +120,14 @@ function uploadVisible(actor: Actor, id: string): boolean {
   return false
 }
 
-function faviconVisible(actor: Actor, origin: string): boolean {
+function faviconVisible(actor: Actor, id: string): boolean {
   if (actor.role !== 'anonymous') {
     return true
   }
-  const db = getDatabase()
-  for (const entry of db.select().from(entries).all()) {
-    if (!entryVisible(actor.role, entry.id, db)) {
-      continue
-    }
-    if (entry.host && origin.includes(entry.host)) {
-      return true
-    }
-  }
-  return db
-    .select()
-    .from(links)
-    .all()
-    .some(
-      (link) =>
-        link.urlTemplate.includes(new URL(origin).host) &&
-        entryVisible(actor.role, link.entryId, db),
-    )
+  const url = `/api/icons/favicon/${id}`
+  return listEntries(actor, '').entries.some(
+    (entry) => entry.iconUrl === url || entry.links.some((link) => link.iconUrl === url),
+  )
 }
 
 function isPng(bytes: Buffer): boolean {

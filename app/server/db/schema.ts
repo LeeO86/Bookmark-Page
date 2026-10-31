@@ -81,6 +81,7 @@ export const entries = sqliteTable(
     description: text('description').notNull().default(''),
     host: text('host'),
     iconRef: text('icon_ref'),
+    faviconUrl: text('favicon_url'),
     sort: integer('sort').notNull().default(0),
     source: text('source'),
     externalKey: text('external_key'),
@@ -231,6 +232,8 @@ export const icons = sqliteTable('icons', {
 export const faviconCache = sqliteTable('favicon_cache', {
   id: text('id').primaryKey(),
   origin: text('origin').notNull().unique(),
+  sourceUrl: text('source_url'),
+  direct: integer('direct', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('empty'),
   mediaType: text('media_type'),
   byteSize: integer('byte_size'),

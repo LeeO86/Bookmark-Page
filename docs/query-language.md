@@ -27,6 +27,6 @@ Space between terms means AND. `OR` and `AND` are operators. Parentheses group t
 
 `is:`, `state:`, and `has:` are reserved, so they are not tag namespaces. `has:link` and `has:check` are keywords, not field keys. `state:unknown` requires a check. `is:unknown` also matches an entry that has none.
 
-Clicking a tag adds it with AND. Shift-click uses OR. Alt-click uses NOT. `/` focuses the query, and Escape clears it.
+Clicking a sidebar tag toggles it with AND. Shift-click uses OR. Alt-click uses NOT. Repeat the same selection to remove it, including any duplicate terms. Switching between positive and negated selection replaces the old term. Quoted values are matched by meaning, and the remaining boolean groups are preserved. Selected facets stay visible even at zero matches so they can be removed. `/` focuses the query, and Escape clears it.
 
 Quote only a tag's value when it contains spaces or punctuation: `group:"Control Room"`, `room:"A (north)"`, or `#"plain tag"`. Escape quotes and backslashes inside values with a backslash. A fully quoted string such as `"group:Control Room"` remains a free-text phrase. Sidebar shortcuts and autocomplete produce the quoted-value syntax automatically.

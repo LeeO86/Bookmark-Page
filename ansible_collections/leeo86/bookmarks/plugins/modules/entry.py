@@ -54,6 +54,11 @@ options:
       - Icon reference. A bare name selects a Lucide icon.
       - Values that already contain a colon are stored unchanged.
     type: str
+  favicon_url:
+    description:
+      - Optional HTTP(S) image URL or path relative to the primary link.
+      - An empty value restores automatic discovery. A chosen icon takes priority.
+    type: str
   sort:
     description:
       - Manual sort order.
@@ -234,6 +239,7 @@ def main():
         description=dict(type='str'),
         host=dict(type='str'),
         icon=dict(type='str'),
+        favicon_url=dict(type='str'),
         sort=dict(type='int'),
         tags=dict(type='list', elements='raw'),
         links=link_spec(),

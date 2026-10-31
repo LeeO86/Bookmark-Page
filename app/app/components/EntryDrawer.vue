@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { z } from 'zod'
-import { requestSpecSchema, type RequestSpec } from '#shared/contracts'
+import { entryFaviconSchema, requestSpecSchema, type RequestSpec } from '#shared/contracts'
 import type { ActionPrompt, HistoryRow, PortalEntry } from '../types/portal'
 import { ApiError, apiFetch } from '../utils/api'
 import { isPathLocked } from '../utils/view'
@@ -18,11 +18,13 @@ const entryFormSchema = z.object({
   name: z.string().trim().min(1).max(200),
   host: z.string().max(500),
   description: z.string().max(4000),
+  faviconUrl: entryFaviconSchema,
 })
 const editorState = computed(() => ({
   name: name.value,
   host: host.value,
   description: description.value,
+  faviconUrl: faviconUrl.value,
 }))
 
 const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
@@ -83,6 +85,7 @@ const iconPreview = computed(() => {
   return null
 })
 const iconRef = ref<string | null>(null)
+const faviconUrl = ref('')
 const iconQuery = ref('')
 const iconChoices = ref<Array<{ ref: string; name: string; url: string }>>([])
 const name = ref('')
@@ -140,6 +143,7 @@ watch(
 
 function blank() {
   iconRef.value = null
+  faviconUrl.value = ''
   name.value = ''
   description.value = ''
   host.value = ''
@@ -161,6 +165,7 @@ function blank() {
 
 function fill(entry: PortalEntry) {
   iconRef.value = entry.iconRef
+  faviconUrl.value = entry.faviconUrl ?? ''
   name.value = entry.name
   description.value = entry.description
   host.value = entry.host ?? ''
@@ -373,6 +378,7 @@ function buildBody(confirmDuplicates: boolean) {
     name: name.value,
     description: description.value,
     iconRef: iconRef.value,
+    faviconUrl: faviconUrl.value.trim() || null,
     host: host.value,
     sort: Number(sort.value) || 0,
     tags: tags.value,
@@ -619,6 +625,23 @@ function diffText(diff: Record<string, unknown>): string {
               class="w-full"
             />
           </UFormField>
+          <details class="mt-3" :open="Boolean(faviconUrl)">
+            <summary class="cursor-pointer text-muted">Expert options</summary>
+            <UFormField
+              name="faviconUrl"
+              label="Favicon URL or path"
+              description="Leave empty for automatic discovery. A path is relative to the primary HTTP(S) link. A chosen library or uploaded icon takes priority. Save to fetch the image."
+              class="mt-2"
+            >
+              <UInput
+                v-model="faviconUrl"
+                :disabled="locked('faviconUrl')"
+                placeholder="/assets/device-icon.png or https://device.example/icon.svg"
+                class="w-full"
+                data-testid="entry-favicon-url"
+              />
+            </UFormField>
+          </details>
         </UForm>
         <UFormField label="Manual sort">
           <UInput v-model.number="sort" type="number" :disabled="locked('sort')" class="w-full" />

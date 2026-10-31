@@ -182,6 +182,8 @@ export function createBackup(
       .map((row) => ({
         id: row.id,
         origin: row.origin,
+        sourceUrl: row.sourceUrl,
+        direct: row.direct,
         status: row.status,
         mediaType: row.mediaType,
         byteSize: row.byteSize,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { resolveFaviconUrl } from './favicon'
 import {
   accentPresetNames,
   backgroundStyles,
@@ -109,11 +110,27 @@ export const tagRefSchema = z.union([
   }),
 ])
 
+export const entryFaviconSchema = z
+  .string()
+  .trim()
+  .max(4000)
+  .refine((value) => {
+    if (!value) return true
+    try {
+      resolveFaviconUrl(value, 'https://device.invalid/', 'device.invalid')
+      return true
+    } catch {
+      return false
+    }
+  }, 'Use an HTTP(S) image URL or path, optionally with {{host}}, without credentials')
+  .nullable()
+
 export const entryWriteSchema = z.object({
   name: z.string().trim().min(1).max(300),
   description: z.string().max(20_000).default(''),
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
+  faviconUrl: entryFaviconSchema.optional(),
   sort: z.number().int().default(0),
   tags: z.array(tagRefSchema).default([]),
   links: z.array(linkInputSchema).default([]),
@@ -128,6 +145,7 @@ export const entryPatchSchema = z.object({
   description: z.string().max(20_000).optional(),
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
+  faviconUrl: entryFaviconSchema.optional(),
   sort: z.number().int().optional(),
   tags: z.array(tagRefSchema).optional(),
   links: z.array(linkInputSchema).optional(),
@@ -143,6 +161,7 @@ export const syncEntrySchema = z.object({
   description: z.string().max(20_000).optional(),
   host: z.string().trim().max(255).nullable().optional(),
   iconRef: z.string().max(200).nullable().optional(),
+  faviconUrl: entryFaviconSchema.optional(),
   sort: z.number().int().optional(),
   tags: z.array(tagRefSchema).optional(),
   links: z.array(linkInputSchema).optional(),

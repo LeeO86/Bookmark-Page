@@ -1,4 +1,4 @@
-import { parseQuery } from './query'
+import { parseQuery, type QueryNode } from './query'
 
 export type QueryChipKind = 'tag' | 'is' | 'has' | 'text' | 'group'
 export type QueryJoin = 'and' | 'or'
@@ -51,6 +51,87 @@ export function appendQueryTerm(input: string, term: string, mode: QueryAppend):
     return `${trimmed} OR ${piece}`
   }
   return `${trimmed} ${piece}`
+}
+
+export function queryHasTerm(input: string, term: string): boolean {
+  const parsed = parseQuery(input)
+  const target = parseQuery(formatTerm(term))
+  if (!parsed.ok || !target.ok || !target.ast) return false
+  return (
+    containsTerm(parsed.ast, target.ast) ||
+    containsTerm(parsed.ast, { type: 'not', child: target.ast })
+  )
+}
+
+/** Toggle a facet, removing duplicates and preserving the remaining boolean expression. */
+export function toggleQueryTerm(input: string, term: string, mode: QueryAppend): string {
+  const parsed = parseQuery(input)
+  const target = parseQuery(formatTerm(term))
+  if (!parsed.ok || !target.ok || !target.ast) return input
+  const positive = target.ast
+  const negative: QueryNode = { type: 'not', child: positive }
+  const active = containsTerm(parsed.ast, mode === 'not' ? negative : positive)
+  const remainder = removeTerm(removeTerm(parsed.ast, positive), negative)
+  if (active) return remainder ? formatNode(remainder) : ''
+  const query = remainder ? formatNode(remainder, mode === 'or' ? 0 : 2) : ''
+  return appendQueryTerm(query, term, mode)
+}
+
+function sameTerm(node: QueryNode, target: QueryNode): boolean {
+  return JSON.stringify(node) === JSON.stringify(target)
+}
+
+function containsTerm(node: QueryNode | null, target: QueryNode): boolean {
+  if (!node) return false
+  if (sameTerm(node, target)) return true
+  return (
+    (node.type === 'and' || node.type === 'or') &&
+    (containsTerm(node.left, target) || containsTerm(node.right, target))
+  )
+}
+
+function removeTerm(node: QueryNode | null, target: QueryNode): QueryNode | null {
+  if (!node || sameTerm(node, target)) return null
+  if (node.type !== 'and' && node.type !== 'or') return node
+  const left = removeTerm(node.left, target)
+  const right = removeTerm(node.right, target)
+  if (!left || !right) return left ?? right
+  return { ...node, left, right }
+}
+
+function formatNode(node: QueryNode, parentPrecedence = 0): string {
+  switch (node.type) {
+    case 'and':
+      return groupNode(
+        `${formatNode(node.left, 2)} ${formatNode(node.right, 2)}`,
+        2,
+        parentPrecedence,
+      )
+    case 'or':
+      return groupNode(
+        `${formatNode(node.left, 1)} OR ${formatNode(node.right, 1)}`,
+        1,
+        parentPrecedence,
+      )
+    case 'not':
+      return `-${formatNode(node.child, 3)}`
+    case 'tag':
+      return formatTerm(
+        `${node.namespace === null ? '#' : node.namespace + ':'}${node.value}${node.wildcard ? '*' : ''}`,
+      )
+    case 'is':
+      return `is:${node.value}`
+    case 'state':
+      return `state:${node.value}`
+    case 'has':
+      return `has:${node.value}`
+    case 'text':
+      return `"${node.value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  }
+}
+
+function groupNode(query: string, precedence: number, parent: number): string {
+  return precedence < parent ? `(${query})` : query
 }
 
 export function combineQueries(left: string, right: string): string {
