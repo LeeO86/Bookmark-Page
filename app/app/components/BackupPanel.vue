@@ -7,7 +7,6 @@ const passphrase = ref('')
 const restorePassphrase = ref('')
 const mode = ref<'merge' | 'replace'>('merge')
 const dryRun = ref(true)
-const fileName = ref('')
 const archive = ref('')
 const message = ref('')
 const error = ref('')
@@ -53,7 +52,6 @@ async function onFile(event: Event) {
   preview.value = null
   if (!file) {
     archive.value = ''
-    fileName.value = ''
     return
   }
   const bytes = new Uint8Array(await file.arrayBuffer())
@@ -63,7 +61,6 @@ async function onFile(event: Event) {
     binary += String.fromCharCode(...bytes.subarray(index, index + chunk))
   }
   archive.value = btoa(binary)
-  fileName.value = file.name
 }
 
 async function restore() {
@@ -106,22 +103,18 @@ async function restore() {
           class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         />
       </label>
-      <button type="submit" class="rounded bg-primary px-3 py-1 text-sm text-inverted">
-        Download backup
-      </button>
+      <UButton type="submit" size="sm" icon="i-lucide-download"> Download backup </UButton>
     </form>
     <form class="space-y-2 border-t border-default pt-3" @submit.prevent="restore">
-      <label class="block text-sm">
-        Backup file
-        <input
-          type="file"
+      <div class="space-y-1 text-sm">
+        <p>Backup file</p>
+        <AdminFilePicker
+          label="Choose backup file"
           accept=".zip,application/zip"
           required
-          class="mt-1 block text-sm"
           @change="onFile"
         />
-      </label>
-      <p v-if="fileName" class="text-xs text-muted">{{ fileName }}</p>
+      </div>
       <label class="block text-sm">
         Mode
         <select v-model="mode" class="mt-1 block rounded border px-2 py-1 bg-default">
@@ -142,13 +135,16 @@ async function restore() {
           class="mt-1 block w-full rounded border px-2 py-1 bg-default"
         />
       </label>
-      <button
+      <UButton
         type="submit"
-        class="rounded bg-primary px-3 py-1 text-sm text-inverted"
+        size="sm"
+        :color="dryRun ? 'primary' : 'error'"
+        :variant="dryRun ? 'solid' : 'soft'"
+        :icon="dryRun ? 'i-lucide-eye' : 'i-lucide-archive-restore'"
         :disabled="archive.length === 0"
       >
-        {{ dryRun ? 'Preview restore' : 'Restore' }}
-      </button>
+        {{ dryRun ? 'Preview restore' : mode === 'replace' ? 'Replace data' : 'Restore backup' }}
+      </UButton>
       <p v-if="mode === 'replace'" class="text-xs text-muted">
         Replace removes the current data and writes the backup. Sign in again if your account id
         changes.

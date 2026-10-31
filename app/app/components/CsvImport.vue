@@ -84,10 +84,10 @@ async function run(dryRun: boolean) {
 <template>
   <section class="space-y-3">
     <h1 class="text-lg font-semibold">CSV import</h1>
-    <label class="block text-sm">
-      CSV file
-      <input type="file" accept=".csv,text/csv" class="mt-1 block text-sm" @change="onFile" />
-    </label>
+    <div class="space-y-1 text-sm">
+      <p>CSV file</p>
+      <AdminFilePicker label="Choose CSV file" accept=".csv,text/csv" @change="onFile" />
+    </div>
     <form v-if="headers.length > 0" class="grid gap-2 md:grid-cols-2" @submit.prevent="run(true)">
       <label class="text-sm">
         Name
@@ -141,12 +141,12 @@ async function run(dryRun: boolean) {
         </select>
       </label>
       <div class="flex flex-wrap gap-2 md:col-span-2">
-        <button type="submit" class="rounded bg-primary px-3 py-1 text-sm text-inverted">
+        <UButton type="submit" size="sm" color="neutral" variant="outline" icon="i-lucide-eye">
           Preview import
-        </button>
-        <button type="button" class="rounded border px-3 py-1 text-sm" @click="run(false)">
+        </UButton>
+        <UButton type="button" size="sm" icon="i-lucide-upload" @click="run(false)">
           Import
-        </button>
+        </UButton>
       </div>
     </form>
     <table v-if="sample.length > 0" class="w-full text-left text-xs">

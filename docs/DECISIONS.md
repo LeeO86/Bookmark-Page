@@ -175,3 +175,9 @@ The existing launcher regression reached the expected URL in CI but timed out wa
 **Decision:** Repeat selection removes all occurrences of that parsed facet, including duplicates and quoted values. Shift retains OR, Alt retains NOT, and switching positive/negative replaces the prior selection. Preserve remaining boolean groups. Keep selected facets at zero matches so they can be deselected.
 
 **Reason:** The user's screenshot shows repeated identical group terms. Appending on every click prevents deselection and fills the query bar with duplicate chips.
+
+## 2026-10-31 — Make admin actions recognisable
+
+**Decision:** Use a shared admin file picker with an outlined Nuxt UI button, a hidden native input and an announced filename for tab icons, logos, library icons, backup files and CSV files. Add an explicit library icon upload button and refresh icon results after upload/deletion. Use consistent Nuxt UI buttons for backup/download/restore and CSV actions. Give delete actions a trash glyph and contextual accessible names. Use semantic error red for every destructive action, including removing custom branding and applying a restore; keep dry-run previews primary/neutral. Add a labelled X navigation button in every admin navbar that returns to `/`, available without opening the sidebar on narrow screens.
+
+**Reason:** The user requested an audit of the whole admin panel after unstyled file inputs and text-only actions looked like plain text. Destructive actions must remain recognisable in light/dark modes and regardless of the configured accent. A shared navbar provides a predictable exit from every section. The existing file/API validation and permission checks continue to apply.

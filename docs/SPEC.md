@@ -428,6 +428,13 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   namespaces, tokens, scopes, icons, action templates, backup, CSV import, audit log).
   Settings include the page background. Check intervals stay on each check. There is no
   separate check-defaults page.
+  All file selectors and actions use visible, keyboard-accessible buttons; file selectors
+  show the selected filename. Library icon uploads have an explicit submit button.
+  Destructive actions (delete, remove custom branding, restore/replace data) use red
+  semantic error styling, independent of the accent/theme. Restore previews stay neutral
+  or primary because they do not write data. An X in the top-right navbar of every admin
+  section returns to the portal on desktop and mobile; it is a navigation control, not
+  a destructive action.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
 
