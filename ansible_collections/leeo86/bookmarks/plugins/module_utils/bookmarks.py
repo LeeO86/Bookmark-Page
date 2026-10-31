@@ -10,7 +10,7 @@ __metaclass__ = type
 import json
 import re
 from collections.abc import Mapping, Sequence
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 from ansible.module_utils.common.parameters import env_fallback
 from ansible.module_utils.urls import fetch_url
@@ -21,7 +21,7 @@ CHECK_KINDS = ['icmp', 'tcp', 'http']
 CHECK_EXECUTORS = ['server', 'client']
 FIELD_TYPES = ['text', 'url', 'number', 'secret']
 ROLES = ['anonymous', 'viewer', 'editor', 'admin']
-ICON_RE = re.compile(r'(?:^|/)icons/([^/?#]+)\.svg(?:$|[?#])', re.IGNORECASE)
+ICON_RE = re.compile(r'(?:^|/)img/icons/([^/?#]+)\.svg(?:$|[?#])', re.IGNORECASE)
 
 
 class BookmarkBuildError(Exception):
@@ -98,6 +98,7 @@ def entry_argument_spec():
         description=dict(type='str'),
         host=dict(type='str'),
         icon=dict(type='str'),
+        favicon_url=dict(type='str'),
         sort=dict(type='int'),
         tags=dict(type='list', elements='str'),
         links=link_spec(),
@@ -251,6 +252,8 @@ def build_entry(params):
         payload['host'] = params['host']
     if params.get('icon') is not None:
         payload['iconRef'] = normalize_icon(params['icon'])
+    if params.get('favicon_url') is not None:
+        payload['faviconUrl'] = params['favicon_url'] or None
     if params.get('sort') is not None:
         payload['sort'] = params['sort']
     if params.get('tags') is not None:
@@ -312,6 +315,8 @@ def entry_matches(current, desired):
     if 'host' in desired and (current.get('host') or None) != (desired.get('host') or None):
         return False
     if 'iconRef' in desired and (current.get('iconRef') or None) != desired.get('iconRef'):
+        return False
+    if 'faviconUrl' in desired and (current.get('faviconUrl') or None) != desired.get('faviconUrl'):
         return False
     if 'sort' in desired and current.get('sort') != desired['sort']:
         return False
@@ -522,6 +527,8 @@ def inventory_entry(host, include, exclude, namespace, mapping):
     }
     if host.get('bookmark_icon'):
         entry['icon'] = str(host.get('bookmark_icon'))
+    if host.get('bookmark_favicon_url') is not None:
+        entry['favicon_url'] = str(host['bookmark_favicon_url'])
     if host.get('bookmark_sort') is not None:
         entry['sort'] = int(host.get('bookmark_sort'))
     return entry
@@ -588,18 +595,20 @@ def clean_check(check):
     return cleaned
 
 
-def v1_plan(settings, bookmarks, secret_fields, namespace='group'):
+def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url=''):
     if not isinstance(settings, Mapping):
         raise BookmarkBuildError('V1 globals must be a JSON object')
     if not isinstance(bookmarks, Mapping):
         raise BookmarkBuildError('V1 bookmarks must be a JSON object')
     secrets = set(str(item) for item in (secret_fields or []))
+    tag_fields = validate_tag_fields(tag_fields, secrets)
     namespace = namespace or 'group'
     populated = {key for items in (bookmarks.get('bookmarks') or {}).values()
                  for item in (items or []) if isinstance(item, Mapping)
                  for key in ('user%d' % index for index in range(1, 9))
                  if text_of(item.get(key)) != ''}
-    fields = v1_field_definitions(settings, secrets, populated)
+    fields = v1_field_definitions(settings, secrets, populated - set(tag_fields))
+    fields = [field for field in fields if field['key'] not in tag_fields]
     allowed = [field['key'] for field in fields]
     merged = {}
     order = []
@@ -612,7 +621,7 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group'):
                 continue
             if external not in merged:
                 order.append(external)
-                merged[external] = v1_entry(bookmark, group, allowed, namespace)
+                merged[external] = v1_entry(bookmark, group, allowed, namespace, v1_url)
             else:
                 tag = '%s:%s' % (namespace, group)
                 if tag not in merged[external]['tags']:
@@ -624,9 +633,35 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group'):
                         merged[external]['fields'].append({'key': key, 'value': value})
                     elif value and current_fields.get(key) != value:
                         raise BookmarkBuildError('V1 entry %s has conflicting values for %s' % (external, key))
+            for key, tag_namespace in tag_fields.items():
+                value = text_of(bookmark.get(key)).strip()
+                if value:
+                    token = '%s:%s' % (tag_namespace, value) if tag_namespace else value
+                    if len(token) > 200:
+                        raise BookmarkBuildError('V1 tag from %s exceeds 200 characters' % key)
+                    if not tag_namespace and ':' in value:
+                        raise BookmarkBuildError('V1 tag column %s needs a namespace for values containing a colon' % key)
+                    merged[external]['tags'].append(token)
     for entry in merged.values():
         entry['tags'] = sorted(set(entry['tags']))
     return {'fields': fields, 'entries': [merged[key] for key in order]}
+
+
+def validate_tag_fields(tag_fields, secrets):
+    if tag_fields is None:
+        return {}
+    if not isinstance(tag_fields, Mapping):
+        raise BookmarkBuildError('v1_import_tag_fields must map user1..user8 to tag namespaces')
+    for key, namespace in tag_fields.items():
+        if key not in ['user%d' % index for index in range(1, 9)]:
+            raise BookmarkBuildError('Tag field must be user1..user8')
+        if key in secrets:
+            raise BookmarkBuildError('A V1 column cannot be both a secret field and a tag field')
+        if not isinstance(namespace, str) or (namespace and not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', namespace)):
+            raise BookmarkBuildError('Tag namespaces must be empty or lower-case namespace names')
+        if namespace in ('state', 'is', 'has'):
+            raise BookmarkBuildError('Tag namespace is reserved by the query language')
+    return tag_fields
 
 
 def v1_field_definitions(settings, secrets, populated=None):
@@ -650,7 +685,7 @@ def v1_field_definitions(settings, secrets, populated=None):
     return fields
 
 
-def v1_entry(bookmark, group, allowed, namespace):
+def v1_entry(bookmark, group, allowed, namespace, v1_url=''):
     link = text_of(bookmark.get('link')).strip()
     links = []
     if link:
@@ -672,7 +707,8 @@ def v1_entry(bookmark, group, allowed, namespace):
         'name': text_of(bookmark.get('name')).strip() or ('Bookmark %s' % external),
         'description': text_of(bookmark.get('remarks')),
         'host': v1_host(link),
-        'icon': v1_icon(bookmark.get('favicon')) or '',
+        'icon': v1_icon(bookmark.get('favicon'), v1_url) or '',
+        'favicon_url': v1_favicon_url(bookmark.get('favicon'), v1_url),
         'sort': v1_sort(bookmark.get('sort')),
         'tags': ['%s:%s' % (namespace, group)],
         'links': links,
@@ -688,11 +724,27 @@ def v1_host(link):
     return ''
 
 
-def v1_icon(favicon):
-    match = ICON_RE.search(text_of(favicon).strip())
+def v1_icon(favicon, v1_url=''):
+    value = text_of(favicon).strip()
+    parsed = urlparse(value)
+    base = urlparse(v1_url)
+    if parsed.netloc and (not base.netloc or (parsed.scheme or base.scheme, parsed.netloc) != (base.scheme, base.netloc)):
+        return ''
+    match = ICON_RE.search(value)
     if not match:
         return ''
     return match.group(1).lower()
+
+
+def v1_favicon_url(favicon, v1_url):
+    value = text_of(favicon).strip()
+    if not value or v1_icon(value, v1_url):
+        return ''
+    resolved = urljoin(v1_url.rstrip('/') + '/', value) if v1_url else value
+    parsed = urlparse(resolved)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+        raise BookmarkBuildError('V1 favicon needs an HTTP(S) URL without credentials; set v1_url for relative paths')
+    return resolved
 
 
 def v1_sort(value):

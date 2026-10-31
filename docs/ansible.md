@@ -34,6 +34,8 @@ All of them support check mode and `--diff`, and a second run with the same argu
 
 A bare icon name such as `camera` is stored as `lucide:camera`. A value that already contains a colon is stored unchanged. An empty icon clears the reference.
 
+`favicon_url` sets an explicit HTTP(S) image URL or a path relative to the primary HTTP(S) link, optionally using the entry's `{{host}}`. An empty string restores discovery. A library/upload icon still takes priority. This attribute is owned and compared like `icon`, including check mode. The override and tag-column import options below require application and collection versions newer than `v2.0.0`.
+
 Links need one primary link. When none is marked, the first link becomes primary.
 
 Sync updates the attributes in the payload and leaves other tags, links, fields, checks, and actions in place. `purge` removes only entries of that scope. New scopes use the server's default edit mode, which is `field_ownership`: the automation owns the attributes it sends, and people can add more.
@@ -52,7 +54,7 @@ The role builds entries from an inventory group and syncs them with purge. It ru
 | `bookmark_group_include`    | `.*`              | Python regular expression of groups to keep |
 | `bookmark_group_exclude`    | all and ungrouped | Python regular expression of groups to skip |
 
-Each host becomes one entry. `external_key` is `inventory_hostname`. `host` is `ansible_host` when it is set, otherwise the inventory hostname. `bookmark_name` and `bookmark_description` override the name and description. `bookmark_icon` and `bookmark_sort` are optional.
+Each host becomes one entry. `external_key` is `inventory_hostname`. `host` is `ansible_host` when it is set, otherwise the inventory hostname. `bookmark_name` and `bookmark_description` override the name and description. `bookmark_icon`, `bookmark_favicon_url` and `bookmark_sort` are optional.
 
 `bookmark_links` is a list of `label`, `url_template`, `type`, `primary`, `sort`, and `icon`. `bookmark_fields` is a dictionary of field key to value, or a list of `key` and `value`. `bookmark_checks` is a list of checks using the `entry` module's check fields.
 
@@ -68,21 +70,24 @@ The role uses the `leeo86.bookmarks.bookmark_inventory_entry` filter. `bookmark_
 
 The role reads `<v1_url>/php/getGlobal.php` and `<v1_url>/php/getBookmarks.php`. It does not open MySQL. It creates the group namespace and the `user1`–`user8` field definitions, then syncs the entries.
 
-| Variable                  | Default     | Meaning                                               |
-| ------------------------- | ----------- | ----------------------------------------------------- |
-| `v1_url`                  | none        | V1 base URL                                           |
-| `v1_scope`                | `v1-import` | Scope that owns the imported entries                  |
-| `v1_purge`                | `true`      | Delete imported entries that are gone from V1         |
-| `v1_import_secret_fields` | `[]`        | V1 columns to store as secret fields, such as `user2` |
-| `v1_group_namespace`      | `group`     | Namespace for V1 groups                               |
-| `v1_group_label`          | `Group`     | Sidebar label for that namespace                      |
-| `v1_validate_certs`       | `true`      | Verify the V1 TLS certificate                         |
+| Variable                  | Default     | Meaning                                                                                  |
+| ------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `v1_url`                  | none        | V1 base URL                                                                              |
+| `v1_scope`                | `v1-import` | Scope that owns the imported entries                                                     |
+| `v1_purge`                | `true`      | Delete imported entries that are gone from V1                                            |
+| `v1_import_secret_fields` | `[]`        | V1 columns to store as secret fields, such as `user2`                                    |
+| `v1_import_tag_fields`    | `{}`        | Map chosen `user1`–`user8` columns to tag namespaces; empty namespace creates plain tags |
+| `v1_group_namespace`      | `group`     | Namespace for V1 groups                                                                  |
+| `v1_group_label`          | `Group`     | Sidebar label for that namespace                                                         |
+| `v1_validate_certs`       | `true`      | Verify the V1 TLS certificate                                                            |
 
 V1 groups become tags `group:<name>`. A bookmark that is in several groups becomes one entry. The external key is the V1 id. The first copy supplies the name, description, link, and fields, and later groups only add tags. V1 remarks become the description. The V1 link becomes one primary link labelled `Open`. The hostname of an `http` or `https` link becomes `host`. V1 sort order is kept.
 
-`nameU1`–`nameU8` become field labels. `hideU1`–`hideU8` set to `1` hides that column. Columns with no label are skipped unless they are listed in `v1_import_secret_fields`. Imported fields are visible to viewers. Non-secret fields are searchable. Secret fields are not. Empty values are omitted.
+`nameU1`–`nameU8` become field labels. `hideU1`–`hideU8` set to `1` hides that column. Populated or explicitly secret columns without a label use their `userN` key as the label. Imported fields are visible to viewers. Non-secret fields are searchable. Secret fields are not. Empty values are omitted.
 
-`img/icons/<name>.svg` becomes the Lucide icon `<name>`. Any other favicon URL is not stored. The server then fetches a favicon from the primary link. V1 group remarks are not imported.
+For a hidden column used as tags in V1, set `v1_import_tag_fields: {user3: category}`. A non-empty trimmed cell becomes one `category:<value>` tag, without splitting spaces or punctuation. The column is omitted from custom fields; other columns keep their original meaning. Hidden columns are never guessed to be tags, and a secret/tag overlap is rejected. Duplicate bookmark copies merge these tags. Reimporting replaces previously managed field values with tags and is idempotent. Global field definitions remain available.
+
+Legacy `img/icons/<name>.svg` becomes the Lucide icon `<name>`. Other HTTP(S) favicon URLs are preserved in `favicon_url`, with relative paths resolved against `v1_url`. External device icon paths stay URLs. V1 group remarks are not imported. See `docs/migration-v1.md` for editor examples.
 
 `v1_sync` is the `entries_sync` result.
 

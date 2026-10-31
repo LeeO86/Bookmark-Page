@@ -159,3 +159,19 @@ Backup format 1 gains optional preferences, defaulting to an empty list for old 
 **Reason:** Issue #34 reports missing UI icons and failed builds in labs without internet access. Reproduced v2.0.0's HTTP 500 icon response in a network-isolated container and its cold-cache build failure in a network namespace without connectivity. A warm font cache hid the build defect, so verification clears that cache. Runtime coverage includes navigation icons, dynamically selected Lucide names, local font bytes and a locally rejected unbundled collection. Browser coverage renders UI icons and loads Inter while rejecting external requests. The full collection preserves dynamic icon selection; existing device favicon, check, action and authentication targets retain their configured behavior.
 
 The existing launcher regression reached the expected URL in CI but timed out waiting for a background JSON document's load event. Its destination is now a test-only HTML response. Native activation, destination URL, document title and opener isolation remain asserted. Modifier clicks use Playwright's click action at the same physical favicon/title coordinates so modifiers stay synchronized with its input/navigation lifecycle.
+
+## 2026-10-31 — Explicit favicon sources and V1 tag columns
+
+**Decision:** Add optional entry `faviconUrl` in expert options and `favicon_url` in Ansible. Accept HTTP(S) image URLs, paths relative to the primary HTTP(S) link and `{{host}}`; reject embedded credentials, other schemes and field/secret placeholders. Fetch the image directly with existing size/time/redirect/TLS limits and SVG sanitising. Preserve manual icon precedence. Keep automatic caching per origin and explicit caching per complete resolved image URL; persist source and mode for refresh. Include the attribute in managed ownership/check mode, history and backward-compatible backups. Resolve imported relative favicon references against `v1_url`; distinguish V1's own `img/icons` library from external device paths.
+
+**Reason:** The user requested an expert override for devices with special icon paths and preservation of V1 favicon URLs. Sharing only an origin key would let one override replace another entry's image. Anonymous icon access must follow exact visible entry references, rather than hostname substring matching.
+
+**Decision:** Add explicit `v1_import_tag_fields` mapping from `user1..8` to namespaces (empty means plain tags). Each trimmed non-empty cell becomes one tag; punctuation and internal spaces remain intact. Omit mapped columns from imported fields, reject overlap with secrets and merge tags across duplicate group copies. Do not infer meaning from hidden-column flags. Retain unused global field definitions when reimporting.
+
+**Reason:** The user used hidden V1 user columns for tags. Other V1 installations use them for credentials, so only an explicit mapping changes their meaning. Whole-cell mapping avoids silently splitting meaningful values.
+
+## 2026-10-31 — Toggle sidebar facets
+
+**Decision:** Repeat selection removes all occurrences of that parsed facet, including duplicates and quoted values. Shift retains OR, Alt retains NOT, and switching positive/negative replaces the prior selection. Preserve remaining boolean groups. Keep selected facets at zero matches so they can be deselected.
+
+**Reason:** The user's screenshot shows repeated identical group terms. Appending on every click prevents deselection and fills the query bar with duplicate chips.

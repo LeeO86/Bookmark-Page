@@ -386,6 +386,7 @@
           - (v1_mixer[0].fields | selectattr('key', 'equalto', 'user2') | map(attribute='masked') | first) | bool
           - v1_camera | length == 1
           - v1_camera[0].iconRef is none
+          - v1_camera[0].faviconUrl == 'https://cdn.example/fav.ico'
           - v1_camera[0].host == '10.1.1.9'
           - v1_camera[0].sort == 4
           - v1_camera[0].description == ''
@@ -398,3 +399,41 @@
         v1_mixer: "{{ v1_mixer_info.entries | selectattr('scope', 'equalto', 'v1-import') | list }}"
         v1_mixer_tags: "{{ v1_mixer[0].tags | map(attribute='label') | list }}"
         v1_camera: "{{ v1_camera_info.entries | selectattr('scope', 'equalto', 'v1-import') | selectattr('externalKey', 'equalto', '8') | list }}"
+
+    - name: Reimport a hidden user column as tags
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields:
+          - user2
+        v1_import_tag_fields:
+          user3: category
+        v1_scope: v1-import
+
+    - name: The new mapping changes existing imported entries
+      ansible.builtin.assert:
+        that:
+          - v1_sync is changed
+
+    - name: Reimport the tag mapping again
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields:
+          - user2
+        v1_import_tag_fields:
+          user3: category
+        v1_scope: v1-import
+
+    - name: Query the imported tag
+      leeo86.bookmarks.entry_info:
+        query: category:ignored
+      register: v1_tag_info
+
+    - name: Tag mapping is idempotent and replaces the previous managed field value
+      ansible.builtin.assert:
+        that:
+          - v1_sync is not changed
+          - v1_tag_info.entries | length == 1
+          - (v1_tag_info.entries[0].fields | selectattr('key', 'equalto', 'user3') | list | length) == 0
+          - (v1_tag_info.entries[0].fields | selectattr('key', 'equalto', 'user2') | map(attribute='masked') | first) | bool

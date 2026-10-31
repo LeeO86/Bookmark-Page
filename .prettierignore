@@ -10,6 +10,7 @@ coverage
 docs/SPEC.md
 app/test-results
 app/playwright-report
+ansible_collections/**/tests/output
 *.db
 *.db-journal
 *.db-wal

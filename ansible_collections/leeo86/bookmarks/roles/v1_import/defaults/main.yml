@@ -1,6 +1,7 @@
 ---
 v1_scope: v1-import
 v1_import_secret_fields: []
+v1_import_tag_fields: {}
 v1_validate_certs: true
 v1_purge: true
 v1_group_namespace: group

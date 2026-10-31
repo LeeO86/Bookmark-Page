@@ -223,6 +223,8 @@ function insertDocument(
       .values({
         id: row.id,
         origin: row.origin,
+        sourceUrl: row.sourceUrl,
+        direct: row.direct,
         status: row.status,
         mediaType: row.mediaType,
         byteSize: row.byteSize,
@@ -503,6 +505,7 @@ function mergeAll(
       current.description === row.description &&
       current.host === row.host &&
       current.iconRef === row.iconRef &&
+      current.faviconUrl === row.faviconUrl &&
       current.sort === row.sort
     if (!same) {
       tx.update(entries)
@@ -511,6 +514,7 @@ function mergeAll(
           description: row.description,
           host: row.host,
           iconRef: row.iconRef,
+          faviconUrl: row.faviconUrl,
           sort: row.sort,
           managedFields: row.managedFields,
           updatedAt: date(row.updatedAt),

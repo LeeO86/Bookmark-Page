@@ -17,6 +17,9 @@ Install the `leeo86.bookmarks` collection and run the `v1_import` role. It fetch
         v1_url: http://old-bookmarks.example.com
         v1_import_secret_fields:
           - user2
+        v1_import_tag_fields:
+          user3: room
+          user4: type
 ```
 
 The default scope is `v1-import`. A second run updates that scope and, with the default purge, removes imported entries that are gone from V1.
@@ -27,14 +30,18 @@ The default scope is `v1-import`. A second run updates that scope and, with the 
 - Remarks become the description. The link becomes one primary link named Open. The host is inferred from all URLs with a hostname. HTTP(S) stays `web`; SSH, VNC, RDP and telnet retain their protocol type.
 - `nameU1` through `nameU8` become field labels. `hideU1` through `hideU8` set to `1` hides that column.
 - `user1` through `user8` become field values without trimming whitespace. Populated columns without labels receive their `userN` key as a fallback label. Columns named in `v1_import_secret_fields` are secret fields.
+- `v1_import_tag_fields` maps chosen columns to tag namespaces, for example `user3: room` turns `Control Room` into `room:Control Room`. Use `user4: ""` for a plain tag. Each non-empty trimmed cell becomes one tag; commas, semicolons and spaces inside the cell are preserved. Mapped columns are omitted from custom fields. Hidden columns stay fields unless explicitly mapped. A column cannot be both secret and a tag; tags are visible wherever the entry is visible.
 - Group values with spaces or punctuation remain exact tags; the sidebar builds quoted-value queries such as `group:"Control Room"`.
 - Changed managed links queue favicon discovery after commit; a dry run does not fetch icons.
-- `img/icons/<name>.svg` becomes the Lucide icon `<name>`. Sort order is kept.
+- Legacy `img/icons/<name>.svg` references become the Lucide icon `<name>`. Other HTTP(S) favicon addresses become the entry's explicit `faviconUrl`, including device-specific paths. Relative addresses resolve against the V1 page base URL, matching their original browser meaning. An external device's `/icons/name.svg` or `/img/icons/name.svg` stays an image URL. Sort order is kept.
+
+The explicit favicon and tag-column options require the updated application and collection; the existing `v2.0.0` release does not include them. Install matching source/release versions. Reimporting the same scope applies a changed mapping: previous managed field values become tags, user additions and secret fields remain intact, and a repeated import is unchanged. Existing unused field definitions are retained.
+
+In the V2 entry editor, open **Expert options → Favicon URL or path** to change an imported address. A path such as `/vendor/icon.png` resolves on the primary link's origin; `images/icon.png` resolves relative to its page directory. Full HTTP(S) URLs and `{{host}}` are supported. Clear it for discovery. Save to queue fetching, then reload after fetching if necessary. Images are fetched and sanitised on the server and served from its local cache. A selected library/upload icon takes priority; choose **Letter or favicon** to use the fetched image.
 
 ## What is not copied
 
 - V1 group remarks. The tag namespace label is "Group".
-- Favicon URLs that are not `img/icons/<name>.svg`. V2 fetches a favicon from the primary link instead.
 - V1 accounts. V1 had no authentication. Create V2 users, or sign in through OpenID Connect or a trusted header, before importing.
 
 See `docs/ansible.md` for the role variables.

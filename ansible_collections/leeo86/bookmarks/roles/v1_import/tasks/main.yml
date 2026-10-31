@@ -11,7 +11,7 @@
 
 - name: Plan the V1 import
   ansible.builtin.set_fact:
-    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace) }}'
+    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace, v1_import_tag_fields, v1_url) }}'
   no_log: true
   delegate_to: localhost
   run_once: true

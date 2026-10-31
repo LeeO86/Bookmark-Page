@@ -61,6 +61,11 @@ options:
         description:
           - Icon reference. A bare name selects a Lucide icon.
         type: str
+      favicon_url:
+        description:
+          - Optional HTTP(S) image URL or path relative to the primary link.
+          - An empty value restores automatic discovery. A chosen icon takes priority.
+        type: str
       sort:
         description:
           - Manual sort order.

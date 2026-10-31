@@ -14,6 +14,7 @@ import {
   type TagRefInput,
 } from '../../shared/contracts'
 import { parseQuery } from '../../shared/query'
+import { faviconCacheKey, resolveFaviconUrl } from '../../shared/favicon'
 import { roleAtLeast, type Role } from '../../shared/roles'
 import type { Actor } from '../auth/permissions'
 import { getDatabase, transaction, type Db } from '../db/client'
@@ -106,6 +107,7 @@ interface LoadedEntry {
   description: string
   host: string | null
   iconRef: string | null
+  faviconUrl: string | null
   sort: number
   source: string | null
   externalKey: string | null
@@ -185,6 +187,7 @@ export function createEntry(actor: Actor, input: EntryWrite) {
         description: input.description,
         host: emptyToNull(input.host),
         iconRef: emptyToNull(input.iconRef),
+        faviconUrl: emptyToNull(input.faviconUrl),
         sort: input.sort,
         source: null,
         externalKey: null,
@@ -208,12 +211,12 @@ export function createEntry(actor: Actor, input: EntryWrite) {
     return {
       entry: present(created, actor.role),
       warnings: existing,
-      faviconUrls: serverUrls(created),
+      faviconUrls: serverFaviconRequests(created),
     }
   })
   publishLive({ type: 'entries' })
   for (const url of result.faviconUrls) {
-    queueFavicon(url, true)
+    queueFavicon(url.url, true, url.direct)
   }
   return { entry: result.entry, warnings: result.warnings }
 }
@@ -238,6 +241,10 @@ export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
         description: effective.description ?? current.description,
         host: effective.host !== undefined ? emptyToNull(effective.host) : current.host,
         iconRef: effective.iconRef !== undefined ? emptyToNull(effective.iconRef) : current.iconRef,
+        faviconUrl:
+          effective.faviconUrl !== undefined
+            ? emptyToNull(effective.faviconUrl)
+            : current.faviconUrl,
         sort: effective.sort ?? current.sort,
         updatedAt: timestamp,
         updatedBy: actor.userId,
@@ -284,16 +291,23 @@ export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
       replaceActions(db, id, effective.actions, actor.userId, timestamp)
     }
     const updated = mustLoad(db, id)
+    const faviconRequests = serverFaviconRequests(updated)
     writeAudit(actor, 'entry.update', 'entry', id, { paths, snapshot: entrySnapshot(updated) }, db)
     return {
       entry: present(updated, actor.role),
       warnings,
-      faviconUrls: effective.links ? serverUrls(updated) : [],
+      faviconUrls:
+        effective.links ||
+        effective.host !== undefined ||
+        effective.faviconUrl !== undefined ||
+        effective.fields
+          ? faviconRequests
+          : [],
     }
   })
   publishLive({ type: 'entries' })
   for (const url of result.faviconUrls) {
-    queueFavicon(url, true)
+    queueFavicon(url.url, true, url.direct)
   }
   return { entry: result.entry, warnings: result.warnings }
 }
@@ -318,9 +332,9 @@ export function deleteEntry(actor: Actor, id: string): void {
 export function refreshEntryFavicons(actor: Actor, id: string): { queued: number } {
   const db = getDatabase()
   assertVisible(db, actor.role, id)
-  const urls = serverUrls(mustLoad(db, id))
+  const urls = serverFaviconRequests(mustLoad(db, id))
   for (const url of urls) {
-    queueFavicon(url, true)
+    queueFavicon(url.url, true, url.direct)
   }
   return { queued: urls.length }
 }
@@ -411,6 +425,7 @@ export function restoreEntry(actor: Actor, entryId: string, auditId: string) {
     description: snapshot.description,
     host: snapshot.host,
     iconRef: snapshot.iconRef,
+    faviconUrl: snapshot.faviconUrl ?? null,
     sort: snapshot.sort,
     tags: snapshot.tags,
     links: snapshot.links,
@@ -451,25 +466,24 @@ export function upsertManagedEntry(
   actor: Actor,
   deferFavicons = false,
 ): 'created' | 'updated' | 'unchanged' {
-  const db = getDatabase()
-  const source = `ansible:${scope}`
-  const existing = db
-    .select()
-    .from(entries)
-    .where(and(eq(entries.source, source), eq(entries.externalKey, input.externalKey)))
-    .get()
-  if (!existing) {
-    insertManaged(db, scope, input, actor)
-    if (!deferFavicons) queueManagedFavicons(scope, input.externalKey)
-    return 'created'
-  }
-  const before = mustLoad(db, existing.id)
-  if (managedMatches(before, input)) {
-    return 'unchanged'
-  }
-  mergeManaged(db, before, input, actor)
-  if (!deferFavicons) queueManagedFavicons(scope, input.externalKey)
-  return 'updated'
+  const status = transaction((db) => {
+    const source = `ansible:${scope}`
+    const existing = db
+      .select()
+      .from(entries)
+      .where(and(eq(entries.source, source), eq(entries.externalKey, input.externalKey)))
+      .get()
+    if (!existing) {
+      insertManaged(db, scope, input, actor)
+      return 'created' as const
+    }
+    const before = mustLoad(db, existing.id)
+    if (managedMatches(before, input)) return 'unchanged' as const
+    mergeManaged(db, before, input, actor)
+    return 'updated' as const
+  })
+  if (status !== 'unchanged' && !deferFavicons) queueManagedFavicons(scope, input.externalKey)
+  return status
 }
 
 export function deleteManagedEntry(scope: string, externalKey: string, actor: Actor): void {
@@ -550,6 +564,7 @@ function insertManaged(db: Db, scope: string, input: SyncEntry, actor: Actor): v
       description: input.description ?? '',
       host: emptyToNull(input.host),
       iconRef: emptyToNull(input.iconRef),
+      faviconUrl: emptyToNull(input.faviconUrl),
       sort: input.sort ?? 0,
       source: `ansible:${scope}`,
       externalKey: input.externalKey,
@@ -574,6 +589,7 @@ function insertManaged(db: Db, scope: string, input: SyncEntry, actor: Actor): v
     timestamp,
   )
   const created = mustLoad(db, id)
+  serverFaviconRequests(created)
   writeAudit(
     actor,
     'entry.create',
@@ -594,6 +610,8 @@ function mergeManaged(db: Db, current: LoadedEntry, input: SyncEntry, actor: Act
       description: input.description !== undefined ? input.description : current.description,
       host: input.host !== undefined ? emptyToNull(input.host) : current.host,
       iconRef: input.iconRef !== undefined ? emptyToNull(input.iconRef) : current.iconRef,
+      faviconUrl:
+        input.faviconUrl !== undefined ? emptyToNull(input.faviconUrl) : current.faviconUrl,
       sort: input.sort ?? current.sort,
       managedFields: [...next],
       updatedAt: timestamp,
@@ -625,6 +643,7 @@ function mergeManaged(db: Db, current: LoadedEntry, input: SyncEntry, actor: Act
     mergeActions(db, current, input.actions, previous, actor.userId, timestamp)
   }
   const synced = mustLoad(db, current.id)
+  serverFaviconRequests(synced)
   writeAudit(
     actor,
     'entry.sync',
@@ -648,6 +667,9 @@ function changedPaths(current: LoadedEntry, patch: EntryPatch): string[] {
   }
   if (patch.iconRef !== undefined && emptyToNull(patch.iconRef) !== current.iconRef) {
     paths.push('iconRef')
+  }
+  if (patch.faviconUrl !== undefined && emptyToNull(patch.faviconUrl) !== current.faviconUrl) {
+    paths.push('faviconUrl')
   }
   if (patch.sort !== undefined && patch.sort !== current.sort) {
     paths.push('sort')
@@ -1290,7 +1312,7 @@ function iconUrl(
   return null
 }
 
-function primaryOrigin(
+function primaryUrl(
   entry: LoadedEntry,
   fieldMap: Record<string, string>,
   secretFields: ReadonlySet<string>,
@@ -1304,10 +1326,29 @@ function primaryOrigin(
     { host: entry.host, name: entry.name, fields: fieldMap },
     secretFields,
   )
-  return httpOrigin(resolved.url)
+  return httpOrigin(resolved.url) ? resolved.url : null
 }
 
-function serverUrls(entry: LoadedEntry): string[] {
+function entryFaviconKey(entry: LoadedEntry, primary: string | null): string | null {
+  if (!entry.faviconUrl) return primary ? faviconCacheKey(primary) : null
+  try {
+    return faviconCacheKey(resolveFaviconUrl(entry.faviconUrl, primary, entry.host), true)
+  } catch {
+    return null
+  }
+}
+
+function serverFaviconRequests(entry: LoadedEntry): Array<{ url: string; direct: boolean }> {
+  if (!entry.faviconUrl) return serverUrls(entry).map((url) => ({ url, direct: false }))
+  try {
+    const url = resolveFaviconUrl(entry.faviconUrl, serverUrls(entry, true)[0] ?? null, entry.host)
+    return [{ url, direct: true }]
+  } catch (error) {
+    throw badRequest(error instanceof Error ? error.message : 'Invalid favicon URL')
+  }
+}
+
+function serverUrls(entry: LoadedEntry, primaryOnly = false): string[] {
   const fields: Record<string, string> = {}
   for (const field of entry.fields) {
     if (field.type === 'secret' && field.valueSecret) {
@@ -1317,7 +1358,8 @@ function serverUrls(entry: LoadedEntry): string[] {
     }
   }
   const urls: string[] = []
-  for (const link of entry.links) {
+  const primary = entry.links.find((link) => link.isPrimary) ?? entry.links[0]
+  for (const link of primaryOnly ? (primary ? [primary] : []) : entry.links) {
     const resolved = resolveLinkUrl(
       link.urlTemplate,
       { host: entry.host, name: entry.name, fields },
@@ -1366,7 +1408,12 @@ function present(
     description: entry.description,
     host: entry.host,
     iconRef: entry.iconRef,
-    iconUrl: iconUrl(entry.iconRef, primaryOrigin(entry, fieldMap, secretFields), icons),
+    faviconUrl: entry.faviconUrl,
+    iconUrl: iconUrl(
+      entry.iconRef,
+      entryFaviconKey(entry, primaryUrl(entry, fieldMap, secretFields)),
+      icons,
+    ),
     sort: entry.sort,
     source: entry.source,
     scope: scopeName(entry.source),
@@ -1480,6 +1527,7 @@ function hydrate(db: Db, rows: Array<typeof entries.$inferSelect>): LoadedEntry[
     description: row.description,
     host: row.host,
     iconRef: row.iconRef,
+    faviconUrl: row.faviconUrl,
     sort: row.sort,
     source: row.source,
     externalKey: row.externalKey,
@@ -1641,6 +1689,7 @@ function entrySnapshot(entry: LoadedEntry) {
     description: entry.description,
     host: entry.host,
     iconRef: entry.iconRef,
+    faviconUrl: entry.faviconUrl,
     sort: entry.sort,
     tags: entry.tags.map((tag) => formatTag(tag.namespaceName, tag.value)),
     links: entry.links.map(linkToInput),
@@ -1662,6 +1711,9 @@ function managedPaths(input: SyncEntry): string[] {
   }
   if (input.iconRef !== undefined) {
     paths.push('iconRef')
+  }
+  if (input.faviconUrl !== undefined) {
+    paths.push('faviconUrl')
   }
   if (input.sort !== undefined) {
     paths.push('sort')
@@ -1695,6 +1747,9 @@ function managedMatches(current: LoadedEntry, input: SyncEntry): boolean {
     return false
   }
   if (input.iconRef !== undefined && current.iconRef !== emptyToNull(input.iconRef)) {
+    return false
+  }
+  if (input.faviconUrl !== undefined && current.faviconUrl !== emptyToNull(input.faviconUrl)) {
     return false
   }
   if (input.sort !== undefined && current.sort !== input.sort) {
@@ -1992,5 +2047,7 @@ export function queueManagedFavicons(scope: string, externalKey: string): void {
     .from(entries)
     .where(and(eq(entries.source, `ansible:${scope}`), eq(entries.externalKey, externalKey)))
     .get()
-  if (row) for (const url of serverUrls(mustLoad(getDatabase(), row.id))) queueFavicon(url, true)
+  if (row)
+    for (const request of serverFaviconRequests(mustLoad(getDatabase(), row.id)))
+      queueFavicon(request.url, true, request.direct)
 }

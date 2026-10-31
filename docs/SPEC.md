@@ -81,6 +81,7 @@ objects also `created_by`, `updated_by`.
 
 ### 4.1 Entry
 `name` (required), `description`, `host` (hostname or IP, optional), `icon_ref` (see §6),
+`favicon_url` (optional explicit image URL/path, see §6),
 `sort` (manual order), `source` (`null` = created in UI, otherwise `ansible:<scope>`),
 `external_key` (unique per source, required when source is set), `managed_fields`
 (JSON list of attribute paths owned by the automation source, see §9.3).
@@ -159,7 +160,9 @@ term     := ns ":" value                    # namespaced tag, value may end with
 - Example: `type:audio (room:studio1 OR room:studio2) -status:spare lawo`.
 - UI: a query bar that shows parsed terms as chips (tag chips coloured by namespace),
   with autocomplete for namespaces and values and inline syntax errors. Clicking a tag in
-  the sidebar adds it with AND, Alt/Option-click adds it negated, Shift-click adds it with OR.
+  the sidebar toggles it with AND, Alt/Option-click toggles it negated, Shift-click toggles it with OR.
+  Repeating the same selection removes all matching occurrences, including existing duplicates.
+  Changing between positive and negated selection replaces the previous selection.
 - Query and active tab are reflected in the URL so views can be shared.
 - Unit-test the parser and SQL translation thoroughly, including precedence and escaping.
 
@@ -169,6 +172,11 @@ Resolution order for an entry/link icon: manually chosen library icon → upload
 fetched favicon → letter avatar (initials, colour derived from name).
 
 **Favicon fetching (server-side only):**
+
+- Entry expert option `favicon_url` overrides discovery with an HTTP(S) image URL, a
+  path relative to the primary HTTP(S) link, or a URL using `{{host}}`. Empty restores
+  discovery. Reject credentials, other schemes and field/secret placeholders. A chosen
+  library/upload icon still takes priority. Persist it in API/sync, history and backups.
 - Triggered asynchronously when a link is created or its URL changes, plus a manual
   "refetch" button and an optional periodic refresh (default weekly).
 - Discovery: parse HTML `<link rel="icon">`, `shortcut icon`, `apple-touch-icon`, web
@@ -176,7 +184,9 @@ fetched favicon → letter avatar (initials, colour derived from name).
 - **TLS verification is disabled for favicon fetches by default** (devices commonly use
   self-signed certificates); configurable globally.
 - Limits: timeout (5 s default), max size (512 KB), max 3 redirects, only http/https.
-- Cache keyed by origin (scheme+host+port) after template resolution; store bytes in DB
+- Automatic cache keyed by origin (scheme+host+port) after template resolution; explicit
+  image sources keyed by their full resolved URL so overrides on one origin stay independent.
+  Persist the fetch source/mode for periodic refresh. Store bytes in DB
   or `/data/icons`; serve from `/api/icons/...` with long cache headers and an ETag.
 - Record failures with a reason; failed fetches fall back to the letter avatar, never a
   broken image.
@@ -302,6 +312,10 @@ Roles:
   V1 sort order preserved. Variable `v1_import_secret_fields` lists V1 columns to import as
   `secret` fields (V1 users often stored usernames/passwords there). Imported entries get
   scope `v1-import` (configurable).
+  `v1_import_tag_fields` explicitly maps selected `user1..8` columns to tag namespaces
+  (empty namespace creates plain tags). Each non-empty trimmed cell becomes one tag;
+  mapped columns do not become custom fields. Never infer tags from `hideUx`; reject
+  overlap with secret columns. Relative V1 favicon addresses resolve against `v1_url`.
 
 Tests: `ansible-test sanity` and integration tests against the app container in CI.
 
@@ -365,7 +379,8 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
 - **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
   collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only
   for a signed-in user. Facets show a namespace colour and the tag display label. Click
-  adds AND, Shift adds OR, and Alt adds NOT. `state` is a virtual facet and is not stored
+  toggles AND, Shift toggles OR, and Alt toggles NOT. Selected facets remain available
+  at zero matches so they can be removed. `state` is a virtual facet and is not stored
   as a tag. "Clear filters" clears the query bar.
 - **Toolbar:** sticky query bar with `⌘K` and `/`, a segmented control for cards, tiles,
   and list, and a group menu. The command palette is that same search surface.
@@ -403,7 +418,7 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   active view; empty states for no entries, no matches, and no access.
 - **Entry editor** (drawer): name, host, description, tags with autocomplete, link list
   with drag-sort and primary toggle, fields, icon picker (library / upload / fetched /
-  letter, with refetch), checks, actions. Duplicate name/host warning. Managed attributes
+  letter, with refetch), expert favicon URL/path, checks, actions. Duplicate name/host warning. Managed attributes
   shown read-only with explanation.
 - **History:** per entry change history with diffs from the audit log and "restore this
   version" (addresses V1 #12 undo). Anyone can open it from the entry menu. Restore stays
