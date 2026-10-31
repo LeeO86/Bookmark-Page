@@ -1341,14 +1341,24 @@ function entryFaviconKey(entry: LoadedEntry, primary: string | null): string | n
 function serverFaviconRequests(entry: LoadedEntry): Array<{ url: string; direct: boolean }> {
   if (!entry.faviconUrl) return serverUrls(entry).map((url) => ({ url, direct: false }))
   try {
-    const url = resolveFaviconUrl(entry.faviconUrl, serverUrls(entry, true)[0] ?? null, entry.host)
-    return [{ url, direct: true }]
+    const url = resolveFaviconUrl(
+      entry.faviconUrl,
+      serverUrls(entry, 'primary')[0] ?? null,
+      entry.host,
+    )
+    return [
+      { url, direct: true },
+      ...serverUrls(entry, 'secondary').map((url) => ({ url, direct: false })),
+    ]
   } catch (error) {
     throw badRequest(error instanceof Error ? error.message : 'Invalid favicon URL')
   }
 }
 
-function serverUrls(entry: LoadedEntry, primaryOnly = false): string[] {
+function serverUrls(
+  entry: LoadedEntry,
+  selection: 'all' | 'primary' | 'secondary' = 'all',
+): string[] {
   const fields: Record<string, string> = {}
   for (const field of entry.fields) {
     if (field.type === 'secret' && field.valueSecret) {
@@ -1359,7 +1369,11 @@ function serverUrls(entry: LoadedEntry, primaryOnly = false): string[] {
   }
   const urls: string[] = []
   const primary = entry.links.find((link) => link.isPrimary) ?? entry.links[0]
-  for (const link of primaryOnly ? (primary ? [primary] : []) : entry.links) {
+  const selected = entry.links.filter(
+    (link) =>
+      selection === 'all' || (selection === 'primary' ? link === primary : link !== primary),
+  )
+  for (const link of selected) {
     const resolved = resolveLinkUrl(
       link.urlTemplate,
       { host: entry.host, name: entry.name, fields },

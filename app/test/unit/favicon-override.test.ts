@@ -183,6 +183,36 @@ describe('explicit favicon sources', () => {
     expect(requests).toHaveLength(2)
   })
 
+  it('preserves automatic secondary-link icons when the entry overrides its main icon', async () => {
+    await boot()
+    const { origin, requests } = await fixture()
+    vi.stubEnv('BOOKMARK_FAVICON_FETCH', '1')
+    const entry = createEntry(
+      admin,
+      entryWriteSchema.parse({
+        name: 'Multiple links',
+        faviconUrl: '/one.svg',
+        links: [
+          link(origin + '/admin/'),
+          { ...link(origin + '/two.svg'), label: 'Secondary', isPrimary: false },
+        ],
+      }),
+    ).entry
+    await vi.waitFor(() =>
+      expect(
+        getDatabase()
+          .select()
+          .from(faviconCache)
+          .all()
+          .filter((row) => row.status === 'ok'),
+      ).toHaveLength(2),
+    )
+    expect(requests.sort()).toEqual(['/one.svg', '/two.svg'])
+    const saved = getEntry(admin, entry.id)
+    expect(saved.iconUrl).not.toBe(saved.links[1]?.iconUrl)
+    expect(saved.links[1]?.iconUrl).toBeTruthy()
+  })
+
   it('refreshes the stored image path and restores discovery when cleared', async () => {
     await boot()
     const { origin, requests } = await fixture()

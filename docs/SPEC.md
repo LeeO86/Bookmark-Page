@@ -176,7 +176,8 @@ fetched favicon → letter avatar (initials, colour derived from name).
 - Entry expert option `favicon_url` overrides discovery with an HTTP(S) image URL, a
   path relative to the primary HTTP(S) link, or a URL using `{{host}}`. Empty restores
   discovery. Reject credentials, other schemes and field/secret placeholders. A chosen
-  library/upload icon still takes priority. Persist it in API/sync, history and backups.
+  library/upload icon still takes priority. Secondary links keep their own discovery.
+  Persist it in API/sync, history and backups.
 - Triggered asynchronously when a link is created or its URL changes, plus a manual
   "refetch" button and an optional periodic refresh (default weekly).
 - Discovery: parse HTML `<link rel="icon">`, `shortcut icon`, `apple-touch-icon`, web
