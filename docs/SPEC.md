@@ -317,6 +317,9 @@ Roles:
   (empty namespace creates plain tags). Each non-empty trimmed cell becomes one tag;
   mapped columns do not become custom fields. Never infer tags from `hideUx`; reject
   overlap with secret columns. Relative V1 favicon addresses resolve against `v1_url`.
+  `v1_import_site_title` and `v1_import_site_claim` independently opt into copying V1
+  `name` and `claim` (default false); missing keys preserve V2 settings. An explicit empty
+  claim clears it. Other branding and visibility settings remain unchanged.
 
 Tests: `ansible-test sanity` and integration tests against the app container in CI.
 

@@ -10,5 +10,5 @@ ansible-playbook \
   -i "$ROOT/ansible_collections/leeo86/bookmarks/tests/integration/inventory.yml" \
   -e "api_url=${API_URL}" \
   -e "api_token=${API_TOKEN}" \
-  -e "v1_url=${V1_URL}" \
+  -e "v1_fixture_url=${V1_URL}" \
   -e "validate_certs=${VALIDATE_CERTS:-false}"

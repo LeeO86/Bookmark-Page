@@ -15,7 +15,7 @@ curl -s -H "Authorization: Bearer $BOOKMARKS_API_TOKEN" \
   "https://bookmarks.example.com/api/v1/entries?q=type:audio"
 ```
 
-Entry write/patch/sync payloads also accept nullable `faviconUrl`: an HTTP(S) image URL, a path relative to the primary HTTP(S) link, or a template using only `{{host}}`. Set it to `null` or an empty string for automatic discovery. A selected `iconRef` takes priority. Direct image overrides are fetched server-side and cached by resolved URL. Credentials and non-HTTP(S) schemes are rejected. The property is returned with entries and participates in managed field ownership, history and backup/restore. It requires the updated application after `v2.0.0`.
+Entry write/patch/sync payloads also accept nullable `faviconUrl`: an HTTP(S) image URL, a path relative to the primary HTTP(S) link, or a template using only `{{host}}`. Set it to `null` or an empty string for automatic discovery. A selected `iconRef` takes priority. Direct image overrides are fetched server-side and cached by resolved URL. Credentials and non-HTTP(S) schemes are rejected. The property is returned with entries and participates in managed field ownership, history and backup/restore. Available since `v2.1.0`.
 
 Create or update one managed entry:
 

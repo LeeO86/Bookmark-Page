@@ -1,11 +1,11 @@
 # Ansible
 
-The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.0.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
+The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.1.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
 
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.0.0"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.1.0"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
@@ -14,7 +14,7 @@ From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so An
 
 Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and token also come from `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`. The token is redacted in Ansible output. The server does not read those variables.
 
-`entry`, `entries_sync`, and `entry_info` need a token with the `write` scope. Namespace, field, filter, and action-template changes need `admin`. An admin token covers both.
+`entry`, `entries_sync`, and `entry_info` need a token with the `write` scope. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
 
 ## Modules
 
@@ -26,6 +26,7 @@ Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and tok
 | `tag_namespace`    | One tag namespace                                                                                                              |
 | `field_definition` | One custom field                                                                                                               |
 | `filter`           | One global tab                                                                                                                 |
+| `site_branding`    | Selected site title and/or claim; preserves all other settings                                                                 |
 | `action_template`  | One action template                                                                                                            |
 
 All of them support check mode and `--diff`, and a second run with the same arguments reports `changed: false`.
@@ -34,7 +35,7 @@ All of them support check mode and `--diff`, and a second run with the same argu
 
 A bare icon name such as `camera` is stored as `lucide:camera`. A value that already contains a colon is stored unchanged. An empty icon clears the reference.
 
-`favicon_url` sets an explicit HTTP(S) image URL or a path relative to the primary HTTP(S) link, optionally using the entry's `{{host}}`. An empty string restores discovery. A library/upload icon still takes priority. This attribute is owned and compared like `icon`, including check mode. The override and tag-column import options below require application and collection versions newer than `v2.0.0`.
+`favicon_url` sets an explicit HTTP(S) image URL or a path relative to the primary HTTP(S) link, optionally using the entry's `{{host}}`. An empty string restores discovery. A library/upload icon still takes priority. This attribute is owned and compared like `icon`, including check mode. The override, tag-column and branding import options require application and collection version `2.1.0` or newer.
 
 Links need one primary link. When none is marked, the first link becomes primary.
 
@@ -77,6 +78,8 @@ The role reads `<v1_url>/php/getGlobal.php` and `<v1_url>/php/getBookmarks.php`.
 | `v1_purge`                | `true`      | Delete imported entries that are gone from V1                                            |
 | `v1_import_secret_fields` | `[]`        | V1 columns to store as secret fields, such as `user2`                                    |
 | `v1_import_tag_fields`    | `{}`        | Map chosen `user1`–`user8` columns to tag namespaces; empty namespace creates plain tags |
+| `v1_import_site_title`    | `false`     | Copy V1 `name` to the V2 site title                                                      |
+| `v1_import_site_claim`    | `false`     | Copy V1 `claim` to the V2 site claim                                                     |
 | `v1_group_namespace`      | `group`     | Namespace for V1 groups                                                                  |
 | `v1_group_label`          | `Group`     | Sidebar label for that namespace                                                         |
 | `v1_validate_certs`       | `true`      | Verify the V1 TLS certificate                                                            |
@@ -89,7 +92,9 @@ For a hidden column used as tags in V1, set `v1_import_tag_fields: {user3: categ
 
 Legacy `img/icons/<name>.svg` becomes the Lucide icon `<name>`. Other HTTP(S) favicon URLs are preserved in `favicon_url`, with relative paths resolved against `v1_url`. External device icon paths stay URLs. V1 group remarks are not imported. See `docs/migration-v1.md` for editor examples.
 
-`v1_sync` is the `entries_sync` result.
+`v1_import_site_title` and `v1_import_site_claim` opt in independently. Missing V1 keys leave the corresponding V2 value unchanged. An explicitly empty claim clears it; a selected title must be non-empty after trimming (maximum 200 characters), and claims allow up to 500 characters. Invalid selected values fail before entry changes. Logo, colours, themes and visibility settings are preserved. Both options support check mode and repeated imports are unchanged.
+
+`v1_sync` is the `entries_sync` result. `v1_branding` is the separate branding result (`changed: false`/skipped when no branding is selected).
 
 ## Examples
 

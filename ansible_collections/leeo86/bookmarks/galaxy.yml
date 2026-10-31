@@ -1,7 +1,7 @@
 ---
 namespace: leeo86
 name: bookmarks
-version: 2.0.0
+version: 2.1.0
 readme: README.md
 authors:
   - Bookmark-Page

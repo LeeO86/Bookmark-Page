@@ -1,4 +1,5 @@
 {
+  "name": "V1 fixture title",
   "nameU1": "Username",
   "hideU1": "0",
   "nameU2": "Password",
