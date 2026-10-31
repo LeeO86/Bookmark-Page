@@ -51,7 +51,18 @@ onMounted(() => {
     </UDashboardSidebar>
     <UDashboardPanel id="admin-panel">
       <template #header>
-        <UDashboardNavbar title="Admin" />
+        <UDashboardNavbar title="Admin">
+          <template #right>
+            <UButton
+              to="/"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-x"
+              aria-label="Close admin portal"
+              title="Close admin portal"
+            />
+          </template>
+        </UDashboardNavbar>
       </template>
       <template #body>
         <slot />

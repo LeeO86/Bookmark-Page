@@ -254,9 +254,6 @@ const pendingIcon = ref<File | null>(null)
 
 function uploadIconFile(event: Event) {
   pendingIcon.value = (event.target as HTMLInputElement).files?.[0] ?? null
-  if (pendingIcon.value && iconName.value) {
-    void uploadIcon()
-  }
 }
 
 async function searchIconLibrary() {
@@ -286,6 +283,7 @@ async function uploadIcon() {
     })
     iconName.value = ''
     pendingIcon.value = null
+    await searchIconLibrary()
   }, 'Icon uploaded')
 }
 
@@ -341,7 +339,7 @@ function toggleScope(scope: string) {
   <div class="space-y-4 p-4 text-sm">
     <div v-if="portal.actor.value.role !== 'admin'">
       <p>Admin access is required.</p>
-      <NuxtLink to="/" class="text-accent">Back to the portal</NuxtLink>
+      <UButton to="/" color="neutral" variant="outline">Back to the portal</UButton>
     </div>
     <template v-else>
       <main class="min-w-0 flex-1 space-y-4">
@@ -435,36 +433,42 @@ function toggleScope(scope: string) {
             <label class="block"
               >Browser tab icon (PNG or WebP). Leave empty to use the accent glyph.</label
             >
-            <input type="file" accept="image/png,image/webp" @change="uploadTabFavicon" />
+            <AdminFilePicker
+              label="Choose tab icon"
+              accept="image/png,image/webp"
+              @change="uploadTabFavicon"
+            />
             <UButton
               type="button"
               class="mt-2"
               size="sm"
-              color="neutral"
+              color="error"
               variant="outline"
+              icon="i-lucide-rotate-ccw"
               @click="
                 run(async () => {
                   await apiFetch('/api/v1/settings/favicon', { method: 'DELETE', body: {} })
                 }, 'Tab icon removed')
               "
             >
-              Use accent glyph
+              Remove tab icon
             </UButton>
           </div>
           <div>
             <label class="block">Title image (PNG, JPEG, WebP, or SVG, up to 1 MB)</label>
-            <input
-              type="file"
+            <AdminFilePicker
+              label="Choose logo"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              data-testid="logo-file"
+              test-id="logo-file"
               @change="uploadLogo"
             />
             <UButton
               type="button"
               class="mt-2"
               size="sm"
-              color="neutral"
-              variant="outline"
+              color="error"
+              variant="soft"
+              icon="i-lucide-trash-2"
               @click="clearLogo"
               >Remove logo</UButton
             >
@@ -528,6 +532,8 @@ function toggleScope(scope: string) {
               size="xs"
               color="error"
               variant="soft"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete user ${user.username}`"
               @click="
                 run(async () => {
                   await apiFetch(`/api/v1/users/${user.id}`, { method: 'DELETE', body: {} })
@@ -599,6 +605,8 @@ function toggleScope(scope: string) {
               size="xs"
               color="error"
               variant="soft"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete field ${field.label}`"
               @click="
                 run(async () => {
                   await apiFetch(`/api/v1/fields/${field.id}`, { method: 'DELETE', body: {} })
@@ -686,6 +694,8 @@ function toggleScope(scope: string) {
               size="xs"
               color="error"
               variant="soft"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete namespace ${namespace.label}`"
               @click="
                 run(async () => {
                   await apiFetch(`/api/v1/namespaces/${namespace.id}`, {
@@ -744,6 +754,8 @@ function toggleScope(scope: string) {
               size="xs"
               color="error"
               variant="soft"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete token ${token.name}`"
               @click="
                 run(async () => {
                   await apiFetch(`/api/v1/tokens/${token.id}`, { method: 'DELETE', body: {} })
@@ -817,6 +829,8 @@ function toggleScope(scope: string) {
               size="xs"
               color="error"
               variant="soft"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete template ${template.name}`"
               @click="
                 run(async () => {
                   await apiFetch(`/api/v1/action-templates/${template.id}`, {
@@ -842,12 +856,20 @@ function toggleScope(scope: string) {
           </div>
           <form class="flex flex-wrap items-center gap-2" @submit.prevent="uploadIcon">
             <UInput v-model="iconName" placeholder="name" required />
-            <input
-              type="file"
+            <AdminFilePicker
+              label="Choose icon file"
               accept="image/svg+xml,image/png,image/webp"
-              data-testid="icon-file"
+              test-id="icon-file"
               @change="uploadIconFile"
             />
+            <UButton
+              type="submit"
+              size="sm"
+              icon="i-lucide-upload"
+              :disabled="!pendingIcon || !iconName.trim()"
+            >
+              Upload icon
+            </UButton>
           </form>
           <div class="flex flex-wrap gap-2">
             <div
@@ -857,21 +879,26 @@ function toggleScope(scope: string) {
             >
               <img :src="icon.url" alt="" class="size-5" />
               <span>{{ icon.name }}</span>
-              <button
+              <UButton
                 v-if="icon.kind === 'upload'"
                 type="button"
-                class="text-xs text-error"
+                size="xs"
+                color="error"
+                variant="soft"
+                icon="i-lucide-trash-2"
+                :aria-label="`Delete icon ${icon.name}`"
                 @click="
                   run(async () => {
                     await apiFetch(`/api/v1/icons/${icon.ref.slice('upload:'.length)}`, {
                       method: 'DELETE',
                       body: {},
                     })
+                    await searchIconLibrary()
                   }, 'Icon deleted')
                 "
               >
                 Delete
-              </button>
+              </UButton>
             </div>
           </div>
         </section>

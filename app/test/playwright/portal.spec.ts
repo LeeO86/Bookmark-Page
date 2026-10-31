@@ -104,6 +104,194 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'admin', exact: true })).toBeVisible()
 }
 
+test('admin: file actions are buttons, destructive actions are coloured and every section can be closed', async ({
+  page,
+  goto,
+}) => {
+  await goto('/', { waitUntil: 'networkidle' })
+  await signIn(page)
+  const base = new URL(page.url()).origin
+  const api = async (method: string, path: string, data?: unknown) => {
+    const response = await page.request.fetch(base + path, {
+      method,
+      data,
+      headers: { Origin: base },
+    })
+    expect(response.ok()).toBe(true)
+    return response.json()
+  }
+  await api('POST', '/api/v1/users', {
+    username: 'admin-ui-viewer',
+    password: 'viewer-pass-1',
+    role: 'viewer',
+  })
+  await api('POST', '/api/v1/fields', {
+    key: 'admin_ui_note',
+    label: 'Admin UI note',
+    type: 'text',
+    minRoleToView: 'viewer',
+  })
+  await api('POST', '/api/v1/namespaces', { name: 'admin-ui', label: 'Admin UI namespace' })
+  await api('POST', '/api/v1/tokens', { name: 'admin-ui-token', scopes: ['read'] })
+  await api('POST', '/api/v1/action-templates', {
+    name: 'Admin UI action',
+    requestSpec: { method: 'POST', urlTemplate: 'https://device.invalid/' },
+  })
+
+  const open = async (path: string) => {
+    await page.goto(base + path, { waitUntil: 'networkidle' })
+    await expect(page.getByRole('link', { name: 'Close admin portal', exact: true })).toBeVisible()
+  }
+  const expectButton = async (button: import('@playwright/test').Locator) => {
+    await expect(button).toBeVisible()
+    const painted = await button.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        padding: parseFloat(style.paddingInlineStart),
+        radius: parseFloat(style.borderRadius),
+        surface: style.boxShadow !== 'none' || style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      }
+    })
+    expect(painted.padding).toBeGreaterThan(0)
+    expect(painted.radius).toBeGreaterThan(0)
+    expect(painted.surface).toBe(true)
+  }
+  const expectDanger = async (button: import('@playwright/test').Locator) => {
+    await expectButton(button)
+    // Check the rendered colour in both themes, independently of the instance accent.
+    for (const dark of [false, true]) {
+      await page.evaluate((value) => document.documentElement.classList.toggle('dark', value), dark)
+      await expect
+        .poll(() =>
+          button.evaluate((element) => {
+            const canvas = document.createElement('canvas')
+            canvas.width = canvas.height = 1
+            const context = canvas.getContext('2d')
+            if (!context) throw new Error('Missing colour sampling context')
+            context.fillStyle = getComputedStyle(element).color
+            context.fillRect(0, 0, 1, 1)
+            const channels = context.getImageData(0, 0, 1, 1).data
+            return channels[0]! > channels[1]! + 20 && channels[0]! > channels[2]! + 20
+          }),
+        )
+        .toBe(true)
+    }
+  }
+  const choose = async (
+    label: string,
+    file: { name: string; mimeType: string; buffer: Buffer },
+  ) => {
+    const button = page.getByRole('button', { name: label, exact: true })
+    await expectButton(button)
+    const selection = page.waitForEvent('filechooser')
+    await button.click()
+    await (await selection).setFiles(file)
+    await expect(page.getByText(file.name, { exact: true })).toBeVisible()
+  }
+  const svg = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="currentColor"/></svg>',
+  )
+  await open('/admin')
+  await choose('Choose logo', { name: 'admin-ui-logo.svg', mimeType: 'image/svg+xml', buffer: svg })
+  await expect(page.getByText('Logo saved', { exact: true }).first()).toBeVisible()
+  await choose('Choose tab icon', {
+    name: 'admin-ui-tab.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4N8AAAAASUVORK5CYII=',
+      'base64',
+    ),
+  })
+  await expect(page.getByText('Tab icon saved', { exact: true }).first()).toBeVisible()
+  for (const name of ['Remove logo', 'Remove tab icon']) {
+    const button = page.getByRole('button', { name, exact: true })
+    await expectDanger(button)
+    await button.click()
+    await expect(
+      page
+        .getByText(name === 'Remove logo' ? 'Logo removed' : 'Tab icon removed', { exact: true })
+        .first(),
+    ).toBeVisible()
+  }
+
+  await open('/admin/icons')
+  const upload = page.getByRole('button', { name: 'Upload icon', exact: true })
+  await expect(upload).toBeDisabled()
+  await page.getByPlaceholder('name', { exact: true }).fill('admin-ui-icon')
+  await choose('Choose icon file', {
+    name: 'admin-ui-icon.svg',
+    mimeType: 'image/svg+xml',
+    buffer: svg,
+  })
+  expect((await api('GET', '/api/v1/icons?q=admin-ui-icon')).icons).toHaveLength(0)
+  await upload.click()
+  await expect(page.getByText('Icon uploaded', { exact: true }).first()).toBeVisible()
+  const removeIcon = page.getByRole('button', { name: 'Delete icon admin-ui-icon', exact: true })
+  await expectDanger(removeIcon)
+  await removeIcon.click()
+  await expect(removeIcon).toHaveCount(0)
+
+  const sections = [
+    ['/admin/users', 'Users and roles', 'Delete user admin-ui-viewer'],
+    ['/admin/fields', 'Field definitions', 'Delete field Admin UI note'],
+    ['/admin/namespaces', 'Tag namespaces', 'Delete namespace Admin UI namespace'],
+    ['/admin/tokens', 'API tokens', 'Delete token admin-ui-token'],
+    ['/admin/actions', 'Action templates', 'Delete template Admin UI action'],
+    ['/admin/auth', 'Auth status', null],
+    ['/admin/scopes', 'Ansible scopes', null],
+    ['/admin/audit', 'Audit log', null],
+  ] as const
+  for (const [path, heading, action] of sections) {
+    await open(path)
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
+    if (action) await expectDanger(page.getByRole('button', { name: action, exact: true }))
+  }
+
+  await open('/admin/backup')
+  const backup = await api('POST', '/api/v1/backup', { includeSecrets: false })
+  await choose('Choose backup file', {
+    name: 'admin-ui-backup.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(backup.archive, 'base64'),
+  })
+  await expectButton(page.getByRole('button', { name: 'Download backup', exact: true }))
+  await page.getByLabel('Preview only', { exact: true }).uncheck()
+  await expectDanger(page.getByRole('button', { name: 'Restore backup', exact: true }))
+  await page.getByRole('combobox', { name: /^Mode/ }).selectOption('replace')
+  await expectDanger(page.getByRole('button', { name: 'Replace data', exact: true }))
+  await page.getByLabel('Preview only', { exact: true }).check()
+  const previewResponse = page.waitForResponse(
+    (response) =>
+      response.url() === base + '/api/v1/restore' && response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Preview restore', exact: true }).click()
+  const preview = await previewResponse
+  expect(preview.ok()).toBe(true)
+  expect(preview.request().postDataJSON()).toMatchObject({ dryRun: true, mode: 'replace' })
+
+  await open('/admin/csv')
+  await choose('Choose CSV file', {
+    name: 'admin-ui.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('Name,Host\nAdmin UI device,10.0.0.10\n'),
+  })
+  await expectButton(page.getByRole('button', { name: 'Preview import', exact: true }))
+  await expectButton(page.getByRole('button', { name: 'Import', exact: true }))
+
+  const close = page.getByRole('link', { name: 'Close admin portal', exact: true })
+  await close.focus()
+  await close.press('Enter')
+  await expect(page).toHaveURL(base + '/')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open('/admin/fields')
+  const bounds = await close.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThan(300)
+  expect(bounds!.y).toBeLessThan(80)
+  await close.click()
+  await expect(page).toHaveURL(base + '/')
+})
+
 test('uses the bundled banner icon and preserves custom logo precedence', async ({
   page,
   goto,
