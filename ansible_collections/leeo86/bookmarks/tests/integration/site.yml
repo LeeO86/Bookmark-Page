@@ -2,6 +2,8 @@
 - name: Exercise the Bookmark-Page collection
   hosts: localhost
   gather_facts: false
+  vars:
+    v1_url: '{{ v1_fixture_url }}'
   module_defaults:
     leeo86.bookmarks.entry:
       api_url: '{{ api_url }}'
@@ -32,6 +34,14 @@
       api_token: '{{ api_token }}'
       validate_certs: '{{ validate_certs }}'
   tasks:
+    - name: Set independent V2 branding before importing V1
+      leeo86.bookmarks.site_branding:
+        api_url: '{{ api_url }}'
+        api_token: '{{ api_token }}'
+        validate_certs: '{{ validate_certs }}'
+        site_title: V2 title
+        site_claim: V2 claim
+
     - name: Ensure the type namespace
       leeo86.bookmarks.tag_namespace:
         name: type
@@ -399,6 +409,126 @@
         v1_mixer: "{{ v1_mixer_info.entries | selectattr('scope', 'equalto', 'v1-import') | list }}"
         v1_mixer_tags: "{{ v1_mixer[0].tags | map(attribute='label') | list }}"
         v1_camera: "{{ v1_camera_info.entries | selectattr('scope', 'equalto', 'v1-import') | selectattr('externalKey', 'equalto', '8') | list }}"
+
+    - name: Read branding after the default import
+      ansible.builtin.uri: &read_branding
+        url: '{{ api_url }}/api/v1/settings'
+        headers:
+          Authorization: 'Bearer {{ api_token }}'
+        return_content: true
+      register: branding_default
+
+    - name: Preview a branding change without writing
+      leeo86.bookmarks.site_branding:
+        api_url: '{{ api_url }}'
+        api_token: '{{ api_token }}'
+        validate_certs: '{{ validate_certs }}'
+        site_title: Preview only
+        site_claim: Preview only
+      check_mode: true
+      register: branding_preview
+
+    - name: Read branding after the preview
+      ansible.builtin.uri: *read_branding
+      register: branding_after_preview
+
+    - name: Default imports and previews preserve V2 branding
+      ansible.builtin.assert:
+        that:
+          - branding_default.json.siteTitle == 'V2 title'
+          - branding_default.json.siteClaim == 'V2 claim'
+          - branding_preview is changed
+          - branding_after_preview.json == branding_default.json
+
+    - name: Import only the V1 title
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields: [user2]
+        v1_import_site_title: true
+
+    - name: Read branding after importing only the title
+      ansible.builtin.uri: *read_branding
+      register: branding_title
+
+    - name: Only the selected title changes
+      ansible.builtin.assert:
+        that:
+          - v1_branding is changed
+          - v1_sync is not changed
+          - branding_title.json.siteTitle == 'V1 fixture title'
+          - branding_title.json.siteClaim == 'V2 claim'
+          - branding_title.json.accentColour == branding_default.json.accentColour
+          - branding_title.json.hasLogo == branding_default.json.hasLogo
+
+    - name: Import only the V1 claim
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields: [user2]
+        v1_import_site_claim: true
+
+    - name: Read branding after importing only the claim
+      ansible.builtin.uri: *read_branding
+      register: branding_claim
+
+    - name: Only the selected claim changes
+      ansible.builtin.assert:
+        that:
+          - v1_branding is changed
+          - v1_sync is not changed
+          - branding_claim.json.siteTitle == 'V1 fixture title'
+          - branding_claim.json.siteClaim == 'Lab'
+
+    - name: Repeat both branding options
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_import_secret_fields: [user2]
+        v1_import_site_title: true
+        v1_import_site_claim: true
+
+    - name: Repeated branding imports are unchanged
+      ansible.builtin.assert:
+        that:
+          - v1_branding is not changed
+          - v1_sync is not changed
+
+    - name: Clear a claim explicitly
+      leeo86.bookmarks.site_branding:
+        api_url: '{{ api_url }}'
+        api_token: '{{ api_token }}'
+        validate_certs: '{{ validate_certs }}'
+        site_claim: ''
+
+    - name: Read branding after clearing the claim
+      ansible.builtin.uri: *read_branding
+      register: branding_empty
+
+    - name: An explicitly empty claim clears only the claim
+      ansible.builtin.assert:
+        that:
+          - branding_empty.json.siteClaim == ''
+          - branding_empty.json.siteTitle == 'V1 fixture title'
+
+    - name: Import missing V1 branding with both options enabled
+      ansible.builtin.include_role:
+        name: leeo86.bookmarks.v1_import
+      vars:
+        v1_url: '{{ v1_fixture_url }}/missing-branding'
+        v1_import_site_title: true
+        v1_import_site_claim: true
+        v1_scope: missing-branding
+
+    - name: Read branding after importing missing values
+      ansible.builtin.uri: *read_branding
+      register: branding_missing
+
+    - name: Missing V1 values preserve all V2 settings
+      ansible.builtin.assert:
+        that:
+          - v1_branding is skipped
+          - branding_missing.json == branding_empty.json
 
     - name: Reimport a hidden user column as tags
       ansible.builtin.include_role:

@@ -16,6 +16,20 @@
   delegate_to: localhost
   run_once: true
 
+- name: Import the selected V1 site branding
+  leeo86.bookmarks.site_branding:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    site_title: "{{ v1_global.name if v1_import_site_title | bool and 'name' in v1_global else omit }}"
+    site_claim: "{{ v1_global.claim if v1_import_site_claim | bool and 'claim' in v1_global else omit }}"
+  when: >-
+    (v1_import_site_title | bool and 'name' in v1_global) or
+    (v1_import_site_claim | bool and 'claim' in v1_global)
+  delegate_to: localhost
+  run_once: true
+  register: v1_branding_result
+
 - name: Ensure the V1 group namespace
   leeo86.bookmarks.tag_namespace:
     api_url: '{{ api_url }}'
@@ -59,5 +73,6 @@
 - name: Publish the import result
   ansible.builtin.set_fact:
     v1_sync: '{{ v1_sync_result }}'
+    v1_branding: '{{ v1_branding_result }}'
   delegate_to: localhost
   run_once: true
