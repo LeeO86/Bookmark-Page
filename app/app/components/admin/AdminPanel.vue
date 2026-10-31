@@ -240,6 +240,7 @@ async function uploadLogo(event: Event) {
       body: { contentType: file.type, data: btoa(binary) },
     })
     portal.logoVersion.value += 1
+    if (portal.settings.value) portal.settings.value.hasLogo = true
   }, 'Logo saved')
 }
 
@@ -247,6 +248,7 @@ async function clearLogo() {
   await run(async () => {
     await apiFetch('/api/v1/settings/logo', { method: 'DELETE', body: {} })
     portal.logoVersion.value += 1
+    if (portal.settings.value) portal.settings.value.hasLogo = false
   }, 'Logo removed')
 }
 

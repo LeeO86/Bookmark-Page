@@ -226,6 +226,95 @@ describe('HTTP API', async () => {
     })
     expect(await history.text()).not.toContain('p=pin')
   })
+  it('renders branding and permitted entries in the first HTML without leaking between sessions', async () => {
+    const admin = await login('admin', 'admin-pass-1')
+    await jsonRequest(admin.cookie, 'PATCH', '/api/v1/settings', {
+      siteTitle: 'SSR configured title',
+      siteClaim: 'SSR configured claim',
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/settings/logo', {
+      contentType: 'image/svg+xml',
+      data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>').toString(
+        'base64',
+      ),
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/fields', {
+      key: 'ssr_admin',
+      label: 'SSR admin only field',
+      type: 'text',
+      minRoleToView: 'admin',
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/fields', {
+      key: 'ssr_secret',
+      label: 'SSR secret field',
+      type: 'secret',
+      minRoleToView: 'viewer',
+    })
+    const publicView = await jsonRequest<{ id: string }>(admin.cookie, 'POST', '/api/v1/filters', {
+      name: 'SSR public view',
+      query: 'ssr:public',
+      global: true,
+      isPublic: true,
+    })
+    const privateView = await jsonRequest<{ id: string }>(admin.cookie, 'POST', '/api/v1/filters', {
+      name: 'SSR owner-only view',
+      query: 'ssr:private',
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'SSR public device',
+      iconRef: 'lucide:camera',
+      tags: ['ssr:public'],
+      fields: [
+        { key: 'ssr_admin', value: 'SSR restricted plain value' },
+        { key: 'ssr_secret', value: 'SSR encrypted secret value' },
+      ],
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'SSR private device',
+      tags: ['ssr:private'],
+    })
+    await jsonRequest(admin.cookie, 'POST', '/api/v1/users', {
+      username: 'ssr-viewer',
+      password: 'viewer-pass-1',
+      role: 'viewer',
+    })
+    const viewer = await login('ssr-viewer', 'viewer-pass-1')
+    const path = '/?tab=' + publicView.body.id
+    const responses = await Promise.all([
+      fetch(path, { headers: { cookie: admin.cookie } }),
+      fetch(path, { headers: { cookie: viewer.cookie } }),
+      fetch(path),
+      fetch(path, { headers: { 'remote-user': 'admin', 'x-forwarded-for': '10.0.0.8' } }),
+    ])
+    const html = await Promise.all(responses.map((response) => response.text()))
+    for (const [index, body] of html.entries()) {
+      expect(responses[index]!.status).toBe(200)
+      expect(responses[index]!.headers.get('cache-control')).toBe('private, no-store')
+      expect(responses[index]!.headers.get('vary')).toContain('Cookie')
+      expect(body).toContain('<title>SSR configured title</title>')
+      expect(body).toContain('SSR configured claim')
+      expect(body).toContain('src="/api/v1/logo?v=0"')
+      expect(body).not.toContain('/branding/bookmark-page-icon.png')
+      expect(body).toContain('SSR public device')
+      expect(body).toContain('/api/icons/lucide/camera')
+      expect(body).not.toContain('SSR encrypted secret value')
+      expect(body).not.toContain('SSR private device')
+      if (index === 0) expect(body).toContain('SSR restricted plain value')
+      else {
+        expect(body).not.toContain('SSR restricted plain value')
+        expect(body).not.toContain('SSR admin only field')
+        expect(body).not.toContain('SSR owner-only view')
+      }
+    }
+    const guessed = await fetch('/?tab=' + privateView.body.id)
+    expect(await guessed.text()).not.toContain('SSR private device')
+    const crafted = await fetch(path + '&q=' + encodeURIComponent('ssr:public OR ssr:private'))
+    expect(await crafted.text()).not.toContain('SSR private device')
+    const invalid = await fetch(path + '&q=ssr%3A%28')
+    const invalidHtml = await invalid.text()
+    expect(invalidHtml).toContain('src="/api/v1/logo?v=0"')
+    expect(invalidHtml).not.toContain('SSR private device')
+  })
 })
 
 async function login(username: string, password: string) {
@@ -252,14 +341,14 @@ async function send(cookie: string, method: string, path: string, body?: unknown
   return response.status
 }
 
-async function jsonRequest(
+async function jsonRequest<T = { entry: { id: string }; token: string; value: string }>(
   cookie: string,
   method: string,
   path: string,
   body?: unknown,
 ): Promise<{
   status: number
-  body: { entry: { id: string }; token: string; value: string }
+  body: T
 }> {
   const response = await fetch(path, {
     method,
@@ -273,6 +362,6 @@ async function jsonRequest(
   const parsed: unknown = method === 'GET' || response.status < 300 ? await response.json() : {}
   return {
     status: response.status,
-    body: parsed as { entry: { id: string }; token: string; value: string },
+    body: parsed as T,
   }
 }

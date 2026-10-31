@@ -1,4 +1,5 @@
 import { combineQueries, queryChips } from '#shared/query-chips'
+import { initialPortalFilter } from '#shared/portal'
 import { isTileSize, isViewMode, type TileSize, type ViewMode } from '#shared/theme'
 import type {
   AuthOptions,
@@ -44,6 +45,7 @@ export function usePortal() {
   const loginOpen = useState('portal-login', () => false)
   const suggestionsOpen = useState('portal-suggest', () => false)
   const ready = useState('portal-ready', () => false)
+  const initialReady = useState('portal-initial-ready', () => false)
   const loading = useState('portal-loading', () => false)
   const loadError = useState<string | null>('portal-error', () => null)
   const queryError = useState<string | null>('portal-query-error', () => null)
@@ -79,8 +81,8 @@ export function usePortal() {
       .filter((filter) => filter.ownerUserId !== null)
       .sort((left, right) => left.sort - right.sort || left.name.localeCompare(right.name)),
   )
-  const activeFilter = computed(
-    () => filters.value.find((filter) => filter.id === tabParam.value) ?? null,
+  const activeFilter = computed(() =>
+    initialPortalFilter(filters.value, tabParam.value, allVisible.value),
   )
   const activeTab = computed(() => {
     if (activeFilter.value) {
@@ -225,25 +227,9 @@ export function usePortal() {
         if (isTileSize(preferences.tileSize)) {
           tileSize.value = preferences.tileSize
         }
-      } else if (import.meta.client) {
-        sidebarCollapsed.value = document.cookie.includes('bp-sidebar=1')
-        const stored = sessionStorage.getItem('bp-group-modes')
-        if (stored) {
-          try {
-            groupModes.value = JSON.parse(stored) as Record<string, string | null>
-          } catch {
-            groupModes.value = {}
-          }
-        }
       }
-      groupBy.value = groupForTab(tabParam.value || 'all')
-      if (
-        import.meta.client &&
-        sessionStorage.getItem('bp-edit-mode') === '1' &&
-        (sessionBody.actor.role === 'editor' || sessionBody.actor.role === 'admin')
-      ) {
-        editMode.value = true
-      }
+      restoreBrowserState()
+      groupBy.value = groupForTab(activeTab.value)
       await ensureTab()
       await reloadEntries()
       ready.value = true
@@ -254,6 +240,35 @@ export function usePortal() {
     }
   }
 
+  function restoreBrowserState() {
+    if (!import.meta.client) return
+    if (!actor.value.userId) {
+      sidebarCollapsed.value = document.cookie
+        .split(';')
+        .some((cookie) => cookie.trim() === 'bp-sidebar=1')
+      const stored = sessionStorage.getItem('bp-group-modes')
+      if (stored) {
+        try {
+          groupModes.value = JSON.parse(stored) as Record<string, string | null>
+        } catch {
+          groupModes.value = {}
+        }
+      }
+    }
+    editMode.value = sessionStorage.getItem('bp-edit-mode') === '1' && canWrite.value
+  }
+
+  async function initialize() {
+    if (!initialReady.value || !ready.value) {
+      await load()
+      return
+    }
+    initialReady.value = false
+    restoreBrowserState()
+    groupBy.value = groupForTab(activeTab.value)
+    await ensureTab()
+  }
+
   async function reloadEntries() {
     const parsed = queryChips(queryText.value)
     if (parsed.error) {
@@ -261,7 +276,7 @@ export function usePortal() {
       return
     }
     queryError.value = null
-    const filter = filters.value.find((item) => item.id === tabParam.value)
+    const filter = activeFilter.value
     const combined = combineQueries(filter?.query ?? '', queryText.value)
     try {
       const body = await apiFetch<{ entries: PortalEntry[] }>(
@@ -444,6 +459,7 @@ export function usePortal() {
     setGroupsOpen,
     setSidebarCollapsed,
     load,
+    initialize,
     reloadEntries,
     refreshTags,
     setFacetsOpen,

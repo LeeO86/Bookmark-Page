@@ -1,9 +1,36 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PortalEntry, PortalField, PortalLink } from '../../app/types/portal'
-import { primaryLink } from '../../app/utils/links'
+import { primaryLink, statusTooltip } from '../../app/utils/links'
 import { visibleFieldColumns } from '../../app/utils/view'
 
 describe('portal view helpers', () => {
+  it('renders the same check timestamps in server and browser time zones', () => {
+    const checkedAt = '2026-10-31T12:34:56.000Z'
+    const entry = {
+      name: 'Device',
+      status: 'down',
+      checks: [
+        {
+          name: 'Port',
+          state: 'down',
+          checkedAt,
+          reportedBy: 'server',
+          latencyMs: 4,
+          statusMessage: 'Offline',
+        },
+      ],
+    } as PortalEntry
+    try {
+      vi.stubEnv('TZ', 'UTC')
+      const server = statusTooltip(entry)
+      vi.stubEnv('TZ', 'Pacific/Honolulu')
+      expect(statusTooltip(entry)).toBe(server)
+      expect(server).toContain(checkedAt)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('shows secret fields the caller can already see', () => {
     const secret = field('password', 'secret')
     const note = field('note', 'text')

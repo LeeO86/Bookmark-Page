@@ -377,6 +377,14 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
 - **Banner:** a bundled colourful app icon is the default title image; an uploaded logo overrides it and removing the upload restores it. Custom logos accept PNG, JPEG, WebP, or sanitised SVG up to
   1 MB. The banner also shows the site title and the claim. The right side is an initials avatar or Sign in.
   Colour mode, edit mode, Admin, and sign-out live in that menu. The banner scrolls away.
+  Resolve branding, the current actor, visible views/fields/entries and saved preferences
+  on the original server request. Include the correct logo and available entry icon URLs
+  in the first HTML, preload the current banner image, and hydrate the same per-request
+  state without refetching the initial catalogue or showing a default-logo placeholder.
+  Render only data the caller may receive through the API. Personalised HTML uses
+  `Cache-Control: private, no-store`; images retain their own cache policy. Browser-only
+  session preferences apply after hydration. Check tooltip timestamps use their ISO UTC
+  representation so server/client locales do not cause hydration mismatches.
 - **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
   collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only
   for a signed-in user. Facets show a namespace colour and the tag display label. Click

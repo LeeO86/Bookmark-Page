@@ -6,7 +6,7 @@ function statusSummary(entry: PortalEntry): string {
     if (!when) {
       return 'Offline'
     }
-    return `Offline since ${new Date(when).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    return `Offline since ${when}`
   }
   if (entry.status === 'unknown') {
     return 'Status unknown'
@@ -21,7 +21,7 @@ export function statusTooltip(entry: PortalEntry): string {
   const details = entry.checks.map((check) =>
     [
       check.name,
-      check.checkedAt ? new Date(check.checkedAt).toLocaleString() : 'Not checked',
+      check.checkedAt ?? 'Not checked',
       check.reportedBy,
       check.latencyMs === null ? null : `${check.latencyMs} ms`,
       check.statusMessage,
