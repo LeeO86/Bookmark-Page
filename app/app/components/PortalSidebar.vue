@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { appendQueryTerm, queryChips } from '#shared/query-chips'
+import { queryHasTerm, toggleQueryTerm } from '#shared/query-chips'
 import type { PortalFilter } from '../types/portal'
 import { apiFetch } from '../utils/api'
 import { tagCounts } from '../utils/view'
@@ -31,7 +31,7 @@ const stateTags = computed(() => {
     { token: 'state:online', title: 'Online', count: online, mark: 'status-up' },
     { token: 'state:offline', title: 'Offline', count: offline, mark: 'status-down' },
     { token: 'state:unknown', title: 'Unknown', count: unknown, mark: 'status-unknown' },
-  ].filter((tag) => tag.count > 0)
+  ].filter((tag) => tag.count > 0 || selected(tag.token))
 })
 const sections = computed(() => {
   const namespaces = [...portal.namespaces.value]
@@ -49,22 +49,19 @@ const sections = computed(() => {
           title: tag.displayLabel || tag.value,
           count: counts.value.get(tag.label) ?? 0,
         }))
-        .filter((tag) => tag.count > 0)
+        .filter((tag) => tag.count > 0 || selected(tag.token))
         .sort((left, right) => left.title.localeCompare(right.title)),
     }))
     .filter((section) => section.tags.length > 0)
 })
 
 function selected(token: string): boolean {
-  return queryChips(portal.queryText.value).chips.some((chip) => {
-    const term = chip.text.replace(/^(?:NOT\s+|-\s*)/i, '')
-    return term.toLowerCase() === token.toLowerCase()
-  })
+  return queryHasTerm(portal.queryText.value, token)
 }
 
 async function addTag(event: MouseEvent, token: string) {
   const mode = event.altKey ? 'not' : event.shiftKey ? 'or' : 'and'
-  await portal.setQuery(appendQueryTerm(portal.queryText.value, token, mode))
+  await portal.setQuery(toggleQueryTerm(portal.queryText.value, token, mode))
 }
 
 function choose(id: string) {

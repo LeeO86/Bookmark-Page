@@ -253,6 +253,24 @@ test('manages personal views, filters spaced tags and reveals secret links', asy
   await page.getByRole('button', { name: 'Control Room 1', exact: true }).click()
   await expect(page.locator(`[data-entry-id="${created.entry.id}"]`)).toBeVisible()
   await expect(page.getByTestId('query-input')).toHaveValue('group:"Control Room"')
+  const facet = page.getByRole('button', { name: /^Control Room \d+$/ })
+  await facet.click()
+  await expect(page.getByTestId('query-input')).toHaveValue('')
+  await facet.click({ modifiers: ['Shift'] })
+  await expect(page.getByTestId('query-input')).toHaveValue('group:"Control Room"')
+  await facet.click({ modifiers: ['Shift'] })
+  await expect(page.getByTestId('query-input')).toHaveValue('')
+  await facet.click({ modifiers: ['Alt'] })
+  await expect(page.getByTestId('query-input')).toHaveValue('-group:"Control Room"')
+  await expect(page.getByRole('button', { name: 'Control Room 0', exact: true })).toBeVisible()
+  await facet.click({ modifiers: ['Alt'] })
+  await expect(page.getByTestId('query-input')).toHaveValue('')
+  await page
+    .getByTestId('query-input')
+    .fill('group:"Control Room" group:"Control Room" group:"Control Room"')
+  await facet.click()
+  await expect(page.getByTestId('query-input')).toHaveValue('')
+  await facet.click()
   await page.getByRole('button', { name: 'Reveal Secure primary', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Secure primary', exact: true })).toHaveAttribute(
     'href',
@@ -260,6 +278,63 @@ test('manages personal views, filters spaced tags and reveals secret links', asy
   )
   expect((await api('GET', '/api/v1/entries/' + created.entry.id)).links[0].url).toBeNull()
   await api('DELETE', '/api/v1/filters/' + first.id)
+})
+
+test('edits and clears an expert favicon path without changing the primary link', async ({
+  page,
+  goto,
+}) => {
+  await goto('/', { waitUntil: 'networkidle' })
+  await signIn(page)
+  const base = new URL(page.url()).origin
+  const response = await page.request.post(base + '/api/v1/entries', {
+    headers: { Origin: base },
+    data: {
+      name: 'Expert favicon browser',
+      faviconUrl: '/old/icon.svg',
+      links: [
+        {
+          label: 'Open',
+          urlTemplate: 'https://device.invalid/admin/',
+          type: 'web',
+          isPrimary: true,
+        },
+      ],
+    },
+  })
+  expect(response.ok()).toBe(true)
+  const { entry } = await response.json()
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.keyboard.press('Shift+E')
+  const edit = async () => {
+    await page.locator(`[data-entry-id="${entry.id}"]`).getByTestId('edit-entry').click()
+    await expect(page.getByTestId('entry-favicon-url')).toBeVisible()
+  }
+  const save = async () => {
+    const savedResponse = page.waitForResponse(
+      (r) => r.request().method() === 'PATCH' && r.url() === base + '/api/v1/entries/' + entry.id,
+    )
+    await page.getByTestId('save-entry').click()
+    const saved = await savedResponse
+    expect(saved.ok()).toBe(true)
+    return (await saved.json()).entry
+  }
+  await edit()
+  await expect(page.getByTestId('entry-favicon-url')).toHaveValue('/old/icon.svg')
+  await page.getByTestId('entry-favicon-url').fill('/vendor/device-icon.png')
+  const saved = await save()
+  expect(saved.faviconUrl).toBe('/vendor/device-icon.png')
+  expect(saved.links[0].urlTemplate).toBe('https://device.invalid/admin/')
+  await page.reload({ waitUntil: 'networkidle' })
+  await edit()
+  await expect(page.getByTestId('entry-favicon-url')).toHaveValue('/vendor/device-icon.png')
+  await page.getByTestId('entry-favicon-url').fill('')
+  expect((await save()).faviconUrl).toBeNull()
+  const removed = await page.request.delete(base + '/api/v1/entries/' + entry.id, {
+    headers: { Origin: base },
+    data: {},
+  })
+  expect(removed.ok()).toBe(true)
 })
 
 for (const view of ['cards', 'tiles'] as const) {
@@ -312,6 +387,8 @@ for (const view of ['cards', 'tiles'] as const) {
     ) => {
       // Restore real user focus after closing the previous native tab/window.
       await page.bringToFront()
+      // Native background-tab closure can finish before opener focus is restored.
+      await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
       const link = card.getByTestId('entry-link')
       const bounds = await link.boundingBox()
       if (!bounds) throw new Error('Missing launcher anchor')

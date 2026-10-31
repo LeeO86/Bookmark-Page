@@ -5,6 +5,8 @@ import {
   combineQueries,
   queryChips,
   removeQueryChip,
+  queryHasTerm,
+  toggleQueryTerm,
   suggestQuery,
 } from '../../shared/query-chips'
 
@@ -47,6 +49,32 @@ describe('query chips', () => {
     expect(suggestQuery('has:n', [], ['note'])).toEqual(['has:note'])
     expect(applySuggestion('type:au room:1', 'type:audio', 'type:au'.length)).toBe(
       'type:audio room:1',
+    )
+  })
+
+  it('toggles facets and removes every duplicate without disturbing other filters', () => {
+    const token = 'group:Infrastruktur'
+    expect(toggleQueryTerm('', token, 'and')).toBe(token)
+    expect(toggleQueryTerm(token, token, 'and')).toBe('')
+    expect(toggleQueryTerm(`${token} ${token} ${token}`, token, 'and')).toBe('')
+    expect(toggleQueryTerm(`${token} room:studio ${token}`, token, 'and')).toBe('room:studio')
+    expect(toggleQueryTerm('(group:Infrastruktur OR room:a) type:audio', token, 'and')).toBe(
+      'room:a type:audio',
+    )
+  })
+
+  it('compares parsed quoted values and toggles OR and NOT facets', () => {
+    expect(queryHasTerm('group:"Control Room"', 'group:Control Room')).toBe(true)
+    expect(toggleQueryTerm('group:"Control Room"', 'group:Control Room', 'and')).toBe('')
+    expect(toggleQueryTerm('room:a OR room:b', 'room:b', 'or')).toBe('room:a')
+    expect(toggleQueryTerm('NOT room:a -room:a', 'room:a', 'not')).toBe('')
+    expect(toggleQueryTerm('room:a', 'room:a', 'not')).toBe('-room:a')
+    expect(toggleQueryTerm('-room:a', 'room:a', 'and')).toBe('room:a')
+    expect(queryHasTerm('-room:a', 'room:a')).toBe(true)
+    expect(queryHasTerm('room:A', 'room:a')).toBe(false)
+    expect(toggleQueryTerm('(room:a', 'room:b', 'and')).toBe('(room:a')
+    expect(toggleQueryTerm('room:a OR room:b', 'type:audio', 'and')).toBe(
+      '(room:a OR room:b) type:audio',
     )
   })
 })
