@@ -5,6 +5,21 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/fonts', '@nuxt/eslint'],
   fonts: {
     families: [{ name: 'Inter Variable', provider: 'npm', global: true }],
+    npm: { remote: false },
+    providers: {
+      adobe: false,
+      bunny: false,
+      fontshare: false,
+      fontsource: false,
+      google: false,
+      googleicons: false,
+    },
+  },
+  icon: {
+    provider: 'server',
+    serverBundle: { collections: ['lucide'], remote: false },
+    clientBundle: { scan: true },
+    fallbackToApi: false,
   },
   css: ['~/assets/css/main.css'],
   typescript: {

@@ -22,6 +22,41 @@ test.use({
   },
 })
 
+test('renders UI icons and loads fonts without external browser requests', async ({
+  page,
+  goto,
+  context,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error('Missing local test server URL')
+  const origin = new URL(baseURL).origin
+  const external: string[] = []
+  await context.route('**/*', async (route) => {
+    if (new URL(route.request().url()).origin === origin) await route.continue()
+    else {
+      external.push(route.request().url())
+      await route.abort()
+    }
+  })
+  await goto('/', { waitUntil: 'networkidle' })
+  for (const view of ['cards', 'tiles', 'list']) {
+    const icon = page.getByTestId('view-' + view).locator('.iconify')
+    await expect(icon).toBeVisible()
+    await expect
+      .poll(() => icon.evaluate((element) => getComputedStyle(element).maskImage))
+      .not.toBe('none')
+  }
+  const fonts = await page.evaluate(async () => {
+    const faces = [...document.fonts].filter(
+      (font) => font.family.replace(/^['"]|['"]$/g, '') === 'Inter Variable',
+    )
+    await Promise.all(faces.map((font) => font.load()))
+    return faces.length
+  })
+  expect(fonts).toBeGreaterThan(0)
+  expect(external).toEqual([])
+})
+
 test('signs in from the portal', async ({ page, goto }) => {
   await goto('/', { waitUntil: 'networkidle' })
   await expect(page.getByRole('heading', { name: 'Bookmark-Page' })).toBeVisible()
@@ -238,6 +273,15 @@ for (const view of ['cards', 'tiles'] as const) {
     const base = new URL(page.url()).origin
     const primary = base + '/api/health?launcher=' + view
     const secondary = base + '/api/health?secondary=' + view
+    // A plain HTML target avoids Chromium's background JSON-viewer load lifecycle.
+    for (const url of [primary, secondary]) {
+      await context.route(url, (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: '<!doctype html><title>Launcher target</title>',
+        }),
+      )
+    }
     const response = await page.request.post(base + '/api/v1/entries', {
       headers: { Origin: base },
       data: {
@@ -268,16 +312,19 @@ for (const view of ['cards', 'tiles'] as const) {
     ) => {
       // Restore real user focus after closing the previous native tab/window.
       await page.bringToFront()
-      const popupPromise = context.waitForEvent('page', { timeout: 15_000 })
-      if (options.modifier) await page.keyboard.down(options.modifier)
-      try {
-        await page.mouse.click(position.x, position.y, { button: options.button ?? 'left' })
-      } finally {
-        if (options.modifier) await page.keyboard.up(options.modifier)
-      }
-      const popup = await popupPromise
+      const link = card.getByTestId('entry-link')
+      const bounds = await link.boundingBox()
+      if (!bounds) throw new Error('Missing launcher anchor')
+      const [popup] = await Promise.all([
+        context.waitForEvent('page', { timeout: 15_000 }),
+        link.click({
+          position: { x: position.x - bounds.x, y: position.y - bounds.y },
+          button: options.button ?? 'left',
+          modifiers: options.modifier ? [options.modifier] : [],
+        }),
+      ])
       await expect(popup).toHaveURL(primary)
-      await popup.waitForLoadState()
+      await expect(popup).toHaveTitle('Launcher target')
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
       await popup.close()
     }

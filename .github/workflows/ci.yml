@@ -39,7 +39,10 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: false
+          load: true
           tags: bookmark-page:ci
+      - name: Verify icons and fonts without networking
+        run: bash docker/test-offline.sh bookmark-page:ci
 
   ansible:
     name: Ansible sanity and integration

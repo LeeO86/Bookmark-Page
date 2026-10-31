@@ -7,6 +7,8 @@ V2 of Bookmark-Page, a device portal for broadcast engineering labs, maintained 
 - V1 (legacy) is on branch `v1`. The legacy image is `adihilber/bookmark-page`.
 - V2 images are published to `ghcr.io/leeo86/bookmark-page`. A git tag `v2.x.y` publishes `2.x.y`, `2.x`, `2`, and `latest`.
 
+UI icons and Inter fonts are bundled in the image and served from the application itself. After dependencies are installed, production compilation also works without internet access. See the offline verification commands in `docs/installation.md`.
+
 ## Requirements
 
 - Node.js 24.15 or newer (`.nvmrc` pins 24.21.0)
