@@ -194,6 +194,17 @@ test('admin: file actions are buttons, destructive actions are coloured and ever
   await open('/admin')
   await choose('Choose logo', { name: 'admin-ui-logo.svg', mimeType: 'image/svg+xml', buffer: svg })
   await expect(page.getByText('Logo saved', { exact: true }).first()).toBeVisible()
+  const fallbackRequests: string[] = []
+  const observeLogo = (request: import('@playwright/test').Request) => {
+    if (new URL(request.url()).pathname === '/branding/bookmark-page-icon.png')
+      fallbackRequests.push(request.url())
+  }
+  page.on('request', observeLogo)
+  await page.getByRole('link', { name: 'Close admin portal', exact: true }).click()
+  await expect(page.getByTestId('site-logo')).toHaveAttribute('src', /\/api\/v1\/logo\?v=/)
+  expect(fallbackRequests).toEqual([])
+  page.off('request', observeLogo)
+  await open('/admin')
   await choose('Choose tab icon', {
     name: 'admin-ui-tab.png',
     mimeType: 'image/png',
@@ -333,6 +344,125 @@ test('uses the bundled banner icon and preserves custom logo precedence', async 
       ),
     )
     .toBe(true)
+})
+
+test('renders configured media without JavaScript and hydrates without fallback images or bootstrap requests', async ({
+  page,
+  goto,
+  browser,
+  context,
+}) => {
+  await goto('/', { waitUntil: 'networkidle' })
+  await signIn(page)
+  const base = new URL(page.url()).origin
+  const api = async (method: string, path: string, data?: unknown) => {
+    const response = await page.request.fetch(base + path, {
+      method,
+      data,
+      headers: { Origin: base },
+    })
+    expect(response.ok()).toBe(true)
+    return response.json()
+  }
+  const svg = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#ec4899"/></svg>',
+  ).toString('base64')
+  await api('POST', '/api/v1/settings/logo', { contentType: 'image/svg+xml', data: svg })
+  const icon = await api('POST', '/api/v1/icons', {
+    name: 'ssr-media-icon',
+    contentType: 'image/svg+xml',
+    data: svg,
+  })
+  const view = await api('POST', '/api/v1/filters', {
+    name: 'SSR media view',
+    query: 'ssr:media',
+    global: true,
+    isPublic: true,
+  })
+  const first = await api('POST', '/api/v1/entries', {
+    name: 'SSR uploaded icon',
+    iconRef: `upload:${icon.id}`,
+    tags: ['ssr:media'],
+    links: [
+      { label: 'Open', type: 'web', isPrimary: true, urlTemplate: 'https://ssr-device.invalid/' },
+    ],
+  })
+  const second = await api('POST', '/api/v1/entries', {
+    name: 'SSR Lucide icon',
+    iconRef: 'lucide:camera',
+    tags: ['ssr:media'],
+  })
+  const noScript = await browser.newContext({ javaScriptEnabled: false })
+  const hydrated = await browser.newContext({
+    storageState: await context.storageState(),
+    timezoneId: 'Pacific/Honolulu',
+  })
+  try {
+    const staticPage = await noScript.newPage()
+    for (const mode of ['cards', 'tiles', 'list']) {
+      await staticPage.goto(`${base}/?tab=${view.id}&view=${mode}`, { waitUntil: 'networkidle' })
+      const logo = staticPage.getByTestId('site-logo')
+      await expect(logo).toHaveAttribute('src', '/api/v1/logo?v=0')
+      await expect(logo).toHaveJSProperty('naturalWidth', 16)
+      const entry = staticPage.locator(`[data-entry-id="${first.entry.id}"]`)
+      await expect(entry).toBeVisible()
+      const image = entry.locator('img')
+      await expect(image).toHaveAttribute('src', '/api/icons/upload/' + icon.id)
+      await expect(image).toHaveJSProperty('naturalWidth', 16)
+      const lucide = staticPage
+        .locator(`[data-entry-id="${second.entry.id}"]`)
+        .locator('[style*="/api/icons/lucide/camera"]')
+        .first()
+      await expect(lucide).toBeVisible()
+      expect(await lucide.evaluate((element) => getComputedStyle(element).maskImage)).toContain(
+        '/api/icons/lucide/camera',
+      )
+      const controlIcon = staticPage.getByTestId('view-cards').locator('.iconify')
+      expect(await controlIcon.evaluate((element) => getComputedStyle(element).maskImage)).not.toBe(
+        'none',
+      )
+    }
+    const early = await hydrated.newPage()
+    const unwanted: string[] = []
+    const hydrationErrors: string[] = []
+    early.on('console', (message) => {
+      if (/hydration/i.test(message.text())) hydrationErrors.push(message.text())
+    })
+    early.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/branding/bookmark-page-icon.png')
+        unwanted.push(request.url())
+    })
+    await hydrated.route('**/api/v1/**', async (route) => {
+      const path = new URL(route.request().url()).pathname
+      if (
+        route.request().method() === 'GET' &&
+        /^\/api\/v1\/(?:settings|auth\/session|auth\/options|filters|tags|namespaces|fields|preferences|entries)$/.test(
+          path,
+        )
+      ) {
+        unwanted.push(path)
+        await route.abort()
+      } else await route.continue()
+    })
+    const response = await early.goto(`${base}/?tab=${view.id}&view=cards`, {
+      waitUntil: 'networkidle',
+    })
+    expect(await response!.text()).toContain('src="/api/v1/logo?v=0"')
+    await expect(early.getByTestId('site-logo')).toHaveJSProperty('naturalWidth', 16)
+    await expect(early.locator(`[data-entry-id="${first.entry.id}"]`)).toBeVisible()
+    await early.getByTestId('view-list').click()
+    await expect(early).toHaveURL(/view=list/)
+    expect(unwanted).toEqual([])
+    expect(hydrationErrors).toEqual([])
+  } finally {
+    await noScript.close()
+    await hydrated.close()
+    for (const id of [first.entry.id, second.entry.id])
+      await api('DELETE', '/api/v1/entries/' + id, {})
+    await api('DELETE', '/api/v1/filters/' + view.id, {})
+    await api('DELETE', '/api/v1/icons/' + icon.id, {})
+    await api('DELETE', '/api/v1/settings/logo', {})
+  }
 })
 
 test('preserves advanced requests through an unchanged editor save', async ({ page, goto }) => {

@@ -19,11 +19,20 @@ const narrow = ref(false)
 const navDrawer = ref(false)
 let ignoreColour = true
 
+const logoSrc = computed(() =>
+  portal.settings.value?.hasLogo
+    ? `/api/v1/logo?v=${portal.logoVersion.value}`
+    : '/branding/bookmark-page-icon.png',
+)
+useHead(() => ({
+  link: [{ rel: 'preload', as: 'image', href: logoSrc.value, fetchpriority: 'high' }],
+}))
+
 function initials(label: string): string {
   return (label.trim().charAt(0) || '?').toUpperCase()
 }
 
-watch([portal.queryText, portal.tabParam], () => {
+watch([portal.queryText, portal.activeTab], () => {
   if (!portal.ready.value) {
     return
   }
@@ -50,7 +59,7 @@ onMounted(() => {
   }
   updateNarrow()
   media.addEventListener('change', updateNarrow)
-  void portal.load()
+  void portal.initialize()
   portal.listen()
   clientChecks.start()
   window.addEventListener('keydown', onKeydown)
@@ -261,11 +270,8 @@ function onKeydown(event: KeyboardEvent) {
     <header class="portal-banner flex items-center justify-between gap-4 px-4 py-4 md:px-6">
       <div class="flex min-w-0 items-center gap-4">
         <img
-          :src="
-            portal.settings.value?.hasLogo
-              ? `/api/v1/logo?v=${portal.logoVersion.value}`
-              : '/branding/bookmark-page-icon.png'
-          "
+          :src="logoSrc"
+          fetchpriority="high"
           alt=""
           data-testid="site-logo"
           class="size-12 shrink-0 rounded-xl object-contain md:size-[4.5rem]"

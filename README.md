@@ -42,6 +42,8 @@ The portal is a start page with a banner, a side nav of views and filters, and c
 
 Every admin section has a top-right X to return to the portal. File pickers are labelled buttons with a selected filename; library icons are uploaded with **Upload icon**. Deletion, branding removal and applying a restore use red buttons in both themes. Restore previews stay primary and do not write data. These refinements are not part of the existing `v2.0.0` release.
 
+The initial portal HTML includes the configured title/logo and the permitted entries with their available image/icon URLs. The current banner image is preloaded; hydration reuses the server state instead of briefly showing the default logo or refetching the initial catalogue. Visibility and field redaction apply before rendering, and personalised HTML is private/no-store. These SSR refinements are not included in `v2.0.0`.
+
 ## Ansible
 
 For device icons at a special path, edit an entry's **Expert options → Favicon URL or path**. Use `/vendor/icon.png`, a full HTTP(S) image URL, or `{{host}}`; clear it for automatic discovery. A chosen library/upload icon takes priority. The V1 importer preserves favicon URLs and can map selected user columns to tags through `v1_import_tag_fields`. See `docs/migration-v1.md`. These options are not part of the existing `v2.0.0` release.

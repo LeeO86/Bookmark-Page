@@ -31,6 +31,27 @@ export interface AuthOptions {
   oidcEnabled: boolean
 }
 
+export interface InitialPortal {
+  settings: PortalSettings
+  actor: PortalActor
+  authOptions: AuthOptions
+  filters: PortalFilter[]
+  allCount: number
+  tags: PortalTag[]
+  namespaces: PortalNamespace[]
+  fields: PortalField[]
+  entries: PortalEntry[]
+  queryError: string | null
+  groupBy: string | null
+  preferences: {
+    viewModes: Record<string, 'cards' | 'tiles' | 'list'>
+    facetsOpen: boolean
+    tileSize: 'regular' | 'large'
+    sidebarCollapsed: boolean
+    groupModes: Record<string, string | null>
+  }
+}
+
 export interface PortalTag {
   id: string
   namespace: string | null
