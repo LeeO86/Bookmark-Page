@@ -1,6 +1,7 @@
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import type { IncomingHttpHeaders } from 'node:http'
+import { HtmlHeadScanner } from './html-head'
 
 export interface LimitedResponse {
   status: number
@@ -17,6 +18,7 @@ export async function limitedRequest(
     body?: string | null
     timeoutMs: number
     maxBytes: number
+    htmlHeadMaxBytes?: number
     maxRedirects: number
     tlsVerify: boolean
   },
@@ -67,11 +69,18 @@ function rawRequest(
     body?: string | null
     timeoutMs: number
     maxBytes: number
+    htmlHeadMaxBytes?: number
     tlsVerify: boolean
   },
   method: string,
 ): Promise<Omit<LimitedResponse, 'finalUrl'>> {
   return new Promise((resolve, reject) => {
+    let settled = false
+    const fail = (error: Error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    }
     const transport = url.protocol === 'https:' ? httpsRequest : httpRequest
     const req = transport(
       url,
@@ -88,29 +97,54 @@ function rawRequest(
       (res) => {
         const chunks: Buffer[] = []
         let size = 0
+        // Discovery pages may return images; those must still obey the full-image limit.
+        const headLimit = /^image\//i.test(res.headers['content-type'] ?? '')
+          ? undefined
+          : options.htmlHeadMaxBytes
+        const head = headLimit === undefined ? null : new HtmlHeadScanner()
+        const finish = () => {
+          if (settled) return
+          settled = true
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            body: Buffer.concat(chunks, size),
+          })
+        }
         res.on('data', (chunk: Buffer) => {
+          if (settled) return
+          if (head && headLimit !== undefined) {
+            const prefix = chunk.subarray(0, headLimit - size)
+            const end = head.push(prefix)
+            const accepted = end === null ? prefix : prefix.subarray(0, end)
+            chunks.push(accepted)
+            size += accepted.length
+            if (end !== null || size >= headLimit) {
+              finish()
+              res.destroy()
+            }
+            return
+          }
           size += chunk.length
           if (size > options.maxBytes) {
+            fail(new Error('Response is too large'))
             req.destroy()
-            reject(new Error('Response is too large'))
             return
           }
           chunks.push(chunk)
         })
-        res.on('end', () => {
-          resolve({
-            status: res.statusCode ?? 0,
-            headers: res.headers,
-            body: Buffer.concat(chunks),
-          })
+        res.on('end', finish)
+        res.on('error', fail)
+        res.on('close', () => {
+          if (!res.complete) fail(new Error('Response was aborted'))
         })
       },
     )
     req.on('timeout', () => {
+      fail(new Error('Timed out'))
       req.destroy()
-      reject(new Error('Timed out'))
     })
-    req.on('error', reject)
+    req.on('error', fail)
     if (options.body) {
       req.write(options.body)
     }

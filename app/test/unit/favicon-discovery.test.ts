@@ -129,6 +129,42 @@ it('stores and serves a sanitised icon when the only page icon is inline', async
   expect(entryWriteSchema.safeParse({ name: 'Override', faviconUrl: uri }).success).toBe(true)
   expect((await fetchFaviconBytes(uri, false, true)).bytes.toString()).not.toMatch(/onload|script/)
 })
+it.each(['head', 'body'])(
+  'finds the early inline icon on a 700 KiB page with the bundle in its %s',
+  async (location) => {
+    const link = `<link rel="icon" href="${uri}">`
+    const bundle = '<script>' + 'x'.repeat(700 * 1024) + '</script>'
+    const html = `<html><head>${link}${location === 'head' ? bundle : ''}</head><body>${location === 'body' ? bundle : ''}</body></html>`
+    const { origin, requests } = await fixture((path) =>
+      path === '/'
+        ? { type: 'text/html', body: html }
+        : { type: 'text/plain', body: 'missing', status: 404 },
+    )
+    const image = await fetchFaviconBytes(origin, false)
+    expect(image.mediaType).toBe('image/svg+xml')
+    expect(image.bytes.toString()).toContain('#2563eb')
+    expect(image.bytes.toString()).not.toMatch(/onload|script/)
+    expect(requests).toEqual(['/'])
+  },
+)
+it('does not discover an icon beyond the first 256 KiB of an unclosed head', async () => {
+  const { origin, requests } = await fixture((path) =>
+    path === '/'
+      ? {
+          type: 'text/html',
+          body: '<html><head>' + ' '.repeat(256 * 1024) + `<link rel="icon" href="${uri}">`,
+        }
+      : { type: 'text/plain', body: 'missing', status: 404 },
+  )
+  await expect(fetchFaviconBytes(origin, false)).rejects.toThrow('404')
+  expect(requests).toEqual(['/', '/favicon.ico'])
+})
+it('keeps the full-image size limit when the page URL returns an image', async () => {
+  vi.stubEnv('FAVICON_MAX_BYTES', '32')
+  const { origin } = await fixture(() => ({ type: 'image/png', body: png }))
+  await expect(fetchFaviconBytes(origin, false, true)).rejects.toThrow('Response is too large')
+  await expect(fetchFaviconBytes(origin, false)).rejects.toThrow('Response is too large')
+})
 it('tries linked candidates, then manifest images, then favicon.ico, rejecting HTML disguised as an image', async () => {
   const { origin, requests } = await fixture((path) => {
     if (path === '/')

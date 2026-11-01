@@ -258,3 +258,19 @@ exact source commit. Keep the v2.2.1 source tag unchanged.
 while the AMD64 build and all verification jobs completed. Native builders avoid
 that observed failure and also verify ARM64 runtime behaviour before publication.
 This workflow-only repair does not change the released application or collection.
+
+## 2026-11-01 — Bounded streaming favicon page discovery
+
+**Decision:** Read non-image discovery pages incrementally through the closing
+head tag or 256 KiB, close the response and parse complete links from that prefix.
+Track comments, quoted attributes and raw-text tags across chunks so embedded
+closing-head text cannot terminate the scan. Keep full-image and manifest size
+limits, redirects, timeouts, TLS behaviour and sanitising unchanged. Ship the app
+and collection together as 2.2.2 and verify the published image before the
+authorised home-lab replacement.
+
+**Reason:** MXL reported self-contained mixer/monitor HTML pages around 700 KiB
+with inline icons near byte 300. The previous full-response read applied the
+512 KiB image cap before parsing, discarded the early link and fell through to
+a missing ICO. Bounded prefix discovery fixes this without increasing the
+image-size limit or downloading the whole JavaScript bundle.

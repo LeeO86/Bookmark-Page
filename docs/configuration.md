@@ -71,6 +71,16 @@ remains independent; enabling All does not automatically change this default.
 
 ## Favicon discovery and retries
 
+For discovery pages, the response is read incrementally until the closing
+`</head>` tag or **256 KiB (262144 bytes)**, whichever comes first. The connection
+is then closed and complete icon links in that prefix are used, even when the
+full page is much larger. Closing-head text inside comments, quoted attributes,
+scripts, styles and titles does not end the scan. This fixed HTML scan limit is
+independent of `FAVICON_MAX_BYTES`: fetched images, explicit image overrides and
+manifests retain their existing full-response size checks. Image responses from
+the page URL also retain the image limit. Timeout, redirect and TLS checks still
+apply.
+
 Inline `data:image/...` favicons support SVG, PNG, WebP and ICO
 (`image/x-icon`/`image/vnd.microsoft.icon`), percent encoding and standard Base64.
 The URI's media type determines how it is handled, regardless of HTML `type` or

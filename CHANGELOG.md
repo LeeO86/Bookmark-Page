@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.2 — 2026-11-01
+
+- Stream favicon discovery pages through `</head>` or the first 256 KiB and use
+  complete icon links in the prefix. Large inline JavaScript bundles no longer
+  discard early favicon links. Ignore closing-head text in comments, attributes
+  and raw-text elements, including tags split across response chunks.
+- Keep image/manifest limits and timeout/redirect/TLS checks; close responses
+  after the prefix and report prematurely aborted responses promptly.
+- Add large-page, streaming-boundary and strict-limit regressions, and exercise
+  a 700 KiB inline-only page in the offline container smoke check.
+- App and collection versions remain aligned at 2.2.2; module arguments and
+  database schema are unchanged.
+
 ## 2.2.1 — 2026-11-01
 
 First public release of the combined automation and favicon improvements. The
