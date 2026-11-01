@@ -56,6 +56,12 @@ options:
     description:
       - Icon reference. A bare name selects a Lucide icon.
     type: str
+  view_mode:
+    description:
+      - Default layout. Omit to preserve the layout of an existing tab.
+    type: str
+    choices: [cards, tiles, list]
+    version_added: "2.2.0"
   is_public:
     description:
       - Allow anonymous visitors to use this tab.
@@ -124,12 +130,13 @@ def main():
         sort=dict(type='int', default=0),
         icon=dict(type='str'),
         is_public=dict(type='bool', default=False),
+        view_mode=dict(type='str', choices=['cards', 'tiles', 'list']),
     )
     module = AnsibleModule(argument_spec=spec, supports_check_mode=True)
     name = module.params['name']
     filters = api(module, 'GET', '/api/v1/filters').get('filters') or []
     matches = [
-        item for item in filters if item.get('name') == name and item.get('ownerUserId') is None
+        item for item in filters if item.get('name') == name and item.get('ownerUserId') is None and not item.get('scope')
     ]
     if len(matches) > 1:
         module.fail_json(msg='More than one global filter is named %s' % name)
@@ -144,6 +151,10 @@ def main():
         module.exit_json(changed=True, diff=diff)
     desired = desired_filter(module.params)
     before = current_view(current) if current is not None else {}
+    if module.params['view_mode'] is not None:
+        desired['viewMode'] = module.params['view_mode']
+        if current is not None:
+            before['viewMode'] = current.get('viewMode')
     diff = {'before': before, 'after': desired}
     if before == desired:
         module.exit_json(changed=False, diff=diff, filter=current)

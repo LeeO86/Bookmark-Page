@@ -1,2 +1,14 @@
----
 requires_ansible: '>=2.16.0'
+action_groups:
+  bookmarks:
+    - action_template
+    - entries_sync
+    - entry
+    - entry_info
+    - field_definition
+    - filter
+    - filters_sync
+    - icon
+    - settings
+    - site_branding
+    - tag_namespace

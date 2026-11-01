@@ -221,6 +221,7 @@ from ansible_collections.leeo86.bookmarks.plugins.module_utils.bookmarks import 
     build_entry,
     check_spec,
     common_argument_spec,
+    resolve_entry_icon_names,
     entry_matches,
     field_value_spec,
     find_managed,
@@ -267,7 +268,7 @@ def main():
         module.exit_json(changed=True, diff={'before': {'name': current.get('name')}, 'after': {}})
 
     try:
-        desired = build_entry(module.params)
+        desired = resolve_entry_icon_names(module, build_entry(module.params))
     except BookmarkBuildError as error:
         module.fail_json(msg=str(error))
     changed = current is None or not entry_matches(current, desired)

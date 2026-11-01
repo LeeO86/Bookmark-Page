@@ -567,3 +567,348 @@
           - v1_tag_info.entries | length == 1
           - (v1_tag_info.entries[0].fields | selectattr('key', 'equalto', 'user3') | list | length) == 0
           - (v1_tag_info.entries[0].fields | selectattr('key', 'equalto', 'user2') | map(attribute='masked') | first) | bool
+
+- name: Exercise v2.2 automation features
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/leeo86.bookmarks.bookmarks:
+      api_url: '{{ api_url }}'
+      api_token: '{{ api_token }}'
+      validate_certs: '{{ validate_certs }}'
+  tasks:
+    - name: Configure every setting and both branding files
+      leeo86.bookmarks.settings: &id001
+        site_title: Automation integration
+        site_claim: Configured by Ansible
+        accent_preset: custom
+        accent_colour: '#AbCdEf'
+        favicon_colour: '#AbCdEf'
+        neutral_palette: stone
+        default_colour_mode: dark
+        background: tint
+        all_tab_public: true
+        shared_tabs_public_by_default: true
+        client_checks_anonymous: true
+        favicon_tls_verify: true
+        favicon_refresh_days: 2
+        audit_retention_days: 0
+        default_scope_edit_mode: free
+        logo_src: '{{ playbook_dir }}/images/mixer.svg'
+        tab_icon_src: '{{ playbook_dir }}/images/tab.png'
+      register: settings_first
+    - name: Repeat every setting and image without changes
+      leeo86.bookmarks.settings: *id001
+      register: settings_second
+    - name: Settings are idempotent and expose a diff
+      ansible.builtin.assert:
+        that:
+          - settings_first.changed
+          - not settings_second.changed
+          - settings_first.diff.before != settings_first.diff.after
+    - name: Read settings before_check
+      ansible.builtin.uri:
+        url: '{{ api_url }}/api/v1/settings'
+        headers:
+          Authorization: Bearer {{ api_token }}
+        validate_certs: '{{ validate_certs }}'
+        return_content: true
+      register: before_check
+      no_log: true
+    - name: Preview changed settings and removal of custom images
+      leeo86.bookmarks.settings:
+        site_title: Check mode title
+        all_tab_public: false
+        logo_src: ''
+        tab_icon_src: ''
+      check_mode: true
+      register: settings_check
+    - name: Read settings after_check
+      ansible.builtin.uri:
+        url: '{{ api_url }}/api/v1/settings'
+        headers:
+          Authorization: Bearer {{ api_token }}
+        validate_certs: '{{ validate_certs }}'
+        return_content: true
+      register: after_check
+      no_log: true
+    - name: Check mode changes no settings or images
+      ansible.builtin.assert:
+        that:
+          - settings_check.changed
+          - before_check.json == after_check.json
+          - settings_check.diff.before != settings_check.diff.after
+    - name: Compare colours case-insensitively
+      leeo86.bookmarks.settings:
+        accent_colour: '#abcdef'
+        favicon_colour: '#abcdef'
+      register: colours
+    - name: Colour case produces no change
+      ansible.builtin.assert:
+        that:
+          - not colours.changed
+    - name: Install icon from a file
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        src: '{{ playbook_dir }}/images/mixer.svg'
+      register: icon_first
+    - name: Repeat sanitised SVG from a file
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        src: '{{ playbook_dir }}/images/mixer.svg'
+      register: icon_second
+    - name: Icon file is idempotent
+      ansible.builtin.assert:
+        that:
+          - icon_first.changed
+          - not icon_second.changed
+          - icon_first.id == icon_second.id
+          - icon_first.ref == icon_second.ref
+          - icon_first.diff.before != icon_first.diff.after
+    - name: Reference icon names from entry and link
+      leeo86.bookmarks.entry: &id002
+        scope: automation-integration
+        external_key: mixer
+        name: Automation mixer
+        icon: upload-name:integration-mixer
+        tags:
+          - tag: production:integration
+            label: Integration production
+        links: &id003
+          - label: UI
+            url_template: https://mixer.invalid
+            primary: true
+            icon: upload-name:integration-mixer
+      register: entry_first
+    - name: Repeat icon-name entry and link
+      leeo86.bookmarks.entry: *id002
+      register: entry_second
+    - name: Icon-name references are idempotent
+      ansible.builtin.assert:
+        that:
+          - entry_first.changed
+          - not entry_second.changed
+    - name: Preview icon replacement without modifying it
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        content: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iYmx1ZSIgb25sb2FkPSJhbGVydCgxKSIvPjwvc3ZnPg==
+      check_mode: true
+      register: icon_check
+    - name: Verify original icon still matches
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        src: '{{ playbook_dir }}/images/mixer.svg'
+      register: icon_original
+    - name: Icon preview writes nothing
+      ansible.builtin.assert:
+        that:
+          - icon_check.changed
+          - not icon_original.changed
+    - name: Replace icon bytes from Base64 in place
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        content: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iYmx1ZSIgb25sb2FkPSJhbGVydCgxKSIvPjwvc3ZnPg==
+        content_type: image/svg+xml
+      register: icon_replaced
+    - name: Repeat icon replacement
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        content: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iYmx1ZSIgb25sb2FkPSJhbGVydCgxKSIvPjwvc3ZnPg==
+      register: icon_repeated
+    - name: Replacement preserves identity and is idempotent
+      ansible.builtin.assert:
+        that:
+          - icon_replaced.changed
+          - not icon_repeated.changed
+          - icon_replaced.id == icon_first.id
+          - icon_replaced.ref == icon_first.ref
+    - name: Synchronise tags with labels and icon-name aliases
+      leeo86.bookmarks.entries_sync:
+        scope: automation-integration
+        entries: &id004
+          - external_key: mixer
+            name: Automation mixer
+            icon: upload-name:integration-mixer
+            tags:
+              - tag: production:integration
+                label: Production display label
+            links: *id003
+          - external_key: second
+            name: Automation second
+            tags:
+              - production:integration
+      register: sync_first
+    - name: Repeat labelled bulk entries
+      leeo86.bookmarks.entries_sync:
+        scope: automation-integration
+        entries: *id004
+      register: sync_second
+    - name: Bulk labels and aliases are idempotent
+      ansible.builtin.assert:
+        that:
+          - sync_first.changed
+          - not sync_second.changed
+    - name: Preview a changed bulk tag label
+      leeo86.bookmarks.entries_sync:
+        scope: automation-integration
+        entries:
+          - external_key: mixer
+            name: Automation mixer
+            tags:
+              - tag: production:integration
+                label: Preview label
+      check_mode: true
+      register: sync_check
+    - name: Verify bulk check mode preserved labels
+      leeo86.bookmarks.entries_sync:
+        scope: automation-integration
+        entries: *id004
+      register: sync_preserved
+    - name: Bulk label check mode writes nothing
+      ansible.builtin.assert:
+        that:
+          - sync_check.changed
+          - not sync_preserved.changed
+          - sync_check.diff.before != sync_check.diff.after
+    - name: Create a manual tab outside sync ownership
+      leeo86.bookmarks.filter:
+        name: Integration manual
+        query: ''
+        is_public: false
+        view_mode: list
+    - name: Create tabs owned by another scope
+      leeo86.bookmarks.filters_sync:
+        scope: integration-other
+        purge: true
+        filters: &id005
+          - external_key: production
+            name: Integration production
+            query: production:integration
+            icon: camera
+            group_by: production
+            sort: 8
+            view_mode: tiles
+            columns:
+              - name
+              - host
+            is_public: true
+    - name: Synchronise every shared tab field
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: *id005
+      register: tabs_first
+    - name: Repeat shared tabs
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: *id005
+      register: tabs_second
+    - name: Tabs are idempotent with a diff
+      ansible.builtin.assert:
+        that:
+          - tabs_first.changed
+          - not tabs_second.changed
+          - tabs_first.diff.before != tabs_first.diff.after
+    - name: Preview scoped tab deletion
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: []
+      check_mode: true
+      register: tabs_check
+    - name: Verify scoped tab preview preserved tabs
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: *id005
+      register: tabs_preserved
+    - name: Tabs check mode writes nothing
+      ansible.builtin.assert:
+        that:
+          - tabs_check.changed
+          - not tabs_preserved.changed
+          - tabs_check.deleted == ["production"]
+    - name: Remove only this scope tabs
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: []
+      register: tabs_deleted
+    - name: Repeat scope purge
+      leeo86.bookmarks.filters_sync:
+        scope: automation-integration
+        purge: true
+        filters: []
+      register: tabs_absent
+    - name: Verify other-scope tabs remain
+      leeo86.bookmarks.filters_sync:
+        scope: integration-other
+        purge: true
+        filters: *id005
+      register: other_preserved
+    - name: Verify manual tab remains
+      leeo86.bookmarks.filter:
+        name: Integration manual
+        query: ''
+        is_public: false
+        view_mode: list
+      register: manual_preserved
+    - name: Purge leaves other scopes and manual tabs intact
+      ansible.builtin.assert:
+        that:
+          - tabs_deleted.changed
+          - not tabs_absent.changed
+          - not other_preserved.changed
+          - not manual_preserved.changed
+    - name: Preview icon deletion
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        state: absent
+      check_mode: true
+      register: icon_delete_check
+    - name: Verify icon deletion preview preserved bytes
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        content: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iYmx1ZSIgb25sb2FkPSJhbGVydCgxKSIvPjwvc3ZnPg==
+      register: icon_delete_preserved
+    - name: Icon absence check mode writes nothing
+      ansible.builtin.assert:
+        that:
+          - icon_delete_check.changed
+          - not icon_delete_preserved.changed
+    - name: Delete the test icon
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        state: absent
+      register: icon_deleted
+    - name: Repeat test icon deletion
+      leeo86.bookmarks.icon:
+        name: integration-mixer
+        state: absent
+      register: icon_absent
+    - name: Icon deletion is idempotent
+      ansible.builtin.assert:
+        that:
+          - icon_deleted.changed
+          - not icon_absent.changed
+    - name: Read entries using session credentials
+      leeo86.bookmarks.entry_info:
+        api_token: ''
+        username: admin
+        password: '{{ lookup("env", "BOOKMARKS_TEST_PASSWORD") | default("admin-pass-1", true) }}'
+      register: session_info
+      no_log: true
+    - name: Read entries using environment session credentials
+      leeo86.bookmarks.entry_info:
+        api_token: ''
+      environment:
+        BOOKMARKS_USERNAME: admin
+        BOOKMARKS_PASSWORD: '{{ lookup("env", "BOOKMARKS_TEST_PASSWORD") | default("admin-pass-1", true) }}'
+      register: session_env_info
+      no_log: true
+    - name: Session authentication is read-only
+      ansible.builtin.assert:
+        that:
+          - not session_info.changed
+          - not session_env_info.changed

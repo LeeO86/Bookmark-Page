@@ -7,6 +7,8 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+import base64
+import mimetypes
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -37,10 +39,11 @@ def common_argument_spec():
         ),
         api_token=dict(
             type='str',
-            required=True,
             no_log=True,
             fallback=(env_fallback, ['BOOKMARKS_API_TOKEN']),
         ),
+        username=dict(type='str', fallback=(env_fallback, ['BOOKMARKS_USERNAME'])),
+        password=dict(type='str', no_log=True, fallback=(env_fallback, ['BOOKMARKS_PASSWORD'])),
         validate_certs=dict(type='bool', default=True),
     )
 
@@ -100,7 +103,7 @@ def entry_argument_spec():
         icon=dict(type='str'),
         favicon_url=dict(type='str'),
         sort=dict(type='int'),
-        tags=dict(type='list', elements='str'),
+        tags=dict(type='list', elements='raw'),
         links=link_spec(),
         fields=field_value_spec(),
         checks=check_spec(),
@@ -124,10 +127,27 @@ def prompt_spec():
 
 def api(module, method, path, payload=None):
     url = module.params['api_url'].rstrip('/') + path
-    headers = {
-        'Authorization': 'Bearer %s' % module.params['api_token'],
-        'Accept': 'application/json',
-    }
+    headers = {'Accept': 'application/json'}
+    token = module.params.get('api_token')
+    if token:
+        headers['Authorization'] = 'Bearer %s' % token
+    else:
+        parsed = urlparse(module.params['api_url'])
+        headers['Origin'] = '%s://%s' % (parsed.scheme, parsed.netloc)
+        if not getattr(module, '_bookmarks_cookie', None):
+            username, password = module.params.get('username'), module.params.get('password')
+            if not username or not password:
+                module.fail_json(msg='Supply api_token or both username and password (or their BOOKMARKS_ environment variables)')
+            response, info = fetch_url(module, module.params['api_url'].rstrip('/') + '/api/v1/auth/login',
+                                       method='POST', timeout=60,
+                                       headers=dict(headers, **{'Content-Type': 'application/json'}),
+                                       data=json.dumps({'username': username, 'password': password}).encode('utf-8'))
+            if response is not None:
+                response.read()
+            if info.get('status') != 200 or not info.get('cookies_string'):
+                module.fail_json(msg='Bookmark-Page session login failed (%s)' % info.get('status'))
+            module._bookmarks_cookie = info['cookies_string']
+        headers['Cookie'] = module._bookmarks_cookie
     data = None
     if payload is not None:
         data = json.dumps(payload).encode('utf-8')
@@ -765,3 +785,49 @@ def v1_link_type(link):
     if scheme in ('http', 'https'):
         return 'web'
     return scheme if scheme in ('ssh', 'vnc', 'rdp', 'telnet') else 'other'
+
+
+def resolve_entry_icon_names(module, desired):
+    def resolve(ref):
+        if not ref or not ref.startswith('upload-name:'):
+            return ref
+        matches = api(module, 'GET', '/api/v1/icons?name=' + quote_path(ref[12:])).get('icons') or []
+        if len(matches) != 1:
+            module.fail_json(msg='Uploaded icon name was not found: %s' % ref[12:])
+        return matches[0]['ref']
+    if 'iconRef' in desired:
+        desired['iconRef'] = resolve(desired['iconRef'])
+    for link in desired.get('links') or []:
+        link['iconRef'] = resolve(link.get('iconRef'))
+    return desired
+
+
+def image_payload(module, src, content=None, content_type=None):
+    if src:
+        try:
+            with open(src, 'rb') as handle:
+                data = handle.read(1400001)
+        except OSError as error:
+            module.fail_json(msg='Cannot read image: %s' % error)
+        if len(data) > 1400000:
+            module.fail_json(msg='Image exceeds the upload limit')
+        encoded = base64.b64encode(data).decode('ascii')
+    else:
+        encoded = content
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError):
+            module.fail_json(msg='content must be standard Base64')
+    inferred = content_type or mimetypes.guess_type(src or '')[0]
+    if not inferred:
+        if data.startswith(b'\x89PNG'):
+            inferred = 'image/png'
+        elif data.startswith(b'RIFF') and data[8:12] == b'WEBP':
+            inferred = 'image/webp'
+        elif b'<svg' in data[:1024]:
+            inferred = 'image/svg+xml'
+        elif data.startswith(b'\xff\xd8\xff'):
+            inferred = 'image/jpeg'
+    if not inferred:
+        module.fail_json(msg='Cannot infer content_type from the image')
+    return {'contentType': inferred, 'data': encoded}
