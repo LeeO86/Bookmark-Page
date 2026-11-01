@@ -178,7 +178,7 @@ export function openApiDocument(): Record<string, unknown> {
     openapi: '3.1.0',
     info: {
       title: 'Bookmark-Page',
-      version: '2.2.1',
+      version: '2.2.2',
     },
     paths: documentedPaths(),
     security: [{ sessionCookie: [] }, { bearerToken: [] }],

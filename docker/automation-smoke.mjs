@@ -38,7 +38,7 @@ const fixture = createServer((request, response) => {
   requests.push(request.url)
   response.writeHead(200, { 'content-type': 'text/html' })
   response.end(
-    `<html><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(svg)}"></html>`,
+    `<html><head><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(svg)}"><script>${'x'.repeat(700 * 1024)}</script></head><body></body></html>`,
   )
 })
 await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve))
@@ -84,7 +84,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   check(
-    'Inline-only page obtains a cached iconUrl',
+    '700 KiB page with an early inline icon obtains a cached iconUrl',
     loaded.iconUrl?.startsWith('/api/icons/favicon/'),
   )
   check(

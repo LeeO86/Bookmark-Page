@@ -188,6 +188,10 @@ fetched favicon → letter avatar (initials, colour derived from name).
 - Discovery: parse HTML `<link rel="icon">`, `shortcut icon`, `apple-touch-icon`, web
   manifest icons, then fall back to `/favicon.ico`. Try alternatives until valid. Prefer
   ordinary SVG, otherwise the largest raster; rank Safari mask icons after normal icons.
+  Stream the discovery page through the closing head tag or the first 256 KiB,
+  then close the response and use complete links from that prefix. Ignore closing-head
+  text inside comments, attributes, scripts, styles and titles. Large pages are not
+  rejected for their total size. Images and manifests retain their full-response limits.
 - **TLS verification is disabled for favicon fetches by default** (devices commonly use
   self-signed certificates); configurable globally.
 - Limits: timeout (5 s default), max size (512 KB), max 3 redirects, only http/https.
@@ -294,7 +298,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.1"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.2"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,

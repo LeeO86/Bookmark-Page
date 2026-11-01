@@ -12,6 +12,7 @@ import { sanitizeSvg } from './sanitize'
 
 const maxBytes = () => numberEnv('FAVICON_MAX_BYTES', 512 * 1024)
 const timeoutMs = () => numberEnv('FAVICON_TIMEOUT_MS', 5000)
+const htmlHeadMaxBytes = 256 * 1024
 
 const inflight = new Set<string>()
 const pending: Array<() => Promise<void>> = []
@@ -85,10 +86,11 @@ export async function fetchFaviconBytes(
     const image = decodeDataImage(pageUrl, maxBytes())
     return normalizeImage(image.mediaType, Buffer.from(image.bytes))
   }
-  const request = (url: string) =>
+  const request = (url: string, htmlHead = false) =>
     limitedRequest(url, {
       timeoutMs: timeoutMs(),
       maxBytes: maxBytes(),
+      ...(htmlHead ? { htmlHeadMaxBytes } : {}),
       maxRedirects: 3,
       tlsVerify,
     })
@@ -97,7 +99,7 @@ export async function fetchFaviconBytes(
   let manifest: string | null = null
   let lastError: unknown = new Error('No favicon candidates')
   try {
-    const page = await request(pageUrl)
+    const page = await request(pageUrl, !direct)
     baseUrl = page.finalUrl
     const type = headerValue(page.headers['content-type'])
     if (page.status < 200 || page.status >= 300)

@@ -95,7 +95,7 @@ The V1 importer can also copy the site title and claim independently with `v1_im
 
 ## Automation and favicon improvements in v2.2.1
 
-App and Ansible collection ship together as 2.2.1. Configure a persistent admin token
+App and Ansible collection ship together as 2.2.2. Configure a persistent admin token
 with `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`; existing API tokens and module
 arguments remain supported. The collection adds `settings`, `icon`, `filters_sync`
 and `group/leeo86.bookmarks.bookmarks` module defaults. It also accepts session
@@ -107,3 +107,6 @@ candidates, retries failures after 5 minutes, 1 hour and then every 6 hours, and
 preserves the last good image. Editors can inspect failures; admins can refresh
 missing icons from the icon library. SVG sanitising and visibility checks still
 apply. See [configuration](docs/configuration.md) and the [changelog](CHANGELOG.md).
+
+The v2.2.2 patch streams discovery pages only through `</head>` or the first
+256 KiB, so large self-contained HTML apps retain their early icon links.
