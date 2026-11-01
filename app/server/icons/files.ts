@@ -6,6 +6,7 @@ import { entries, faviconCache, icons, links } from '../db/schema'
 import { badRequest } from '../http/errors'
 import { entryVisible, listEntries } from '../services/entries'
 import { readLucideSvg, searchLucide } from './lucide'
+import { uploadUrl, contentHash } from './refs'
 import { sanitizeSvg } from './sanitize'
 
 const uploadLimit = 256 * 1024
@@ -39,23 +40,29 @@ export function prepareUpload(contentType: string, dataBase64: string): Buffer {
   return bytes
 }
 
-export function searchIcons(
-  query: string,
-): Array<{ ref: string; name: string; kind: string; url: string }> {
+export function searchIcons(query: string, exactName?: string) {
   const needle = query.trim().toLowerCase()
   const uploads = getDatabase()
     .select()
     .from(icons)
     .all()
     .filter(
-      (icon) => icon.kind === 'upload' && (!needle || icon.name.toLowerCase().includes(needle)),
+      (icon) =>
+        icon.kind === 'upload' &&
+        (exactName !== undefined
+          ? icon.name === exactName
+          : !needle || icon.name.toLowerCase().includes(needle)),
     )
     .map((icon) => ({
+      id: icon.id,
+      contentHash: icon.data ? contentHash(icon.data) : null,
+      mediaType: icon.mediaType,
       ref: `upload:${icon.id}`,
       name: icon.name,
       kind: 'upload',
-      url: `/api/icons/upload/${icon.id}`,
+      url: icon.data ? uploadUrl(icon.id, icon.data) : `/api/icons/upload/${icon.id}`,
     }))
+  if (exactName !== undefined) return uploads
   const library = searchLucide(needle).map((name) => ({
     ref: `lucide:${name}`,
     name,
@@ -83,7 +90,7 @@ export function readPublicIcon(
   }
   if (kind === 'favicon') {
     const row = getDatabase().select().from(faviconCache).where(eq(faviconCache.id, name)).get()
-    if (!row?.data || row.status !== 'ok' || !row.mediaType || !faviconVisible(actor, row.id)) {
+    if (!row?.data || !row.mediaType || !faviconVisible(actor, row.id)) {
       return null
     }
     return { bytes: row.data, mediaType: row.mediaType }
@@ -126,7 +133,9 @@ function faviconVisible(actor: Actor, id: string): boolean {
   }
   const url = `/api/icons/favicon/${id}`
   return listEntries(actor, '').entries.some(
-    (entry) => entry.iconUrl === url || entry.links.some((link) => link.iconUrl === url),
+    (entry) =>
+      entry.iconUrl?.split('?')[0] === url ||
+      entry.links.some((link) => link.iconUrl?.split('?')[0] === url),
   )
 }
 

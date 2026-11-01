@@ -1,3 +1,5 @@
+import { publishLive } from './live'
+import { contentHash, uploadUrl } from '../icons/refs'
 import { requireTokenScope, requireAdmin } from '../auth/permissions'
 import { and, asc, eq } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
@@ -222,7 +224,7 @@ export function createFilter(
     groupBy?: string | null
     sort: number
     icon?: string | null
-    isPublic: boolean
+    isPublic?: boolean
     global: boolean
     viewMode?: 'list' | 'cards' | 'tiles'
   },
@@ -247,7 +249,7 @@ export function createFilter(
         groupBy: input.groupBy ?? null,
         sort: input.sort,
         icon: input.icon ?? null,
-        isPublic: global && input.isPublic,
+        isPublic: global && (input.isPublic ?? publicSettings(db).sharedTabsPublicByDefault),
         viewMode: input.viewMode ?? 'cards',
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -810,6 +812,8 @@ function presentFilter(row: typeof filters.$inferSelect) {
     name: row.name,
     query: row.query,
     ownerUserId: row.ownerUserId,
+    scope: row.scope,
+    externalKey: row.externalKey,
     columns: row.columns,
     groupBy: row.groupBy,
     sort: row.sort,
@@ -833,7 +837,15 @@ function presentField(row: typeof fieldDefinitions.$inferSelect) {
 }
 
 function presentIcon(row: typeof icons.$inferSelect) {
-  return { id: row.id, name: row.name, kind: row.kind, mediaType: row.mediaType }
+  return {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    mediaType: row.mediaType,
+    ref: `upload:${row.id}`,
+    contentHash: row.data ? contentHash(row.data) : null,
+    url: row.data ? uploadUrl(row.id, row.data) : null,
+  }
 }
 
 function presentUser(row: typeof users.$inferSelect) {
@@ -909,3 +921,35 @@ export function findUserByTokenHash(token: string) {
 }
 
 export { hashToken }
+
+export function replaceIcon(
+  actor: Actor,
+  id: string,
+  input: { name?: string; mediaType: string; data: Buffer },
+) {
+  requireAdmin(actor)
+  const result = transaction((db) => {
+    const current = must(db.select().from(icons).where(eq(icons.id, id)).get(), 'Icon not found')
+    if (current.kind !== 'upload') throw badRequest('Only uploaded icons can be replaced')
+    const duplicate = input.name
+      ? db.select().from(icons).where(eq(icons.name, input.name)).get()
+      : null
+    if (duplicate && duplicate.id !== id) throw badRequest('Icon name already exists')
+    db.update(icons)
+      .set({
+        name: input.name ?? current.name,
+        mediaType: input.mediaType,
+        data: input.data,
+        updatedAt: now(),
+        updatedBy: actor.userId,
+      })
+      .where(eq(icons.id, id))
+      .run()
+    writeAudit(actor, 'icon.replace', 'icon', id, { contentHash: contentHash(input.data) }, db)
+    return presentIcon(
+      must(db.select().from(icons).where(eq(icons.id, id)).get(), 'Icon not found'),
+    )
+  })
+  publishLive({ type: 'entries' })
+  return result
+}

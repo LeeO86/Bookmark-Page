@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { strFromU8, unzipSync } from 'fflate'
 import type { Actor } from '../auth/permissions'
 import { getDatabase, type Db } from '../db/client'
@@ -230,6 +230,7 @@ function insertDocument(
         byteSize: row.byteSize,
         error: row.error,
         fetchedAt: dateOrNull(row.fetchedAt),
+        failureCount: row.failureCount,
         data: row.hasData ? bytes(files, `favicons/${row.id}`) : null,
         createdAt: date(row.createdAt),
         updatedAt: date(row.updatedAt),
@@ -644,7 +645,15 @@ function mergeAll(
   }
   for (const row of document.filters) {
     const ownerUserId = row.ownerUserId ? (userIds.get(row.ownerUserId) ?? null) : null
-    const current = tx.select().from(filters).where(eq(filters.id, row.id)).get()
+    const current =
+      tx.select().from(filters).where(eq(filters.id, row.id)).get() ??
+      (row.scope && row.externalKey
+        ? tx
+            .select()
+            .from(filters)
+            .where(and(eq(filters.scope, row.scope), eq(filters.externalKey, row.externalKey)))
+            .get()
+        : undefined)
     if (!current) {
       tx.insert(filters)
         .values({

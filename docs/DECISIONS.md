@@ -207,3 +207,28 @@ The existing launcher regression reached the expected URL in CI but timed out wa
 **Decision:** Merge the tested reconnect fix and publish application/collection metadata as v2.1.1 through the existing gated multiarch GHCR release workflow. Keep existing data, keys and ingress during the home-lab V2 replacement. Validate the actual published image with a protected data copy before rollout and retain the previous v2.1.0 image/source and fresh backups.
 
 **Reason:** The user explicitly requested merging, releasing and deploying PR #40. This is a client correction with no schema or Ansible module behavior changes. The MXL reference pipeline remains outside the deployment scope; retain and compare its container identities, versions and protected configuration fingerprints.
+
+## 2026-11-01 — Automation and favicon feedback in v2.2.0
+
+**Decision:** Implement both user-supplied MXL feedback packages, including optional
+session credentials, branding file uploads and inline overrides, as one compatible
+app/collection release. The user explicitly authorised implementation, tests,
+release and home-lab rollout, and requested an English reply here for forwarding.
+
+**Details:** Environment-managed tokens have a separate unique marker, independent
+of their display name, and reconcile on every startup. Scope-owned global tabs
+use explicit scope/external keys; never adopt manual tabs by name. Keep the public
+shared-tab default false and apply it only on creation. Resolve uploaded names to
+stable IDs before comparison/storage. Compare image hashes after sanitising;
+version media URLs by content and invalidate entry views through SSE. Reject
+conflicting explicit global tag labels atomically within a bulk sync; omitted
+labels preserve state. Keep the last good favicon while retrying failures after
+5 minutes, 1 hour and then every 6 hours with a separate minute scheduler and four
+concurrent jobs. Decode inline images locally, use their own MIME type, keep strict
+SVG sanitising, try alternative candidates and rank Safari masks last. Check mode
+changes no managed resources; ordinary authentication telemetry is allowed.
+
+**Reason:** Eliminate per-run token churn, raw automation API calls and inline-icon
+workarounds while preserving existing playbooks, permissions and private tabs.
+Headlamp v0.45.0 advertises a Safari mask SVG containing a DOCTYPE; selecting only
+that SVG and rejecting its declaration prevented otherwise valid PNG/ICO fallbacks.

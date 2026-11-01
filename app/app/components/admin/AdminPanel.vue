@@ -123,6 +123,7 @@ const templateForm = reactive({
 })
 const iconResults = ref<Array<{ ref: string; name: string; kind: string; url: string }>>([])
 const iconName = ref('')
+const faviconFailures = ref<Array<{ id: string; name: string; error: string | null }>>([])
 
 onMounted(async () => {
   await portal.load()
@@ -165,6 +166,9 @@ async function refresh() {
     apiFetch<AuthStatus>('/api/v1/auth/status'),
     apiFetch<{ templates: ActionTemplateRow[] }>('/api/v1/action-templates'),
   ])
+  faviconFailures.value = (
+    await apiFetch<{ failures: typeof faviconFailures.value }>('/api/v1/favicons')
+  ).failures
   settings.value = settingsBody
   users.value = userBody.users
   namespaces.value = namespaceBody.namespaces
@@ -209,6 +213,7 @@ async function saveSettings() {
         defaultColourMode: settings.value?.defaultColourMode,
         faviconColour: settings.value?.accentColour,
         allTabPublic: settings.value?.allTabPublic,
+        sharedTabsPublicByDefault: settings.value?.sharedTabsPublicByDefault,
         auditRetentionDays: Number(settings.value?.auditRetentionDays),
         defaultScopeEditMode: settings.value?.defaultScopeEditMode,
         faviconTlsVerify: settings.value?.faviconTlsVerify,
@@ -406,6 +411,10 @@ function toggleScope(scope: string) {
           <label class="flex items-center gap-2">
             <input v-model="settings.allTabPublic" type="checkbox" />
             All tab is visible to anonymous visitors
+          </label>
+          <label class="flex items-center gap-2">
+            <input v-model="settings.sharedTabsPublicByDefault" type="checkbox" />
+            Make new shared tabs public by default
           </label>
           <label class="flex items-center gap-2">
             <input v-model="settings.faviconTlsVerify" type="checkbox" />
@@ -849,6 +858,22 @@ function toggleScope(scope: string) {
 
         <section v-else-if="section === 'icons'" class="space-y-3">
           <h1 class="text-lg font-semibold">Icon library</h1>
+          <UButton
+            type="button"
+            color="neutral"
+            variant="outline"
+            @click="
+              run(async () => {
+                await apiFetch('/api/v1/favicons/refresh-missing', { method: 'POST' })
+              }, 'Missing favicon refresh queued')
+            "
+            >Refresh missing favicons</UButton
+          >
+          <ul v-if="faviconFailures.length" class="space-y-1 text-sm" aria-label="Favicon failures">
+            <li v-for="failure in faviconFailures" :key="failure.id">
+              <strong>{{ failure.name }}:</strong> {{ failure.error }}
+            </li>
+          </ul>
           <p class="text-xs text-muted">
             Lucide names match the old Feather icon names. Uploaded SVGs are sanitised.
           </p>

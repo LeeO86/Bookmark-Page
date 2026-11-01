@@ -61,7 +61,7 @@ describe('explicit favicon sources', () => {
     const journal = JSON.parse(readFileSync(join(migrations, 'meta/_journal.json'), 'utf8')) as {
       entries: Array<{ tag: string }>
     }
-    journal.entries = journal.entries.filter((entry) => entry.tag !== '0007_favicon_override')
+    journal.entries = journal.entries.filter((entry) => entry.tag < '0007_favicon_override')
     writeFileSync(join(previous, 'meta/_journal.json'), JSON.stringify(journal))
     for (const entry of journal.entries)
       copyFileSync(join(migrations, entry.tag + '.sql'), join(previous, entry.tag + '.sql'))
@@ -161,8 +161,8 @@ describe('explicit favicon sources', () => {
     const publicIcon = getEntry(admin, first.id).iconUrl
     const privateIcon = getEntry(admin, second.id).iconUrl
     expect(publicIcon).not.toBe(privateIcon)
-    const publicId = publicIcon!.split('/').pop()!
-    const privateId = privateIcon!.split('/').pop()!
+    const publicId = new URL(publicIcon!, 'http://local').pathname.split('/').pop()!
+    const privateId = new URL(privateIcon!, 'http://local').pathname.split('/').pop()!
     expect(readPublicIcon(anonymous, 'favicon', publicId)).toBeNull()
     createFilter(admin, {
       name: 'Public',

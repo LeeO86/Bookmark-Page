@@ -72,7 +72,7 @@ function choose(id: string) {
 function openSave() {
   saveName.value = ''
   saveGlobal.value = false
-  savePublic.value = false
+  savePublic.value = portal.settings.value?.sharedTabsPublicByDefault === true
   message.value = ''
   saveOpen.value = true
 }

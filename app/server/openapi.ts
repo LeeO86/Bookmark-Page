@@ -18,6 +18,7 @@ import {
   fieldDefinitionSchema,
   filterPatchSchema,
   filterWriteSchema,
+  filtersSyncSchema,
   loginSchema,
   logoWriteSchema,
   namespaceWriteSchema,
@@ -118,7 +119,23 @@ const paths: Record<string, Record<string, { summary: string }>> = {
     get: { summary: 'Search Lucide icons and uploads' },
     post: { summary: 'Upload a sanitised icon' },
   },
-  '/api/v1/icons/{id}': { delete: { summary: 'Delete icon metadata' } },
+  '/api/v1/icons/{id}': {
+    put: { summary: 'Replace uploaded icon bytes in place' },
+    patch: { summary: 'Replace uploaded icon bytes in place' },
+    delete: { summary: 'Delete icon metadata' },
+  },
+  '/api/v1/icons/preview': { post: { summary: 'Validate and hash an icon without storing it' } },
+  '/api/v1/favicons': { get: { summary: 'List failed favicon discoveries for admins' } },
+  '/api/v1/favicons/refresh-missing': { post: { summary: 'Queue missing and failed favicons' } },
+  '/api/v1/scopes/{scope}/filters/sync': {
+    post: { summary: 'Synchronise shared tabs owned by one scope' },
+  },
+  '/api/v1/settings/logo/preview': {
+    post: { summary: 'Validate and hash a logo without storing it' },
+  },
+  '/api/v1/settings/favicon/preview': {
+    post: { summary: 'Validate and hash a tab icon without storing it' },
+  },
   '/api/v1/users': { get: { summary: 'List users' }, post: { summary: 'Create a local user' } },
   '/api/v1/users/{id}': {
     patch: { summary: 'Update a user' },
@@ -161,7 +178,7 @@ export function openApiDocument(): Record<string, unknown> {
     openapi: '3.1.0',
     info: {
       title: 'Bookmark-Page',
-      version: '2.0.0',
+      version: '2.2.0',
     },
     paths: documentedPaths(),
     security: [{ sessionCookie: [] }, { bearerToken: [] }],
@@ -210,6 +227,12 @@ const requestSchemas: Record<string, z.ZodType> = {
   'POST /api/v1/fields': fieldDefinitionSchema,
   'PATCH /api/v1/fields/{id}': fieldDefinitionSchema.partial(),
   'POST /api/v1/icons': iconWriteSchema,
+  'POST /api/v1/icons/preview': iconWriteSchema,
+  'PUT /api/v1/icons/{id}': iconWriteSchema.partial({ name: true }),
+  'PATCH /api/v1/icons/{id}': iconWriteSchema.partial({ name: true }),
+  'POST /api/v1/scopes/{scope}/filters/sync': filtersSyncSchema,
+  'POST /api/v1/settings/logo/preview': logoWriteSchema,
+  'POST /api/v1/settings/favicon/preview': faviconWriteSchema,
   'POST /api/v1/users': userWriteSchema,
   'PATCH /api/v1/users/{id}': userPatchSchema,
   'POST /api/v1/tokens': tokenWriteSchema,
@@ -252,6 +275,13 @@ function documentedPaths() {
           in: 'query',
           schema: { type: 'string' },
           description: path.endsWith('entries') ? 'Boolean entry query' : 'Icon name search',
+        })
+      if (method === 'get' && path === '/api/v1/icons')
+        parameters.push({
+          name: 'name',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Exact uploaded icon name; excludes library icons',
         })
       const request = requestSchemas[`${method.toUpperCase()} ${path}`]
       const created =
@@ -343,12 +373,29 @@ const tagResponseSchema = z.object({
   label: z.string(),
   displayLabel: textOrNull,
 })
+const faviconStatusSchema = z.object({
+  status: z.string(),
+  error: textOrNull,
+  fetchedAt: textOrNull,
+  failureCount: z.number(),
+})
+const uploadedIconSchema = z.object({
+  id: idSchema,
+  ref: z.string(),
+  name: z.string(),
+  kind: z.string(),
+  mediaType: textOrNull,
+  contentHash: textOrNull,
+  url: textOrNull,
+})
 const entryResponseSchema = z.object({
   id: idSchema,
   name: z.string(),
   description: z.string(),
   host: textOrNull,
   iconRef: textOrNull,
+  faviconUrl: textOrNull,
+  faviconStatus: faviconStatusSchema.nullable().optional(),
   iconUrl: textOrNull,
   sort: z.number(),
   source: textOrNull,
@@ -403,9 +450,13 @@ const tokenResponseSchema = tokenWriteSchema.extend({
 })
 const resourceSchemas: Record<string, z.ZodType> = {
   '/api/v1/entries': entryResponseSchema,
-  '/api/v1/filters': filterWriteSchema
-    .omit({ global: true })
-    .extend({ id: idSchema, ownerUserId: textOrNull, count: z.number().optional() }),
+  '/api/v1/filters': filterWriteSchema.omit({ global: true }).extend({
+    id: idSchema,
+    ownerUserId: textOrNull,
+    scope: textOrNull,
+    externalKey: textOrNull,
+    count: z.number().optional(),
+  }),
   '/api/v1/fields': fieldDefinitionSchema.extend({ id: idSchema }),
   '/api/v1/namespaces': namespaceWriteSchema.extend({ id: idSchema }),
   '/api/v1/tags': tagResponseSchema,
@@ -444,15 +495,49 @@ function responseSchema(path: string, method: string): Record<string, unknown> {
     )
   if (path === '/api/v1/tokens' && method === 'post')
     return jsonSchema(tokenResponseSchema.extend({ token: z.string() }))
+  if (path === '/api/v1/icons/{id}') return jsonSchema(uploadedIconSchema)
+  if (path === '/api/v1/icons/preview')
+    return jsonSchema(
+      z.object({ contentHash: z.string(), byteSize: z.number(), mediaType: z.string() }),
+    )
+  if (path === '/api/v1/settings/logo/preview' || path === '/api/v1/settings/favicon/preview')
+    return jsonSchema(
+      z.object({ contentHash: z.string(), byteSize: z.number(), contentType: z.string() }),
+    )
+  if (path === '/api/v1/scopes/{scope}/filters/sync')
+    return jsonSchema(
+      z.object({
+        created: z.array(z.string()),
+        updated: z.array(z.string()),
+        deleted: z.array(z.string()),
+        unchanged: z.array(z.string()),
+      }),
+    )
+  if (path === '/api/v1/favicons')
+    return jsonSchema(
+      z.object({
+        failures: z.array(faviconStatusSchema.extend({ id: idSchema, name: z.string() })),
+      }),
+    )
+  if (path === '/api/v1/favicons/refresh-missing')
+    return jsonSchema(z.object({ queued: z.number() }))
   if (path === '/api/v1/icons')
     return jsonSchema(
       method === 'get'
         ? z.object({
             icons: z.array(
-              z.object({ ref: z.string(), name: z.string(), kind: z.string(), url: z.string() }),
+              z.object({
+                ref: z.string(),
+                name: z.string(),
+                kind: z.string(),
+                url: z.string(),
+                id: idSchema.optional(),
+                contentHash: textOrNull.optional(),
+                mediaType: textOrNull.optional(),
+              }),
             ),
           })
-        : z.object({ id: idSchema, name: z.string(), kind: z.string(), mediaType: textOrNull }),
+        : uploadedIconSchema,
     )
   if (path.endsWith('/actions'))
     return jsonSchema(
@@ -561,7 +646,12 @@ function responseSchema(path: string, method: string): Record<string, unknown> {
     return { type: 'string', description: 'Redirect response; see Location header.' }
   if (path === '/api/v1/settings' || path.startsWith('/api/v1/settings/'))
     return jsonSchema(
-      settingsPatchSchema.extend({ hasLogo: z.boolean(), hasTabFavicon: z.boolean() }),
+      settingsPatchSchema.extend({
+        hasLogo: z.boolean(),
+        hasTabFavicon: z.boolean(),
+        logoHash: textOrNull.optional(),
+        tabFaviconHash: textOrNull.optional(),
+      }),
     )
   if (path === '/api/v1/preferences') return jsonSchema(preferencesPatchSchema)
   if (path === '/api/v1/import/csv/preview')

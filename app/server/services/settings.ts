@@ -1,3 +1,4 @@
+import { contentHash } from '../icons/refs'
 import { eq } from 'drizzle-orm'
 import type { EditMode } from '../../shared/contracts'
 import {
@@ -28,6 +29,7 @@ const defaults = {
   background: 'gradient' as 'gradient' | 'tint' | 'plain',
   favicon_colour: '#0f766e',
   all_tab_public: false,
+  shared_tabs_public_by_default: false,
   audit_retention_days: 365,
   default_scope_edit_mode: 'field_ownership' as EditMode,
   favicon_tls_verify: false,
@@ -79,6 +81,7 @@ export function publicSettings(db: Db = getDatabase()) {
     background: storedBackground(values.background),
     faviconColour: values.favicon_colour,
     allTabPublic: values.all_tab_public,
+    sharedTabsPublicByDefault: values.shared_tabs_public_by_default === true,
     hasLogo: imageRecord(db, 'logo') !== null,
     hasTabFavicon: imageRecord(db, 'tab_favicon') !== null,
     clientChecksAnonymous: values.client_checks_anonymous === true,
@@ -112,44 +115,11 @@ function saveImage(
   actorId: string | null,
   db: Db,
 ): void {
-  const label = key === 'logo' ? 'Logo' : 'Tab favicon'
-  const allowed =
-    key === 'logo'
-      ? ['image/png', 'image/webp', 'image/jpeg', 'image/svg+xml']
-      : ['image/png', 'image/webp']
-  if (!allowed.includes(contentType)) {
-    throw badRequest(
-      key === 'logo'
-        ? 'Logo must be a PNG, JPEG, WebP, or SVG image'
-        : 'Tab favicon must be a PNG or WebP image',
-    )
-  }
-  const normalized = dataBase64.replace(/\s/g, '')
-  let bytes = Buffer.from(normalized, 'base64')
-  const limit = key === 'logo' ? logoLimit : faviconLimit
-  if (bytes.length === 0 || bytes.length > limit || bytes.toString('base64') !== normalized) {
-    throw badRequest(`${label} must be standard Base64 up to ${key === 'logo' ? '1 MB' : '512 KB'}`)
-  }
-  if (contentType === 'image/png' && !isPng(bytes)) {
-    throw badRequest(`${label} content is not a PNG image`)
-  }
-  if (contentType === 'image/webp' && !isWebp(bytes)) {
-    throw badRequest(`${label} content is not a WebP image`)
-  }
-  if (contentType === 'image/jpeg' && !isJpeg(bytes)) {
-    throw badRequest(`${label} content is not a JPEG image`)
-  }
-  let stored = normalized
-  let storedType = contentType
-  if (contentType === 'image/svg+xml') {
-    const clean = sanitizeSvg(bytes.toString('utf8'))
-    bytes = Buffer.from(clean, 'utf8')
-    if (bytes.length > limit) {
-      throw badRequest(`${label} must be standard Base64 up to 1 MB`)
-    }
-    stored = bytes.toString('base64')
-    storedType = 'image/svg+xml'
-  }
+  const { data: stored, contentType: storedType } = prepareBrandingImage(
+    key,
+    contentType,
+    dataBase64,
+  )
   const timestamp = now()
   db.insert(settings)
     .values({
@@ -224,6 +194,8 @@ export function adminSettings(db: Db = getDatabase()) {
   const values = readSettingsMap(db)
   return {
     ...publicSettings(db),
+    logoHash: imageHash(db, 'logo'),
+    tabFaviconHash: imageHash(db, 'tab_favicon'),
     auditRetentionDays: values.audit_retention_days,
     defaultScopeEditMode: values.default_scope_edit_mode,
     faviconTlsVerify: values.favicon_tls_verify === true,
@@ -243,6 +215,7 @@ export function writeSettings(
     defaultColourMode: ColourMode
     background: 'gradient' | 'tint' | 'plain'
     allTabPublic: boolean
+    sharedTabsPublicByDefault: boolean
     auditRetentionDays: number
     defaultScopeEditMode: EditMode
     faviconTlsVerify: boolean
@@ -262,6 +235,7 @@ export function writeSettings(
     background: 'background',
     faviconColour: 'favicon_colour',
     allTabPublic: 'all_tab_public',
+    sharedTabsPublicByDefault: 'shared_tabs_public_by_default',
     auditRetentionDays: 'audit_retention_days',
     defaultScopeEditMode: 'default_scope_edit_mode',
     faviconTlsVerify: 'favicon_tls_verify',
@@ -356,4 +330,65 @@ function storedColourMode(value: unknown): ColourMode {
 
 function storedBackground(value: unknown): BackgroundStyle {
   return typeof value === 'string' && isBackgroundStyle(value) ? value : 'gradient'
+}
+
+export function prepareBrandingImage(
+  key: 'logo' | 'tab_favicon',
+  contentType: string,
+  dataBase64: string,
+) {
+  const label = key === 'logo' ? 'Logo' : 'Tab favicon'
+  const allowed =
+    key === 'logo'
+      ? ['image/png', 'image/webp', 'image/jpeg', 'image/svg+xml']
+      : ['image/png', 'image/webp']
+  if (!allowed.includes(contentType)) {
+    throw badRequest(
+      key === 'logo'
+        ? 'Logo must be a PNG, JPEG, WebP, or SVG image'
+        : 'Tab favicon must be a PNG or WebP image',
+    )
+  }
+  const normalized = dataBase64.replace(/\s/g, '')
+  let bytes = Buffer.from(normalized, 'base64')
+  const limit = key === 'logo' ? logoLimit : faviconLimit
+  if (bytes.length === 0 || bytes.length > limit || bytes.toString('base64') !== normalized) {
+    throw badRequest(`${label} must be standard Base64 up to ${key === 'logo' ? '1 MB' : '512 KB'}`)
+  }
+  if (contentType === 'image/png' && !isPng(bytes)) {
+    throw badRequest(`${label} content is not a PNG image`)
+  }
+  if (contentType === 'image/webp' && !isWebp(bytes)) {
+    throw badRequest(`${label} content is not a WebP image`)
+  }
+  if (contentType === 'image/jpeg' && !isJpeg(bytes)) {
+    throw badRequest(`${label} content is not a JPEG image`)
+  }
+  let stored = normalized
+  let storedType = contentType
+  if (contentType === 'image/svg+xml') {
+    let clean: string
+    try {
+      clean = sanitizeSvg(bytes.toString('utf8'))
+    } catch (error) {
+      throw badRequest(error instanceof Error ? error.message : 'SVG could not be sanitised')
+    }
+    bytes = Buffer.from(clean, 'utf8')
+    if (bytes.length > limit) {
+      throw badRequest(`${label} must be standard Base64 up to 1 MB`)
+    }
+    stored = bytes.toString('base64')
+    storedType = 'image/svg+xml'
+  }
+  return {
+    data: stored,
+    contentType: storedType,
+    contentHash: contentHash(bytes),
+    byteSize: bytes.length,
+  }
+}
+
+function imageHash(db: Db, key: string): string | null {
+  const record = imageRecord(db, key)
+  return record ? contentHash(Buffer.from(record.data, 'base64')) : null
 }

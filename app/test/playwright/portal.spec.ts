@@ -309,6 +309,9 @@ test('admin: file actions are buttons, destructive actions are coloured and ever
   }
 
   await open('/admin/icons')
+  await expect(
+    page.getByRole('button', { name: 'Refresh missing favicons', exact: true }),
+  ).toBeVisible()
   const upload = page.getByRole('button', { name: 'Upload icon', exact: true })
   await expect(upload).toBeDisabled()
   await page.getByPlaceholder('name', { exact: true }).fill('admin-ui-icon')
@@ -490,7 +493,10 @@ test('renders configured media without JavaScript and hydrates without fallback 
       const entry = staticPage.locator(`[data-entry-id="${first.entry.id}"]`)
       await expect(entry).toBeVisible()
       const image = entry.locator('img')
-      await expect(image).toHaveAttribute('src', '/api/icons/upload/' + icon.id)
+      await expect(image).toHaveAttribute(
+        'src',
+        new RegExp('/api/icons/upload/' + icon.id + '\\?v=[a-f0-9]{64}$'),
+      )
       await expect(image).toHaveJSProperty('naturalWidth', 16)
       const lucide = staticPage
         .locator(`[data-entry-id="${second.entry.id}"]`)
@@ -537,6 +543,19 @@ test('renders configured media without JavaScript and hydrates without fallback 
     await expect(early).toHaveURL(/view=list/)
     expect(unwanted).toEqual([])
     expect(hydrationErrors).toEqual([])
+    await hydrated.unroute('**/api/v1/**')
+    await early.goto(`${base}/?tab=${view.id}&view=cards`, { waitUntil: 'networkidle' })
+    const liveImage = early.locator(`[data-entry-id="${first.entry.id}"] img`)
+    const originalUrl = await liveImage.getAttribute('src')
+    const replacement = await api('PUT', '/api/v1/icons/' + icon.id, {
+      contentType: 'image/svg+xml',
+      data: Buffer.from(
+        Buffer.from(svg, 'base64').toString().replace('#ec4899', '#2563eb'),
+      ).toString('base64'),
+    })
+    expect(replacement.url).not.toBe(originalUrl)
+    await expect(liveImage).toHaveAttribute('src', replacement.url)
+    await expect(liveImage).toHaveJSProperty('naturalWidth', 16)
   } finally {
     await noScript.close()
     await hydrated.close()
@@ -802,6 +821,8 @@ for (const view of ['cards', 'tiles'] as const) {
         }),
       ])
       await expect(popup).toHaveURL(primary)
+      // Chromium may defer rendering a native background tab until it is selected.
+      await popup.bringToFront()
       await expect(popup).toHaveTitle('Launcher target')
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
       await popup.close()

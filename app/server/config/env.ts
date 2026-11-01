@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { isStoredRole, type StoredRole } from '../../shared/roles'
 
 export interface RuntimeEnv {
   adminUsername: string | undefined
   adminPassword: string | undefined
+  adminApiToken: string | undefined
   localLoginEnabled: boolean
   oidcDiscoveryUrl: string | undefined
   oidcClientId: string | undefined
@@ -25,6 +27,7 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv): RuntimeEnv {
   return {
     adminUsername: blankToUndefined(env.ADMIN_USERNAME),
     adminPassword: blankToUndefined(env.ADMIN_PASSWORD),
+    adminApiToken: readAdminToken(env),
     localLoginEnabled: parseBoolean(env.LOCAL_LOGIN_ENABLED, true, 'LOCAL_LOGIN_ENABLED'),
     oidcDiscoveryUrl: blankToUndefined(env.OIDC_DISCOVERY_URL),
     oidcClientId: blankToUndefined(env.OIDC_CLIENT_ID),
@@ -145,4 +148,19 @@ function splitList(raw: string | undefined): string[] {
 function blankToUndefined(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function readAdminToken(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.ADMIN_API_TOKEN && env.ADMIN_API_TOKEN_FILE) {
+    throw new Error('Set only one of ADMIN_API_TOKEN and ADMIN_API_TOKEN_FILE')
+  }
+  const value = blankToUndefined(
+    env.ADMIN_API_TOKEN_FILE ? readFileSync(env.ADMIN_API_TOKEN_FILE, 'utf8') : env.ADMIN_API_TOKEN,
+  )
+  if (value && !/^bp_[A-Za-z0-9_-]{43,}$/.test(value)) {
+    throw new Error(
+      'ADMIN_API_TOKEN must have a bp_ prefix and at least 43 Base64url characters (32 random bytes)',
+    )
+  }
+  return value
 }

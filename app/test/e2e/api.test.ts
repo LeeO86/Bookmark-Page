@@ -16,6 +16,7 @@ describe('HTTP API', async () => {
   process.env.MIGRATIONS_FOLDER = migrationsFolder
   process.env.ADMIN_USERNAME = 'admin'
   process.env.ADMIN_PASSWORD = 'admin-pass-1'
+  process.env.ADMIN_API_TOKEN = `bp_${'a'.repeat(43)}`
   process.env.AUTH_TRUSTED_HEADER_ENABLED = 'true'
   process.env.AUTH_TRUSTED_PROXIES = '10.0.0.0/8'
   process.env.AUTH_USER_HEADER = 'Remote-User'
@@ -314,6 +315,96 @@ describe('HTTP API', async () => {
     const invalidHtml = await invalid.text()
     expect(invalidHtml).toContain('src="/api/v1/logo?v=0"')
     expect(invalidHtml).not.toContain('SSR private device')
+  })
+  it('exposes automation APIs with admin permissions and stable icon references', async () => {
+    const bootstrap = await fetch('/api/v1/settings', {
+      headers: { authorization: `Bearer bp_${'a'.repeat(43)}` },
+    })
+    expect(bootstrap.status).toBe(200)
+    const admin = await login('admin', 'admin-pass-1')
+    const data = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" fill="red" onload="alert(1)"/></svg>',
+    ).toString('base64')
+    const payload = { name: 'automation-test', contentType: 'image/svg+xml', data }
+    expect(await send('', 'POST', '/api/v1/icons/preview', payload)).toBe(403)
+    const preview = await jsonRequest<{ contentHash: string }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/icons/preview',
+      payload,
+    )
+    expect(preview.body.contentHash).toMatch(/^[a-f0-9]{64}$/)
+    const absent = await jsonRequest<{ icons: unknown[] }>(
+      admin.cookie,
+      'GET',
+      '/api/v1/icons?name=automation-test',
+    )
+    expect(absent.body.icons).toEqual([])
+    const icon = await jsonRequest<{ id: string; ref: string; url: string }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/icons',
+      payload,
+    )
+    expect(icon.status).toBe(201)
+    const entry = await jsonRequest<{ entry: { id: string; iconRef: string; iconUrl: string } }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/entries',
+      { name: 'Automation icon entry', iconRef: 'upload-name:automation-test' },
+    )
+    expect(entry.body.entry.iconRef).toBe(icon.body.ref)
+    const replaced = await jsonRequest<{ id: string; url: string }>(
+      admin.cookie,
+      'PUT',
+      '/api/v1/icons/' + icon.body.id,
+      {
+        ...payload,
+        data: Buffer.from(Buffer.from(data, 'base64').toString().replace('red', 'blue')).toString(
+          'base64',
+        ),
+      },
+    )
+    expect(replaced.body.id).toBe(icon.body.id)
+    expect(replaced.body.url).not.toBe(icon.body.url)
+    const image = await fetch(replaced.body.url, { headers: { cookie: admin.cookie } })
+    expect(await image.text()).not.toMatch(/onload|script/)
+    const tabs = {
+      filters: [{ externalKey: 'one', name: 'Automation API view', query: '', isPublic: false }],
+      purge: true,
+    }
+    expect(await send('', 'POST', '/api/v1/scopes/automation-api/filters/sync', tabs)).toBe(403)
+    const dryRun = await jsonRequest<{ created: string[] }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/scopes/automation-api/filters/sync',
+      { ...tabs, dryRun: true },
+    )
+    expect(dryRun.body.created).toEqual(['one'])
+    const created = await jsonRequest<{ created: string[] }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/scopes/automation-api/filters/sync',
+      tabs,
+    )
+    expect(created.body.created).toEqual(['one'])
+    const repeat = await jsonRequest<{ unchanged: string[] }>(
+      admin.cookie,
+      'POST',
+      '/api/v1/scopes/automation-api/filters/sync',
+      tabs,
+    )
+    expect(repeat.body.unchanged).toEqual(['one'])
+    expect(await send('', 'GET', '/api/v1/favicons')).toBe(403)
+    expect(await send('', 'POST', '/api/v1/favicons/refresh-missing')).toBe(403)
+    expect(await send(admin.cookie, 'GET', '/api/v1/favicons')).toBe(200)
+    expect(await send(admin.cookie, 'POST', '/api/v1/favicons/refresh-missing')).toBe(200)
+    await send(admin.cookie, 'DELETE', '/api/v1/entries/' + entry.body.entry.id)
+    await send(admin.cookie, 'POST', '/api/v1/scopes/automation-api/filters/sync', {
+      filters: [],
+      purge: true,
+    })
+    await send(admin.cookie, 'DELETE', '/api/v1/icons/' + icon.body.id)
   })
 })
 

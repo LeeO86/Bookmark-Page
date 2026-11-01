@@ -3,9 +3,17 @@ import { runDueServerChecks } from './run'
 import { refreshStaleFavicons } from '../icons/favicon'
 
 let started = false
-let faviconTick = 0
+let faviconsStarted = false
 
 export function startMonitors(): void {
+  if (!faviconsStarted && process.env.BOOKMARK_FAVICON_FETCH !== '0') {
+    faviconsStarted = true
+    void refreshStaleFavicons()
+    const faviconTimer = setInterval(() => {
+      void refreshStaleFavicons()
+    }, 60_000)
+    faviconTimer.unref?.()
+  }
   if (started || process.env.BOOKMARK_MONITORS === '0') {
     return
   }
@@ -13,10 +21,6 @@ export function startMonitors(): void {
   void detectIcmp()
   const timer = setInterval(() => {
     void runDueServerChecks()
-    faviconTick += 1
-    if (faviconTick % 720 === 0) {
-      void refreshStaleFavicons()
-    }
   }, 5000)
   timer.unref?.()
 }

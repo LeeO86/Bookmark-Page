@@ -189,6 +189,7 @@ export function createBackup(
         byteSize: row.byteSize,
         error: row.error,
         fetchedAt: isoOrNull(row.fetchedAt),
+        failureCount: row.failureCount,
         hasData: row.data !== null,
         createdAt: iso(row.createdAt),
         updatedAt: iso(row.updatedAt),

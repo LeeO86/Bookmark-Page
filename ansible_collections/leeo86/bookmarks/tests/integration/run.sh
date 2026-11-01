@@ -5,7 +5,7 @@ export ANSIBLE_COLLECTIONS_PATH="${ANSIBLE_COLLECTIONS_PATH:-$ROOT}"
 : "${API_URL:?Set API_URL}"
 : "${API_TOKEN:?Set API_TOKEN}"
 : "${V1_URL:?Set V1_URL}"
-ansible-playbook \
+ansible-playbook --diff \
   "$ROOT/ansible_collections/leeo86/bookmarks/tests/integration/site.yml" \
   -i "$ROOT/ansible_collections/leeo86/bookmarks/tests/integration/inventory.yml" \
   -e "api_url=${API_URL}" \

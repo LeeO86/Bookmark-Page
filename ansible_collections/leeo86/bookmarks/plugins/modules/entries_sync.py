@@ -74,7 +74,7 @@ options:
         description:
           - Tag strings such as C(type:audio).
         type: list
-        elements: str
+        elements: raw
       links:
         description:
           - Links that belong to the entry.
@@ -231,6 +231,7 @@ from ansible_collections.leeo86.bookmarks.plugins.module_utils.bookmarks import 
     api,
     build_entries,
     common_argument_spec,
+    resolve_entry_icon_names,
     entry_argument_spec,
     quote_path,
 )
@@ -247,7 +248,7 @@ def main():
     )
     module = AnsibleModule(argument_spec=spec, supports_check_mode=True)
     try:
-        entries = build_entries(module.params['entries'])
+        entries = [resolve_entry_icon_names(module, item) for item in build_entries(module.params['entries'])]
     except BookmarkBuildError as error:
         module.fail_json(msg=str(error))
     result = api(

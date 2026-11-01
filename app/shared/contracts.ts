@@ -113,7 +113,7 @@ export const tagRefSchema = z.union([
 export const entryFaviconSchema = z
   .string()
   .trim()
-  .max(4000)
+  .max(2_100_000)
   .refine((value) => {
     if (!value) return true
     try {
@@ -122,7 +122,7 @@ export const entryFaviconSchema = z
     } catch {
       return false
     }
-  }, 'Use an HTTP(S) image URL or path, optionally with {{host}}, without credentials')
+  }, 'Use an HTTP(S) image URL/path or a valid data:image URI, without credentials')
   .nullable()
 
 export const entryWriteSchema = z.object({
@@ -245,7 +245,7 @@ export const filterWriteSchema = z.object({
   groupBy: z.string().max(64).nullable().optional(),
   sort: z.number().int().default(0),
   icon: z.string().max(200).nullable().optional(),
-  isPublic: z.boolean().default(false),
+  isPublic: z.boolean().optional(),
   global: z.boolean().default(false),
   viewMode: z.enum(viewModes).default('cards'),
 })
@@ -305,6 +305,7 @@ export const settingsPatchSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
   allTabPublic: z.boolean().optional(),
+  sharedTabsPublicByDefault: z.boolean().optional(),
   auditRetentionDays: z.number().int().min(0).max(36_500).optional(),
   defaultScopeEditMode: z.enum(editModes).optional(),
   faviconTlsVerify: z.boolean().optional(),
@@ -346,3 +347,13 @@ export type RequestSpec = z.infer<typeof requestSpecSchema>
 export type EditMode = (typeof editModes)[number]
 
 export const checkLeaseSchema = z.object({ limit: z.number().int().min(1).max(20).default(5) })
+
+export const filtersSyncSchema = z.object({
+  filters: z.array(
+    filterWriteSchema.omit({ global: true }).extend({
+      externalKey: z.string().trim().min(1).max(200),
+    }),
+  ),
+  purge: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
+})

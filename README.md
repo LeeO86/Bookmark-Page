@@ -92,3 +92,18 @@ The container listens on port 3000 and stores the database on the `bookmark-data
 Copyright 2020 Adrian Hilber. Licensed under MIT. See `LICENSE`.
 
 The V1 importer can also copy the site title and claim independently with `v1_import_site_title` and `v1_import_site_claim` (both opt-in).
+
+## Automation and favicon improvements in v2.2.0
+
+App and Ansible collection ship together as 2.2.0. Configure a persistent admin token
+with `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`; existing API tokens and module
+arguments remain supported. The collection adds `settings`, `icon`, `filters_sync`
+and `group/leeo86.bookmarks.bookmarks` module defaults. It also accepts session
+credentials and uploaded icon references such as `upload-name:mxl-mixer`.
+See [Ansible](docs/ansible.md) for complete examples and migration guidance.
+
+Favicon discovery decodes inline SVG/PNG/WebP/ICO images, tries alternative
+candidates, retries failures after 5 minutes, 1 hour and then every 6 hours, and
+preserves the last good image. Editors can inspect failures; admins can refresh
+missing icons from the icon library. SVG sanitising and visibility checks still
+apply. See [configuration](docs/configuration.md) and the [changelog](CHANGELOG.md).

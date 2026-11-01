@@ -77,3 +77,86 @@ The OpenAPI document derives request shapes from the shared Zod validators and d
 Entry history uses current field permissions and omits deleted definitions and fields now classified as secrets. Saving an entry preserves fields and actions above the caller's role and rejects attempts to overwrite them. The drawer preserves the full stored HTTP request, including headers, body, expectations, icon, TLS and timeout.
 
 Backups include user preferences. Format-1 archives from older versions still restore; missing preferences use their defaults. Both merge and replace restore preferences by the corresponding user.
+
+## Automation and favicon APIs (2.2.0)
+
+`ADMIN_API_TOKEN` configures an admin token without an interactive login; see
+[configuration](configuration.md#persistent-automation-authentication). Existing
+normal tokens may also omit `expiresAt` for no expiry. Username/password clients
+use the existing session login and matching Origin headers on subsequent writes.
+
+Uploaded entry/link `iconRef` accepts `upload-name:<exact-name>`. The server
+resolves it to the stable `upload:<id>` reference before storing/comparing it.
+Unknown names fail validation; there is no fuzzy selection. Existing references
+remain supported. `GET /api/v1/icons?name=<exact-name>` returns only matching uploads,
+with `id`, `ref`, `mediaType`, `contentHash` (SHA-256 of sanitised stored bytes), and
+versioned `url`. Normal `q` searches retain their existing library/upload behavior.
+
+`PUT` and `PATCH /api/v1/icons/{id}` replace an uploaded icon's data in place.
+Body: `{ "contentType": "image/svg+xml", "data": "<standard Base64>", "name": "optional-name" }`.
+Upload limits, sanitising, unique-name checks and admin permissions apply.
+References/IDs remain stable, the URL content version changes, and SSE invalidates
+entry views. `POST /api/v1/icons/preview` accepts the normal icon upload body
+(including `name`) and returns `contentHash`, `mediaType`, and `byteSize` without
+storing an icon or writing an audit record.
+
+`POST /api/v1/settings/logo/preview` and `/api/v1/settings/favicon/preview` validate
+the corresponding upload payload and return `contentHash`, `contentType`, and
+`byteSize` without changing settings. Admin settings responses additionally expose
+`logoHash` and `tabFaviconHash` (null when absent). Preview endpoints require admin
+permission and the usual CSRF protection. Authenticated calls may update token
+usage timestamps. Hashes represent canonical sanitised data, not raw SVG input.
+
+`POST /api/v1/scopes/{scope}/filters/sync` accepts:
+
+```json
+{
+  "filters": [
+    {
+      "externalKey": "production",
+      "name": "Production",
+      "query": "production:*",
+      "icon": "lucide:camera",
+      "groupBy": "production",
+      "sort": 10,
+      "viewMode": "cards",
+      "columns": ["name", "host"],
+      "isPublic": true
+    }
+  ],
+  "purge": true,
+  "dryRun": false
+}
+```
+
+It returns `created`, `updated`, `deleted`, and `unchanged` arrays of external keys.
+Only admins may synchronise global tabs. Ownership is explicit (`scope`,
+`externalKey` in filter responses); personal/manual tabs and other scopes are
+preserved even when names coincide. Duplicate keys fail atomically. Dry runs roll
+all resource/audit changes back. Omitted `isPublic` preserves existing visibility;
+new shared tabs use `sharedTabsPublicByDefault` (default false). That setting is a
+new optional key in `PATCH /api/v1/settings`; explicit visibility always wins.
+
+`entries_sync` accepts string tags and `{ "tag": "production:demo", "label": "Demo" }`
+like single-entry writes. Labels are global. Omission preserves the label;
+explicit null clears it. Conflicting explicit labels for the same tag in one bulk
+request return 400 before any mutation. Across separate requests the latest
+explicit label applies globally.
+
+`faviconUrl` also accepts supported percent-encoded/Base64 `data:image/...` URIs.
+Discovery decodes inline data locally, validates/sanitises it and stores/serves it
+through the normal cache. Fallbacks and retry backoff are described in
+[configuration](configuration.md#favicon-discovery-and-retries). An editor/admin
+entry response includes `faviconStatus` with `status`, `error`, `fetchedAt`, and
+`failureCount`; viewers/anonymous callers receive no discovery diagnostics.
+
+`GET /api/v1/favicons` returns `{ "failures": [...] }` with entry IDs/names and
+failure metadata, for admins only. `POST /api/v1/favicons/refresh-missing` queues
+missing/failed entry favicons and returns `{ "queued": <entry-count> }`.
+Existing `POST /api/v1/entries/{id}/favicon` remains available to editors.
+Both manual refresh actions bypass the retry delay while respecting fetch-disable
+configuration and deduplicating/bounding concurrent jobs.
+
+Format-1 backups now preserve managed-token identity, tab scope/external keys, and
+favicon failure counts. Older archives still restore with safe empty/default
+values for the additional fields.

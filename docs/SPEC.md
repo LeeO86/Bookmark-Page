@@ -177,11 +177,14 @@ fetched favicon → letter avatar (initials, colour derived from name).
   path relative to the primary HTTP(S) link, or a URL using `{{host}}`. Empty restores
   discovery. Reject credentials, other schemes and field/secret placeholders. A chosen
   library/upload icon still takes priority. Secondary links keep their own discovery.
+  Also accept validated percent-encoded/Base64 inline SVG/PNG/WebP/ICO data URIs;
+  determine MIME from the URI and decode locally, with the same limits/sanitising.
   Persist it in API/sync, history and backups.
 - Triggered asynchronously when a link is created or its URL changes, plus a manual
   "refetch" button and an optional periodic refresh (default weekly).
 - Discovery: parse HTML `<link rel="icon">`, `shortcut icon`, `apple-touch-icon`, web
-  manifest icons, then fall back to `/favicon.ico`. Prefer SVG, otherwise the largest raster.
+  manifest icons, then fall back to `/favicon.ico`. Try alternatives until valid. Prefer
+  ordinary SVG, otherwise the largest raster; rank Safari mask icons after normal icons.
 - **TLS verification is disabled for favicon fetches by default** (devices commonly use
   self-signed certificates); configurable globally.
 - Limits: timeout (5 s default), max size (512 KB), max 3 redirects, only http/https.
@@ -190,7 +193,10 @@ fetched favicon → letter avatar (initials, colour derived from name).
   Persist the fetch source/mode for periodic refresh. Store bytes in DB
   or `/data/icons`; serve from `/api/icons/...` with long cache headers and an ETag.
 - Record failures with a reason; failed fetches fall back to the letter avatar, never a
-  broken image.
+  broken image. Preserve last good bytes during a failed refresh. Persist failure count
+  and retry after 5 minutes, 1 hour, then every 6 hours with a separate minute scheduler,
+  even when device checks are disabled. Limit concurrent discoveries to four. Editors
+  see diagnostics; admins can refresh all missing icons. Content-version image URLs.
 
 **Icon library (admin):** ships with the Lucide icon set (Lucide is the successor of the
 Feather icons used in V1, so V1 icon names map directly). Admins can upload SVG/PNG/WebP
@@ -285,16 +291,24 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.1.1"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.0"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,
-are idempotent and report `changed` correctly.
+are idempotent and report `changed` correctly. Username/password (or
+`BOOKMARKS_USERNAME`/`BOOKMARKS_PASSWORD`) are an alternative, using local sessions.
+All modules belong to `group/leeo86.bookmarks.bookmarks` for module defaults.
 
 Modules:
 - `entry` – one entry by `scope` + `external_key`: name, host, description, tags, links,
   fields, icon, checks, `state: present|absent`.
-- `entries_sync` – full list for a scope with `purge`.
+- `entries_sync` – full list for a scope with `purge`; tag strings or `{tag, label}`
+  like `entry`. Omitted labels preserve global display labels; conflicting explicit
+  labels within one batch fail atomically.
+- `settings` – every settings PATCH key, plus content-idempotent logo/tab-icon files.
+- `icon` – upload by exact name, replace bytes in place, return stable ID/ref. Entry/link
+  references also accept `upload-name:<name>` and resolve to canonical IDs.
+- `filters_sync` – shared tabs keyed by scope/external key, purge only that scope.
 - `entry_info` – query entries (supports the query language).
 - `tag_namespace`, `field_definition`, `filter` (global tabs), `action_template`.
 
@@ -328,7 +342,9 @@ Tests: `ansible-test sanity` and integration tests against the app container in 
 ### 10.1 Auth sources (combinable, configured via env)
 - **Local accounts** – username/password, argon2. A bootstrap admin is created on first
   start from `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Local login can be disabled for everyone
-  except designated break-glass admins.
+  except designated break-glass admins. `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`
+  optionally manages a hashed, non-expiring admin token on every startup; rotation
+  replaces its secret and unsetting removes only the explicitly managed token.
 - **OIDC** – generic provider via discovery URL (tested against Microsoft Entra ID and
   Keycloak). Role mapping from a configurable claim (default `roles`) via a JSON mapping.
   Just-in-time user provisioning.
@@ -404,7 +420,9 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   and history to everyone, and Edit to an editor. Edit mode is for editors and admins,
   from the user menu or Shift+E, and it lasts for the browser tab only. It shows a banner,
   edit buttons, New entry, Add link, and drag-sort. `e` opens the selected entry only then.
-- **Views:** cards are the default, including All. A tab can store another default, and
+- **Views:** new shared tabs use the default-off `shared_tabs_public_by_default`
+  setting only when visibility was omitted. Personal/existing tabs stay unchanged.
+  Cards are the default, including All. A tab can store another default, and
   the `view` query parameter still wins. Cards use a 260px minimum: favicon, a two-line
   title, host, description, only fields that have a value, labelled secondary links, and
   up to three tags. Tiles are the compact launcher, 48px or 56px icon. The list is a dense

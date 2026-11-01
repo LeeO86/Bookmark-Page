@@ -1,3 +1,5 @@
+import { contentHash } from '../../icons/refs'
+import { syncFilters } from '../../services/filters-sync'
 import {
   clearSession,
   defineEventHandler,
@@ -20,6 +22,7 @@ import {
   filterPatchSchema,
   filterWriteSchema,
   iconWriteSchema,
+  filtersSyncSchema,
   loginSchema,
   faviconWriteSchema,
   logoWriteSchema,
@@ -67,6 +70,7 @@ import {
   createFieldDefinition,
   createFilter,
   createIcon,
+  replaceIcon,
   createNamespace,
   createScope,
   ensureScope,
@@ -105,6 +109,7 @@ import {
   getEntry,
   listEntries,
   refreshEntryFavicons,
+  refreshMissingFavicons,
   listEntryHistory,
   restoreEntry,
   revealField,
@@ -124,6 +129,7 @@ import {
 import { publishLive, subscribeLive } from '../../services/live'
 import { readPreferences, writePreferences } from '../../services/preferences'
 import {
+  prepareBrandingImage,
   clearLogo,
   clearTabFavicon,
   publicSettings,
@@ -387,7 +393,19 @@ export default defineEventHandler(async (event) => {
     if (method === 'GET' && path === '/api/v1/icons') {
       requireRead(actor)
       const query = getQuery(event).q
-      return { icons: searchIcons(typeof query === 'string' ? query : '') }
+      const name = getQuery(event).name
+      return {
+        icons: searchIcons(
+          typeof query === 'string' ? query : '',
+          typeof name === 'string' ? name : undefined,
+        ),
+      }
+    }
+    if (method === 'POST' && path === '/api/v1/icons/preview') {
+      requireAdmin(actor)
+      const body = iconWriteSchema.parse(await readBody(event))
+      const data = prepareUpload(body.contentType, body.data)
+      return { contentHash: contentHash(data), byteSize: data.length, mediaType: body.contentType }
     }
     if (method === 'POST' && path === '/api/v1/icons') {
       requireAdmin(actor)
@@ -400,6 +418,15 @@ export default defineEventHandler(async (event) => {
       })
     }
     const iconId = match(path, /^\/api\/v1\/icons\/([^/]+)$/)
+    if (iconId && (method === 'PUT' || method === 'PATCH')) {
+      requireAdmin(actor)
+      const body = iconWriteSchema.partial({ name: true }).parse(await readBody(event))
+      return replaceIcon(actor, decodeURIComponent(iconId), {
+        name: body.name,
+        mediaType: body.contentType,
+        data: prepareUpload(body.contentType, body.data),
+      })
+    }
     if (iconId && method === 'DELETE') {
       requireAdmin(actor)
       deleteIcon(actor, decodeURIComponent(iconId))
@@ -485,6 +512,27 @@ export default defineEventHandler(async (event) => {
         actor,
       )
       return { ok: true }
+    }
+    const filterSync = match(path, /^\/api\/v1\/scopes\/([^/]+)\/filters\/sync$/)
+    if (filterSync && method === 'POST') {
+      requireAdmin(actor)
+      return syncFilters(
+        actor,
+        decodeURIComponent(filterSync),
+        filtersSyncSchema.parse(await readBody(event)),
+      )
+    }
+    if (method === 'GET' && path === '/api/v1/favicons') {
+      requireAdmin(actor)
+      return {
+        failures: listEntries(actor, '')
+          .entries.filter((entry) => entry.faviconStatus?.error)
+          .map((entry) => ({ id: entry.id, name: entry.name, ...entry.faviconStatus })),
+      }
+    }
+    if (method === 'POST' && path === '/api/v1/favicons/refresh-missing') {
+      requireAdmin(actor)
+      return refreshMissingFavicons(actor)
     }
     const sync = match(path, /^\/api\/v1\/scopes\/([^/]+)\/sync$/)
     if (sync && method === 'POST') {
@@ -573,6 +621,19 @@ export default defineEventHandler(async (event) => {
     if (method === 'PATCH' && path === '/api/v1/settings') {
       requireAdmin(actor)
       return patchSettings(actor, settingsPatchSchema.parse(await readBody(event)))
+    }
+    const imagePreview = match(path, /^\/api\/v1\/settings\/(logo|favicon)\/preview$/)
+    if (method === 'POST' && imagePreview) {
+      requireAdmin(actor)
+      const body = (imagePreview === 'logo' ? logoWriteSchema : faviconWriteSchema).parse(
+        await readBody(event),
+      )
+      const { contentHash, byteSize, contentType } = prepareBrandingImage(
+        imagePreview === 'logo' ? 'logo' : 'tab_favicon',
+        body.contentType,
+        body.data,
+      )
+      return { contentHash, byteSize, contentType }
     }
     if (method === 'POST' && path === '/api/v1/settings/logo') {
       requireAdmin(actor)

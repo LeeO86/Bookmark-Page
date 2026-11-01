@@ -17,6 +17,7 @@ export interface PortalSettings {
   background: 'gradient' | 'tint' | 'plain'
   faviconColour: string
   allTabPublic: boolean
+  sharedTabsPublicByDefault?: boolean
   hasLogo: boolean
   hasTabFavicon: boolean
   clientChecksAnonymous: boolean
@@ -178,6 +179,12 @@ export interface PortalEntry {
   host: string | null
   iconRef: string | null
   faviconUrl: string | null
+  faviconStatus?: {
+    status: string
+    error: string | null
+    fetchedAt: string | null
+    failureCount: number
+  } | null
   iconUrl: string | null
   sort: number
   source: string | null
