@@ -1,3 +1,4 @@
+import { resolveInputIcons, uploadUrl, contentHash } from '../icons/refs'
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import {
   entryPatchSchema,
@@ -29,6 +30,7 @@ import {
   checkStatus,
   entries,
   faviconCache,
+  icons as uploadedIcons,
   entryTags,
   fieldDefinitions,
   fieldValues,
@@ -38,7 +40,7 @@ import {
   tagNamespaces,
 } from '../db/schema'
 import { badRequest, confirmDuplicate, forbidden, notFound } from '../http/errors'
-import { queueFavicon } from '../icons/favicon'
+import { queueFavicon, faviconFetchEnabled } from '../icons/favicon'
 import { publishLive } from './live'
 import { writeAudit, visibleAuditDiff } from './audit'
 import { assertKnownPlaceholders, resolveLinkUrl, resolvePlaceholders } from './placeholders'
@@ -171,6 +173,7 @@ export function getEntry(actor: Actor, id: string) {
 }
 
 export function createEntry(actor: Actor, input: EntryWrite) {
+  input = resolveInputIcons(input)
   assertWritableChildren(actor.role, input.fields, input.actions)
   const existing = duplicateWarningsFor(getDatabase(), input.name, emptyToNull(input.host), null)
   if (existing.length > 0 && !input.confirmDuplicates) {
@@ -222,6 +225,7 @@ export function createEntry(actor: Actor, input: EntryWrite) {
 }
 
 export function updateEntry(actor: Actor, id: string, patch: EntryPatch) {
+  patch = resolveInputIcons(patch)
   const currentPreview = mustLoad(getDatabase(), id)
   const nextName = patch.name ?? currentPreview.name
   const nextHost = patch.host !== undefined ? emptyToNull(patch.host) : currentPreview.host
@@ -466,6 +470,7 @@ export function upsertManagedEntry(
   actor: Actor,
   deferFavicons = false,
 ): 'created' | 'updated' | 'unchanged' {
+  input = resolveInputIcons(input)
   const status = transaction((db) => {
     const source = `ansible:${scope}`
     const existing = db
@@ -1287,8 +1292,8 @@ function ensureTag(
 function faviconMap(db: Db): Map<string, string> {
   const map = new Map<string, string>()
   for (const row of db.select().from(faviconCache).all()) {
-    if (row.status === 'ok' && row.data) {
-      map.set(row.origin, `/api/icons/favicon/${row.id}`)
+    if (row.data) {
+      map.set(row.origin, `/api/icons/favicon/${row.id}?v=${contentHash(row.data)}`)
     }
   }
   return map
@@ -1304,7 +1309,9 @@ function iconUrl(
     return /^[a-z0-9-]+$/.test(name) ? `/api/icons/lucide/${encodeURIComponent(name)}` : null
   }
   if (iconRef?.startsWith('upload:')) {
-    return `/api/icons/upload/${encodeURIComponent(iconRef.slice('upload:'.length))}`
+    const id = iconRef.slice('upload:'.length)
+    const row = getDatabase().select().from(uploadedIcons).where(eq(uploadedIcons.id, id)).get()
+    return row?.data ? uploadUrl(id, row.data) : null
   }
   if (!iconRef && origin) {
     return icons.get(origin) ?? null
@@ -1423,6 +1430,9 @@ function present(
     host: entry.host,
     iconRef: entry.iconRef,
     faviconUrl: entry.faviconUrl,
+    ...(roleAtLeast(role, 'editor')
+      ? { faviconStatus: entryFaviconStatus(entry, primaryUrl(entry, fieldMap, secretFields)) }
+      : {}),
     iconUrl: iconUrl(
       entry.iconRef,
       entryFaviconKey(entry, primaryUrl(entry, fieldMap, secretFields)),
@@ -2064,4 +2074,33 @@ export function queueManagedFavicons(scope: string, externalKey: string): void {
   if (row)
     for (const request of serverFaviconRequests(mustLoad(getDatabase(), row.id)))
       queueFavicon(request.url, true, request.direct)
+}
+
+function entryFaviconStatus(entry: LoadedEntry, primary: string | null) {
+  const origin = entryFaviconKey(entry, primary)
+  const row = origin
+    ? getDatabase().select().from(faviconCache).where(eq(faviconCache.origin, origin)).get()
+    : null
+  return row
+    ? {
+        status: row.status,
+        error: row.error,
+        fetchedAt: row.fetchedAt?.toISOString() ?? null,
+        failureCount: row.failureCount,
+      }
+    : null
+}
+
+export function refreshMissingFavicons(actor: Actor): { queued: number } {
+  if (!faviconFetchEnabled()) return { queued: 0 }
+  const missing = listEntries(actor, '').entries.filter(
+    (entry) =>
+      ((!entry.iconRef && (!entry.iconUrl || entry.faviconStatus?.status === 'error')) ||
+        entry.links.some(
+          (link) => !link.iconRef && !link.iconUrl && /^https?:/.test(link.url ?? ''),
+        )) &&
+      serverFaviconRequests(mustLoad(getDatabase(), entry.id)).length > 0,
+  )
+  for (const entry of missing) refreshEntryFavicons(actor, entry.id)
+  return { queued: missing.length }
 }

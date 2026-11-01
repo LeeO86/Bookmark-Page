@@ -1,3 +1,5 @@
+import { decodeDataImage } from './data-image'
+
 /** Resolve an explicit image URL or a path relative to the primary HTTP(S) link. */
 export function resolveFaviconUrl(
   value: string,
@@ -5,6 +7,10 @@ export function resolveFaviconUrl(
   host: string | null = null,
 ): string {
   const template = value.trim()
+  if (/^data:/i.test(template)) {
+    decodeDataImage(template)
+    return template
+  }
   if (/\{\{\s*host\s*\}\}/.test(template) && !host) {
     throw new Error('The favicon URL needs an entry host')
   }

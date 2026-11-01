@@ -57,6 +57,13 @@
       "when": 1793425972337,
       "tag": "0007_favicon_override",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793536106367,
+      "tag": "0008_automation_favicons",
+      "breakpoints": true
     }
   ]
 }

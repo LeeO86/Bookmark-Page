@@ -1,4 +1,4 @@
-import type { SyncEntry } from '../../shared/contracts'
+import { tagToken, type SyncEntry } from '../../shared/contracts'
 import type { Actor } from '../auth/permissions'
 import { getDatabase, transaction } from '../db/client'
 import { badRequest } from '../http/errors'
@@ -18,6 +18,15 @@ export function syncScope(
   scope: string,
   input: { entries: SyncEntry[]; purge: boolean; dryRun: boolean },
 ): SyncResult {
+  const labels = new Map<string, string | null>()
+  for (const entry of input.entries)
+    for (const tag of entry.tags ?? []) {
+      const { token, displayLabel } = tagToken(tag)
+      if (displayLabel === undefined) continue
+      if (labels.has(token) && labels.get(token) !== displayLabel)
+        throw badRequest(`Conflicting labels for tag ${token}`)
+      labels.set(token, displayLabel)
+    }
   const run = (): SyncResult => {
     ensureScope(scope, actor)
     const seen = new Set<string>()

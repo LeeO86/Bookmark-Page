@@ -38,6 +38,7 @@ export const apiTokens = sqliteTable('api_tokens', {
     .references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   tokenHash: text('token_hash').notNull().unique(),
+  managedBy: text('managed_by').unique(),
   scopes: text('scopes', { mode: 'json' }).$type<Array<'read' | 'write' | 'admin'>>().notNull(),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
   lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
@@ -176,24 +177,30 @@ export const fieldValues = sqliteTable(
   (table) => [uniqueIndex('field_values_entry_field').on(table.entryId, table.fieldId)],
 )
 
-export const filters = sqliteTable('filters', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  query: text('query').notNull().default(''),
-  ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
-  columns: text('columns', { mode: 'json' }).$type<string[]>().notNull(),
-  groupBy: text('group_by'),
-  sort: integer('sort').notNull().default(0),
-  icon: text('icon'),
-  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
-  viewMode: text('view_mode', { enum: ['list', 'cards', 'tiles'] })
-    .notNull()
-    .default('list'),
-  createdAt,
-  updatedAt,
-  createdBy: text('created_by'),
-  updatedBy: text('updated_by'),
-})
+export const filters = sqliteTable(
+  'filters',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    query: text('query').notNull().default(''),
+    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    scope: text('scope'),
+    externalKey: text('external_key'),
+    columns: text('columns', { mode: 'json' }).$type<string[]>().notNull(),
+    groupBy: text('group_by'),
+    sort: integer('sort').notNull().default(0),
+    icon: text('icon'),
+    isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+    viewMode: text('view_mode', { enum: ['list', 'cards', 'tiles'] })
+      .notNull()
+      .default('list'),
+    createdAt,
+    updatedAt,
+    createdBy: text('created_by'),
+    updatedBy: text('updated_by'),
+  },
+  (table) => [uniqueIndex('filters_scope_external_key').on(table.scope, table.externalKey)],
+)
 
 export const userPreferences = sqliteTable('user_preferences', {
   userId: text('user_id')
@@ -239,6 +246,7 @@ export const faviconCache = sqliteTable('favicon_cache', {
   byteSize: integer('byte_size'),
   error: text('error'),
   fetchedAt: integer('fetched_at', { mode: 'timestamp_ms' }),
+  failureCount: integer('failure_count').notNull().default(0),
   data: blob('data', { mode: 'buffer' }),
   createdAt,
   updatedAt,

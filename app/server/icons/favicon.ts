@@ -1,3 +1,5 @@
+import { decodeDataImage } from '../../shared/data-image'
+import { publishLive } from '../services/live'
 import { eq } from 'drizzle-orm'
 import { faviconCacheKey } from '../../shared/favicon'
 import { getDatabase } from '../db/client'
@@ -5,13 +7,15 @@ import { newId, now } from '../db/ids'
 import { faviconCache } from '../db/schema'
 import { limitedRequest, parseHttpUrl } from '../http/limited'
 import { faviconRefreshDays, faviconTlsVerify } from '../services/settings'
-import { iconCandidates, manifestHref, manifestIcons, pickIcon } from './discover'
+import { iconCandidates, manifestHref, manifestIcons, orderedIcons } from './discover'
 import { sanitizeSvg } from './sanitize'
 
 const maxBytes = () => numberEnv('FAVICON_MAX_BYTES', 512 * 1024)
 const timeoutMs = () => numberEnv('FAVICON_TIMEOUT_MS', 5000)
 
 const inflight = new Set<string>()
+const pending: Array<() => Promise<void>> = []
+let active = 0
 
 export function faviconFetchEnabled(): boolean {
   return process.env.BOOKMARK_FAVICON_FETCH !== '0'
@@ -23,7 +27,7 @@ export function queueFavicon(url: string | null, force = false, direct = false):
   }
   let origin: string
   try {
-    origin = faviconCacheKey(parseHttpUrl(url).href, direct)
+    origin = faviconCacheKey(direct && /^data:/i.test(url) ? url : parseHttpUrl(url).href, direct)
   } catch {
     return
   }
@@ -34,31 +38,41 @@ export function queueFavicon(url: string | null, force = false, direct = false):
     return
   }
   inflight.add(origin)
-  void storeFavicon(origin, url, direct)
-    .catch((error: unknown) => {
-      rememberFailure(
-        origin,
-        url,
-        direct,
-        error instanceof Error ? error.message : 'Favicon fetch failed',
-      )
-    })
-    .finally(() => {
+  pending.push(async () => {
+    try {
+      await storeFavicon(origin, url, direct)
+    } finally {
       inflight.delete(origin)
-    })
+      publishLive({ type: 'entries' })
+    }
+  })
+  drain()
+}
+
+function drain(): void {
+  while (active < 4 && pending.length) {
+    const task = pending.shift()!
+    active += 1
+    void task()
+      .catch(() => {
+        /* Failures are persisted by storeFavicon. */
+      })
+      .finally(() => {
+        active -= 1
+        drain()
+      })
+  }
+}
+
+/** Failed discoveries remain retryable after restarts and never wait a full week. */
+export function faviconRetryMs(failureCount: number): number {
+  return [5 * 60_000, 60 * 60_000, 6 * 60 * 60_000][Math.min(2, Math.max(0, failureCount - 1))]!
 }
 
 export async function refreshStaleFavicons(): Promise<void> {
-  if (!faviconFetchEnabled()) {
-    return
-  }
-  const cutoff = Date.now() - faviconRefreshDays() * 24 * 60 * 60 * 1000
-  const rows = getDatabase().select().from(faviconCache).all()
-  for (const row of rows) {
-    if (row.fetchedAt && row.fetchedAt.getTime() > cutoff) {
-      continue
-    }
-    queueFavicon(row.sourceUrl ?? row.origin, true, row.direct)
+  if (!faviconFetchEnabled()) return
+  for (const row of getDatabase().select().from(faviconCache).all()) {
+    if (!fresh(row.origin)) queueFavicon(row.sourceUrl ?? row.origin, false, row.direct)
   }
 }
 
@@ -67,53 +81,81 @@ export async function fetchFaviconBytes(
   tlsVerify = faviconTlsVerify(),
   direct = false,
 ): Promise<{ mediaType: string; bytes: Buffer }> {
-  const page = await limitedRequest(pageUrl, {
-    timeoutMs: timeoutMs(),
-    maxBytes: maxBytes(),
-    maxRedirects: 3,
-    tlsVerify,
-  })
-  const type = headerValue(page.headers['content-type'])
-  if ((direct || type.startsWith('image/')) && (page.status < 200 || page.status >= 300)) {
-    throw new Error(`Favicon request returned ${page.status}`)
+  if (direct && /^data:/i.test(pageUrl)) {
+    const image = decodeDataImage(pageUrl, maxBytes())
+    return normalizeImage(image.mediaType, Buffer.from(image.bytes))
   }
-  if (direct) {
-    return normalizeImage(type, page.body)
+  const request = (url: string) =>
+    limitedRequest(url, {
+      timeoutMs: timeoutMs(),
+      maxBytes: maxBytes(),
+      maxRedirects: 3,
+      tlsVerify,
+    })
+  let baseUrl = pageUrl
+  let candidates: ReturnType<typeof iconCandidates> = []
+  let manifest: string | null = null
+  let lastError: unknown = new Error('No favicon candidates')
+  try {
+    const page = await request(pageUrl)
+    baseUrl = page.finalUrl
+    const type = headerValue(page.headers['content-type'])
+    if (page.status < 200 || page.status >= 300)
+      throw new Error(`Page request returned ${page.status}`)
+    if (direct || type.startsWith('image/')) return normalizeImage(type, page.body)
+    candidates = iconCandidates(page.body.toString('utf8'), baseUrl, maxBytes())
+    manifest = manifestHref(candidates)
+  } catch (error) {
+    if (direct) throw error
+    lastError = error
   }
-  if (type.startsWith('image/')) {
-    return normalizeImage(type, page.body)
-  }
-  const html = page.body.toString('utf8')
-  let candidates = iconCandidates(html, page.finalUrl)
-  let chosen = pickIcon(candidates)
-  if (!chosen) {
-    const manifest = manifestHref(candidates)
-    if (manifest) {
-      const document = await limitedRequest(manifest, {
-        timeoutMs: timeoutMs(),
-        maxBytes: maxBytes(),
-        maxRedirects: 3,
-        tlsVerify,
-      })
+  const tryCandidates = async (items: typeof candidates) => {
+    for (const candidate of orderedIcons(items).slice(0, 32)) {
       try {
-        candidates = manifestIcons(JSON.parse(document.body.toString('utf8')) as unknown, manifest)
-        chosen = pickIcon(candidates)
-      } catch {
-        chosen = null
+        if (/^data:/i.test(candidate.href)) {
+          const image = decodeDataImage(candidate.href, maxBytes())
+          return normalizeImage(image.mediaType, Buffer.from(image.bytes))
+        }
+        const icon = await request(candidate.href)
+        if (icon.status < 200 || icon.status >= 300)
+          throw new Error(`Favicon request returned ${icon.status}`)
+        return normalizeImage(headerValue(icon.headers['content-type']), icon.body, candidate.svg)
+      } catch (error) {
+        lastError = error
       }
     }
+    return null
   }
-  const iconUrl = chosen?.href ?? new URL('/favicon.ico', page.finalUrl).toString()
-  const icon = await limitedRequest(iconUrl, {
-    timeoutMs: timeoutMs(),
-    maxBytes: maxBytes(),
-    maxRedirects: 3,
-    tlsVerify,
-  })
-  if (icon.status < 200 || icon.status >= 300) {
-    throw new Error(`Favicon request returned ${icon.status}`)
+  const linked = await tryCandidates(candidates)
+  if (linked) return linked
+  if (manifest) {
+    try {
+      const document = await request(manifest)
+      if (document.status < 200 || document.status >= 300)
+        throw new Error(`Manifest request returned ${document.status}`)
+      const image = await tryCandidates(
+        manifestIcons(
+          JSON.parse(document.body.toString('utf8')) as unknown,
+          document.finalUrl,
+          maxBytes(),
+        ),
+      )
+      if (image) return image
+    } catch (error) {
+      lastError = error
+    }
   }
-  return normalizeImage(headerValue(icon.headers['content-type']), icon.body, chosen?.svg === true)
+  const fallback = await tryCandidates([
+    {
+      href: new URL('/favicon.ico', baseUrl).href,
+      rel: 'icon',
+      size: 16,
+      svg: false,
+      manifest: false,
+    },
+  ])
+  if (fallback) return fallback
+  throw lastError
 }
 
 async function storeFavicon(origin: string, pageUrl: string, direct: boolean): Promise<void> {
@@ -125,9 +167,10 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
       .values({
         id: newId(),
         origin,
-        sourceUrl: direct ? pageUrl : null,
+        sourceUrl: pageUrl,
         direct,
         status: 'ok',
+        failureCount: 0,
         mediaType: image.mediaType,
         byteSize: image.bytes.length,
         error: null,
@@ -139,9 +182,10 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
       .onConflictDoUpdate({
         target: faviconCache.origin,
         set: {
-          sourceUrl: direct ? pageUrl : null,
+          sourceUrl: pageUrl,
           direct,
           status: 'ok',
+          failureCount: 0,
           mediaType: image.mediaType,
           byteSize: image.bytes.length,
           error: null,
@@ -168,14 +212,21 @@ function rememberFailure(
   message: string,
 ): void {
   const timestamp = now()
+  const previous = getDatabase()
+    .select()
+    .from(faviconCache)
+    .where(eq(faviconCache.origin, origin))
+    .get()
+  const failureCount = (previous?.failureCount ?? 0) + 1
   getDatabase()
     .insert(faviconCache)
     .values({
       id: newId(),
       origin,
-      sourceUrl: direct ? sourceUrl : null,
+      sourceUrl,
       direct,
       status: 'error',
+      failureCount,
       mediaType: null,
       byteSize: null,
       error: message.slice(0, 500),
@@ -187,9 +238,10 @@ function rememberFailure(
     .onConflictDoUpdate({
       target: faviconCache.origin,
       set: {
-        sourceUrl: direct ? sourceUrl : null,
+        sourceUrl,
         direct,
         status: 'error',
+        failureCount,
         error: message.slice(0, 500),
         fetchedAt: timestamp,
         updatedAt: timestamp,
@@ -200,10 +252,12 @@ function rememberFailure(
 
 function fresh(origin: string): boolean {
   const row = getDatabase().select().from(faviconCache).where(eq(faviconCache.origin, origin)).get()
-  if (!row?.fetchedAt || row.status !== 'ok') {
-    return false
-  }
-  return Date.now() - row.fetchedAt.getTime() < faviconRefreshDays() * 24 * 60 * 60 * 1000
+  if (!row?.fetchedAt) return false
+  const interval =
+    row.status === 'error'
+      ? faviconRetryMs(row.failureCount)
+      : faviconRefreshDays() * 24 * 60 * 60 * 1000
+  return Date.now() - row.fetchedAt.getTime() < interval
 }
 
 function normalizeImage(
@@ -212,25 +266,27 @@ function normalizeImage(
   svgHint = false,
 ): { mediaType: string; bytes: Buffer } {
   const type = contentType.split(';')[0]?.trim().toLowerCase() ?? ''
+  if (!bytes.length || bytes.length > maxBytes()) throw new Error('Favicon exceeds the size limit')
   const svg =
     svgHint || type.includes('svg') || bytes.subarray(0, 80).toString('utf8').includes('<svg')
   if (svg) {
     const clean = Buffer.from(sanitizeSvg(bytes.toString('utf8')), 'utf8')
+    if (clean.length > maxBytes()) throw new Error('Favicon exceeds the size limit')
     return { mediaType: 'image/svg+xml', bytes: clean }
   }
-  if (type === 'image/png' || isPng(bytes)) {
+  if (isPng(bytes)) {
     return { mediaType: 'image/png', bytes }
   }
-  if (type === 'image/webp' || isWebp(bytes)) {
+  if (isWebp(bytes)) {
     return { mediaType: 'image/webp', bytes }
   }
-  if (type === 'image/jpeg' || isJpeg(bytes)) {
+  if (isJpeg(bytes)) {
     return { mediaType: 'image/jpeg', bytes }
   }
-  if (type === 'image/gif' || isGif(bytes)) {
+  if (isGif(bytes)) {
     return { mediaType: 'image/gif', bytes }
   }
-  if (type.includes('icon') || isIco(bytes)) {
+  if (isIco(bytes)) {
     return { mediaType: 'image/x-icon', bytes }
   }
   throw new Error('Favicon is not a supported image')
