@@ -44,7 +44,7 @@ Every admin section has a top-right X to return to the portal. File pickers are 
 
 The initial portal HTML includes the configured title/logo and the permitted entries with their available image/icon URLs. The current banner image is preloaded; hydration reuses the server state instead of briefly showing the default logo or refetching the initial catalogue. Visibility and field redaction apply before rendering, and personalised HTML is private/no-store. Available in `v2.1.0`.
 
-Live entry/status notifications reload the current filtered entries and tags. After an SSE disconnect or a failed first connection, the next server `ready` event also reconciles missed changes while retaining the query and open editor draft. A healthy initial handshake keeps the SSR snapshot without a duplicate bootstrap fetch. Sign-in already refreshes the catalogue. The reconnect correction is not included in the existing `v2.1.0` release.
+Live entry/status notifications reload the current filtered entries and tags. After an SSE disconnect or a failed first connection, the next server `ready` event also reconciles missed changes while retaining the query and open editor draft. A healthy initial handshake keeps the SSR snapshot without a duplicate bootstrap fetch. Sign-in already refreshes the catalogue. The reconnect correction is available in `v2.1.1`.
 
 ## Ansible
 

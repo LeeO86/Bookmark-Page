@@ -10,7 +10,7 @@ Tokens have scopes `read`, `write`, and `admin`. Scope restrictions apply in add
 
 `GET /api/v1/events` is an SSE stream. The server subscribes before sending `ready`, sends `entries`/`status` invalidations and a `ping` every 15 seconds. Events contain only their type; clients fetch their current filtered, permission-checked view through the API. There is no event replay or polling fallback.
 
-The portal reloads entries and tags on a successful connection after an error, and on subsequent `ready` handshakes, to reconcile changes missed while disconnected. A healthy first handshake retains the SSR snapshot without extra bootstrap requests. Query/filter and open editor state are retained; normal sign-in already reloads the catalogue. The reconnect correction requires a release newer than `v2.1.0`.
+The portal reloads entries and tags on a successful connection after an error, and on subsequent `ready` handshakes, to reconcile changes missed while disconnected. A healthy first handshake retains the SSR snapshot without extra bootstrap requests. Query/filter and open editor state are retained; normal sign-in already reloads the catalogue. The reconnect correction is available since `v2.1.1`.
 
 ## Examples
 

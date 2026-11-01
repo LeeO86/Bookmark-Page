@@ -285,7 +285,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.0.0"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.1.1"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,
