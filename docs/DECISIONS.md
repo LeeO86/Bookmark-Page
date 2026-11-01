@@ -245,3 +245,16 @@ secret placeholder value in plain text. Final review caught this before the home
 rollout. Stop the 2.2.0 publishing workflow, retain its immutable source tag, and
 publish the complete app/collection as 2.2.1 after revalidation. The home deployment
 remains on 2.1.1 until that corrected release is verified.
+
+## 2026-11-01 — Native multiarch release builds
+
+**Decision:** Build AMD64 and ARM64 on native GitHub runners, run both offline
+container smoke checks against each published digest, and publish shared version
+aliases only after both pass. Permit manual rebuilding of an existing immutable
+tag, validating app/collection versions and running all CI checks against its
+exact source commit. Keep the v2.2.1 source tag unchanged.
+
+**Reason:** Two release attempts stalled during ARM64 client bundling under QEMU,
+while the AMD64 build and all verification jobs completed. Native builders avoid
+that observed failure and also verify ARM64 runtime behaviour before publication.
+This workflow-only repair does not change the released application or collection.

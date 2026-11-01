@@ -37,6 +37,13 @@ The image runs as the non-root `node` user, uid 1000. The database file is `/dat
 
 Pull the v2.2.1 release with `docker pull ghcr.io/leeo86/bookmark-page:2.2.1`. Keep the existing `/data` volume and `BOOKMARK_SECRET_KEY` when updating an installation.
 
+Release images are built on native AMD64 and ARM64 runners. Each exact image digest
+must pass the offline asset and automation smoke checks on its own architecture
+before the shared version aliases are published. Maintainers can dispatch the
+Release workflow on `main` with an existing `tag` to rebuild an immutable release:
+the workflow validates the application and collection versions and runs the full
+CI suite against that tag's exact commit. Source tags are never moved.
+
 Release images are published to `ghcr.io/leeo86/bookmark-page`. A git tag `v2.x.y` publishes image tags `2.x.y`, `2.x`, `2`, and `latest`.
 
 ## Ansible
