@@ -391,6 +391,15 @@ export function usePortal() {
       void reloadEntries()
       void refreshTags()
     }
+    // Keep the initial SSR snapshot, but reconcile changes missed while disconnected.
+    let resyncOnReady = false
+    liveSource.addEventListener('error', () => {
+      resyncOnReady = true
+    })
+    liveSource.addEventListener('ready', () => {
+      if (resyncOnReady) refresh()
+      resyncOnReady = true
+    })
     liveSource.addEventListener('entries', refresh)
     liveSource.addEventListener('status', refresh)
   }

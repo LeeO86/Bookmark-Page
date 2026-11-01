@@ -448,6 +448,9 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   a destructive action.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
+  After a disconnect or failed initial SSE connection, reload filtered entries and tags
+  on the next server `ready` event to catch missed notifications. A healthy first
+  handshake reuses the SSR snapshot without duplicate bootstrap requests.
 
 ## 12. Import / export / history
 

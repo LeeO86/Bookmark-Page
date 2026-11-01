@@ -104,6 +104,89 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'admin', exact: true })).toBeVisible()
 }
 
+for (const initialFailure of [false, true]) {
+  test(`SSE: catches missed changes after ${initialFailure ? 'a failed initial connection' : 'an established connection drops'}`, async ({
+    page,
+    goto,
+    context,
+  }) => {
+    await goto('/', { waitUntil: 'networkidle' })
+    await signIn(page)
+    const base = new URL(page.url()).origin
+    const tag = initialFailure ? 'ReconnectInitial' : 'ReconnectEstablished'
+    const api = async (method: string, path: string, data?: unknown) => {
+      const response = await page.request.fetch(base + path, {
+        method,
+        data,
+        headers: { Origin: base },
+      })
+      expect(response.ok()).toBe(true)
+      return response.json()
+    }
+    const seed = await api('POST', '/api/v1/entries', {
+      name: tag + ' original',
+      tags: ['group:' + tag],
+    })
+    let missedId: string | null = null
+    let attempts = 0
+    let allowReconnect = false
+    await context.route('**/api/v1/events', async (route) => {
+      attempts++
+      if (attempts === 1 && !initialFailure) {
+        // A real EventSource receives ready, then EOF and retries natively.
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: 'retry: 100\nevent: ready\ndata: {}\n\n',
+        })
+      } else if (!allowReconnect) {
+        await route.abort('internetdisconnected')
+      } else {
+        // Resume the actual server stream; no synthetic change event is sent.
+        await route.continue()
+      }
+    })
+    try {
+      await page.goto(`${base}/?q=group:${tag}&view=cards`, { waitUntil: 'networkidle' })
+      const original = page.locator(`[data-entry-id="${seed.entry.id}"]`)
+      await expect(original).toBeVisible()
+      await expect.poll(() => attempts).toBeGreaterThan(1)
+      await page.keyboard.press('Shift+E')
+      await original.getByTestId('edit-entry').click()
+      await page.getByTestId('entry-name').fill('Unsaved reconnect draft')
+
+      const freshTag = tag + 'Fresh'
+      const missed = await api('POST', '/api/v1/entries', {
+        name: tag + ' added while disconnected',
+        tags: ['group:' + tag, freshTag],
+      })
+      missedId = missed.entry.id
+      const incoming = page.locator(`[data-entry-id="${missedId}"]`)
+      await expect(incoming).toHaveCount(0)
+
+      const tagsResponse = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === '/api/v1/tags',
+      )
+      allowReconnect = true
+      await expect(incoming).toBeVisible()
+      const refreshedTags = await (await tagsResponse).json()
+      expect(refreshedTags.tags.some((item: { label: string }) => item.label === freshTag)).toBe(
+        true,
+      )
+      await expect(page.getByTestId('query-input')).toHaveValue('group:' + tag)
+      await expect(page).toHaveURL(`${base}/?q=group:${tag}&view=cards`)
+      await expect(page.getByTestId('entry-name')).toHaveValue('Unsaved reconnect draft')
+
+      await api('PATCH', '/api/v1/entries/' + missedId, { name: tag + ' changed after reconnect' })
+      await expect(incoming.getByTestId('entry-title')).toHaveText(tag + ' changed after reconnect')
+      await expect(page.getByTestId('entry-name')).toHaveValue('Unsaved reconnect draft')
+    } finally {
+      await api('DELETE', '/api/v1/entries/' + seed.entry.id)
+      if (missedId) await api('DELETE', '/api/v1/entries/' + missedId)
+    }
+  })
+}
+
 test('admin: file actions are buttons, destructive actions are coloured and every section can be closed', async ({
   page,
   goto,
