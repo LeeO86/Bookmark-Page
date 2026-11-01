@@ -180,6 +180,9 @@ fetched favicon → letter avatar (initials, colour derived from name).
   Also accept validated percent-encoded/Base64 inline SVG/PNG/WebP/ICO data URIs;
   determine MIME from the URI and decode locally, with the same limits/sanitising.
   Persist it in API/sync, history and backups.
+- Never decrypt secret-field placeholders for background favicon work. Such links
+  remain unresolved until explicit reveal; a separate public favicon override may
+  supply their image.
 - Triggered asynchronously when a link is created or its URL changes, plus a manual
   "refetch" button and an optional periodic refresh (default weekly).
 - Discovery: parse HTML `<link rel="icon">`, `shortcut icon`, `apple-touch-icon`, web
@@ -291,7 +294,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.0"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.1"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,

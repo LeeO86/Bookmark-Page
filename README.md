@@ -93,9 +93,9 @@ Copyright 2020 Adrian Hilber. Licensed under MIT. See `LICENSE`.
 
 The V1 importer can also copy the site title and claim independently with `v1_import_site_title` and `v1_import_site_claim` (both opt-in).
 
-## Automation and favicon improvements in v2.2.0
+## Automation and favicon improvements in v2.2.1
 
-App and Ansible collection ship together as 2.2.0. Configure a persistent admin token
+App and Ansible collection ship together as 2.2.1. Configure a persistent admin token
 with `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`; existing API tokens and module
 arguments remain supported. The collection adds `settings`, `icon`, `filters_sync`
 and `group/leeo86.bookmarks.bookmarks` module defaults. It also accepts session

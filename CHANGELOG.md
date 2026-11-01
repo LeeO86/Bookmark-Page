@@ -1,6 +1,16 @@
 # Changelog
 
-## 2.2.0 — 2026-11-01
+## 2.2.1 — 2026-11-01
+
+First public release of the combined automation and favicon improvements. The
+2.2.0 publishing workflow was stopped during final validation; its source tag is
+retained unchanged.
+
+- Keep secret-backed bookmark links unresolved during automatic favicon work.
+  Never decrypt secret fields for background discovery or persist their values in
+  retry sources. Explicit public favicon overrides remain available.
+
+## 2.2.0 candidate — 2026-11-01
 
 Application and Ansible collection ship at the same version. Existing module
 arguments and canonical icon references remain supported.
