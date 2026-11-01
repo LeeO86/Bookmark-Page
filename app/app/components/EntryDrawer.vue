@@ -80,7 +80,8 @@ const iconPreview = computed(() => {
     return `/api/icons/lucide/${encodeURIComponent(iconRef.value.slice('lucide:'.length))}`
   }
   if (iconRef.value.startsWith('upload:')) {
-    return `/api/icons/upload/${encodeURIComponent(iconRef.value.slice('upload:'.length))}`
+    if (props.entry?.iconRef === iconRef.value) return props.entry.iconUrl
+    return iconChoices.value.find((choice) => choice.ref === iconRef.value)?.url ?? null
   }
   return null
 })
@@ -570,6 +571,10 @@ function diffText(diff: Record<string, unknown>): string {
               Refetch favicon
             </button>
           </div>
+          <p v-if="entry?.faviconStatus?.error" class="text-sm text-warning" role="status">
+            Favicon: {{ entry.faviconStatus.error }}. Automatic retry is scheduled; you can refetch
+            now.
+          </p>
           <div class="flex gap-1">
             <UInput
               v-model="iconQuery"
@@ -629,7 +634,7 @@ function diffText(diff: Record<string, unknown>): string {
             <summary class="cursor-pointer text-muted">Expert options</summary>
             <UFormField
               name="faviconUrl"
-              label="Favicon URL or path"
+              label="Favicon URL, path or data URI"
               description="Leave empty for automatic discovery. A path is relative to the primary HTTP(S) link. A chosen library or uploaded icon takes priority. Save to fetch the image."
               class="mt-2"
             >
