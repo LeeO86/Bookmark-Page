@@ -43,6 +43,8 @@ jobs:
           tags: bookmark-page:ci
       - name: Verify icons and fonts without networking
         run: bash docker/test-offline.sh bookmark-page:ci
+      - name: Verify automation and inline favicons without networking
+        run: bash docker/test-automation.sh bookmark-page:ci
 
   ansible:
     name: Ansible sanity and integration
@@ -69,6 +71,7 @@ jobs:
             -e BOOKMARK_SECRET_KEY='BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=' \
             -e ADMIN_USERNAME=admin \
             -e ADMIN_PASSWORD=admin-pass-1 \
+            -e ADMIN_API_TOKEN=bp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
             -e SESSION_COOKIE_SECURE=false \
             -e BOOKMARK_FAVICON_FETCH=0 \
             -e BOOKMARK_MONITORS=0 \
@@ -84,19 +87,10 @@ jobs:
           done
           docker logs bookmark-ansible
           exit 1
-      - name: Mint an admin token and run the playbook
+      - name: Run the playbook with the bootstrap token
         run: |
           set -euo pipefail
-          curl -sf -c /tmp/bookmark-cookies \
-            -H 'Origin: http://127.0.0.1:3000' \
-            -H 'Content-Type: application/json' \
-            -d '{"username":"admin","password":"admin-pass-1"}' \
-            http://127.0.0.1:3000/api/v1/auth/login >/dev/null
-          API_TOKEN="$(curl -sf -b /tmp/bookmark-cookies \
-            -H 'Origin: http://127.0.0.1:3000' \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"ansible","scopes":["admin"]}' \
-            http://127.0.0.1:3000/api/v1/tokens | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+          API_TOKEN=bp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           API_URL=http://127.0.0.1:3000 \
             API_TOKEN="$API_TOKEN" \
             V1_URL=http://127.0.0.1:8099 \

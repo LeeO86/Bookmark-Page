@@ -106,7 +106,9 @@ describe('initial server-rendered portal data', () => {
     const guest = initialPortal(anonymousActor, { q: '', tab: '' }, publicSettings(), preferences)
     expect(guest.settings.hasLogo).toBe(true)
     expect(guest.entries.map((entry) => entry.name)).toEqual(['Visible device'])
-    expect(guest.entries[0]?.iconUrl).toBe('/api/icons/favicon/cached-icon')
+    expect(guest.entries[0]?.iconUrl).toMatch(
+      /^\/api\/icons\/favicon\/cached-icon\?v=[a-f0-9]{64}$/,
+    )
     expect(JSON.stringify(guest)).not.toMatch(
       /Hidden device|restricted metadata|never serialize plaintext|Admin note|Password|lucide:key/,
     )
