@@ -46,6 +46,33 @@ try {
   const settings = await api('GET', '/api/v1/settings')
   check('Bootstrap token authenticates without a login', typeof settings.siteTitle === 'string')
   const source = `http://127.0.0.1:${fixture.address().port}/ui/`
+  await api('POST', '/api/v1/fields', {
+    key: 'icon_secret',
+    label: 'Secret',
+    type: 'secret',
+    minRoleToView: 'admin',
+  })
+  const { entry: secretEntry } = await api('POST', '/api/v1/entries', {
+    name: 'Secret-backed bookmark',
+    fields: [{ key: 'icon_secret', value: 'never-fetch-secret-value' }],
+    links: [
+      {
+        label: 'Private UI',
+        urlTemplate: source + '{{field.icon_secret}}',
+        type: 'web',
+        isPrimary: true,
+      },
+    ],
+  })
+  check(
+    'Secret-backed links remain unresolved',
+    secretEntry.links[0].url === null && secretEntry.links[0].requiresReveal,
+  )
+  check(
+    'Manual favicon refresh skips secret-backed links',
+    (await api('POST', '/api/v1/entries/' + secretEntry.id + '/favicon')).queued === 0,
+  )
+
   const { entry } = await api('POST', '/api/v1/entries', {
     name: 'Inline only',
     links: [{ label: 'UI', urlTemplate: source, type: 'web', isPrimary: true }],

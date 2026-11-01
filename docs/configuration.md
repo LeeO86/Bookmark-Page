@@ -59,7 +59,7 @@ exists. User role restrictions continue to apply. Existing databases/accounts
 are supported; token reconciliation does not depend on first-time user creation.
 
 Ansible can instead use `BOOKMARKS_USERNAME`/`BOOKMARKS_PASSWORD` for a local
-session. See [Ansible connection options](ansible.md#automation-additions-in-220).
+session. See [Ansible connection options](ansible.md#automation-additions-in-221).
 
 ## Shared-tab visibility
 
@@ -95,3 +95,8 @@ use content-versioned URLs and ETags. Completion invalidates open clients throug
 SSE. Editors see failures in the entry drawer; admins see them in the icon library
 and can choose **Refresh missing favicons**. Manual refresh bypasses backoff and
 uses the same bounded queue.
+
+Automatic favicon work never resolves links containing secret-field placeholders.
+Those links remain behind explicit reveal. Configure a separate public favicon
+override if such an entry needs an image. Secret values cannot enter stored retry
+sources through background link resolution.

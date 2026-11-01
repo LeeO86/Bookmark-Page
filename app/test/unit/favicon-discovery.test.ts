@@ -1,3 +1,4 @@
+import { createFieldDefinition } from '../../server/services/catalog'
 import { createServer, type Server } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -207,4 +208,57 @@ it('persists failure backoff across restarts, permits manual retries and retains
   expect(row.data).toEqual(png)
   expect(row.error).toContain('503')
   expect(row.failureCount).toBe(1)
+})
+
+it('never resolves secret fields for favicon requests or persisted retry sources', async () => {
+  await boot()
+  const { origin, requests } = await fixture(() => ({
+    type: 'text/html',
+    body: `<link rel="icon" href="${uri}">`,
+  }))
+  const admin = {
+    role: 'admin' as const,
+    kind: 'user' as const,
+    label: 'admin',
+    userId: null,
+    tokenId: null,
+    tokenScopes: [],
+  }
+  createFieldDefinition(admin, {
+    key: 'favicon_password',
+    label: 'Secret',
+    type: 'secret',
+    minRoleToView: 'admin',
+    searchable: false,
+    showAsColumnDefault: false,
+    sort: 0,
+  })
+  const secret = 'never-persist-this-favicon-secret'
+  const privateEntry = createEntry(
+    admin,
+    entryWriteSchema.parse({
+      name: 'Secret-backed link',
+      fields: [{ key: 'favicon_password', value: secret }],
+      links: [
+        {
+          label: 'UI',
+          urlTemplate: origin + '/{{field.favicon_password}}?token={{field.favicon_password}}',
+          type: 'web',
+          isPrimary: true,
+        },
+      ],
+    }),
+  ).entry
+  const publicEntry = createEntry(
+    admin,
+    entryWriteSchema.parse({
+      name: 'Ordinary public source',
+      links: [{ label: 'UI', urlTemplate: origin + '/public', type: 'web', isPrimary: true }],
+    }),
+  ).entry
+  await vi.waitFor(() => expect(getEntry(admin, publicEntry.id).iconUrl).toBeTruthy())
+  expect(requests).toEqual(['/public'])
+  expect(JSON.stringify(getDatabase().select().from(faviconCache).all())).not.toContain(secret)
+  expect(privateEntry.links[0]?.url).toBeNull()
+  expect(privateEntry.links[0]?.requiresReveal).toBe(true)
 })

@@ -1,11 +1,11 @@
 # Ansible
 
-The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.2.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
+The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.2.1, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
 
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.0"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.1"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
@@ -114,7 +114,7 @@ API_URL=http://127.0.0.1:3000 API_TOKEN=bp_... V1_URL=http://127.0.0.1:8099 \
   ansible_collections/leeo86/bookmarks/tests/integration/run.sh
 ```
 
-## Automation additions in 2.2.0
+## Automation additions in 2.2.1
 
 All existing arguments remain supported. Connection options are `api_url`,
 `api_token`, `username`, `password`, and `validate_certs`. Their environment
@@ -225,4 +225,4 @@ assigning competing descriptions.
 
 When switching from uploaded workaround icons to automatic discovery, explicitly
 clear the previously managed override with `icon: ''`. Omitting the argument
-preserves it. `favicon_url` also accepts validated inline image data in 2.2.0.
+preserves it. `favicon_url` also accepts validated inline image data in 2.2.1.

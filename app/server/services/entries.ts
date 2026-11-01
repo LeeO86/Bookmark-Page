@@ -1367,9 +1367,10 @@ function serverUrls(
   selection: 'all' | 'primary' | 'secondary' = 'all',
 ): string[] {
   const fields: Record<string, string> = {}
+  const secretFields = new Set<string>()
   for (const field of entry.fields) {
-    if (field.type === 'secret' && field.valueSecret) {
-      fields[field.key] = decryptSecret(field.valueSecret)
+    if (field.type === 'secret') {
+      secretFields.add(field.key)
     } else if (field.valueText != null) {
       fields[field.key] = field.valueText
     }
@@ -1384,7 +1385,7 @@ function serverUrls(
     const resolved = resolveLinkUrl(
       link.urlTemplate,
       { host: entry.host, name: entry.name, fields },
-      new Set(),
+      secretFields,
     )
     if (resolved.url) {
       urls.push(resolved.url)

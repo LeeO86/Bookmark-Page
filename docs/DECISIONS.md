@@ -232,3 +232,16 @@ changes no managed resources; ordinary authentication telemetry is allowed.
 workarounds while preserving existing playbooks, permissions and private tabs.
 Headlamp v0.45.0 advertises a Safari mask SVG containing a DOCTYPE; selecting only
 that SVG and rejecting its declaration prevented otherwise valid PNG/ICO fallbacks.
+
+## 2026-11-01 — Stop the 2.2.0 candidate and publish corrected v2.2.1
+
+**Decision:** Keep secret-backed link templates unresolved for all automatic
+favicon work, including manual refresh and periodic retry. Do not decrypt secret
+fields when deriving discovery sources. Explicit public favicon overrides remain
+possible. A regression checks the network requests and stored cache metadata.
+
+**Reason:** Retaining the resolved page URL for retry could otherwise persist a
+secret placeholder value in plain text. Final review caught this before the home
+rollout. Stop the 2.2.0 publishing workflow, retain its immutable source tag, and
+publish the complete app/collection as 2.2.1 after revalidation. The home deployment
+remains on 2.1.1 until that corrected release is verified.

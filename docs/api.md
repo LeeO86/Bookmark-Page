@@ -78,7 +78,7 @@ Entry history uses current field permissions and omits deleted definitions and f
 
 Backups include user preferences. Format-1 archives from older versions still restore; missing preferences use their defaults. Both merge and replace restore preferences by the corresponding user.
 
-## Automation and favicon APIs (2.2.0)
+## Automation and favicon APIs (2.2.1)
 
 `ADMIN_API_TOKEN` configures an admin token without an interactive login; see
 [configuration](configuration.md#persistent-automation-authentication). Existing
