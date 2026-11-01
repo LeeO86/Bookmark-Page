@@ -285,7 +285,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.0.0"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.1.1"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,
@@ -448,6 +448,9 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   a destructive action.
 - Live updates via SSE for entries and status; never lose query, scroll position or open
   editor state on update.
+  After a disconnect or failed initial SSE connection, reload filtered entries and tags
+  on the next server `ready` event to catch missed notifications. A healthy first
+  handshake reuses the SSR snapshot without duplicate bootstrap requests.
 
 ## 12. Import / export / history
 
