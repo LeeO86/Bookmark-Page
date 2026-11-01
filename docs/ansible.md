@@ -1,11 +1,11 @@
 # Ansible
 
-The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.1.1, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
+The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.2.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
 
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.1.1"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.0"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
@@ -14,7 +14,7 @@ From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so An
 
 Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and token also come from `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`. The token is redacted in Ansible output. The server does not read those variables.
 
-`entry`, `entries_sync`, and `entry_info` need a token with the `write` scope. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
+`entry` and `entries_sync` need `write`; `entry_info` needs `read`. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
 
 ## Modules
 
@@ -113,3 +113,116 @@ The integration playbook needs a running server, an admin token, and a URL that 
 API_URL=http://127.0.0.1:3000 API_TOKEN=bp_... V1_URL=http://127.0.0.1:8099 \
   ansible_collections/leeo86/bookmarks/tests/integration/run.sh
 ```
+
+## Automation additions in 2.2.0
+
+All existing arguments remain supported. Connection options are `api_url`,
+`api_token`, `username`, `password`, and `validate_certs`. Their environment
+fallbacks are `BOOKMARKS_API_URL`, `BOOKMARKS_API_TOKEN`, `BOOKMARKS_USERNAME`, and
+`BOOKMARKS_PASSWORD`. A token takes precedence. Without one, both credentials are
+required; the module logs in, retains the session cookie within the task, and
+sends the matching Origin header. Passwords and tokens are redacted. Local-login
+and break-glass restrictions still apply. Each task may log in separately, so a
+persistent automation token is preferable for frequent syncs.
+
+Use the server's `ADMIN_API_TOKEN`/`ADMIN_API_TOKEN_FILE` for unattended bootstrap,
+or create a normal API token once without `expiresAt`. Neither needs a new token
+on every playbook run. Admin scope is required for settings, icons and global tabs.
+Check mode leaves managed resources unchanged; authentication can still record
+logins and token `lastUsedAt`.
+
+| Module                  | Added behavior                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `settings`              | Every settings PATCH option, plus `logo_src` and `tab_icon_src`                                                        |
+| `icon`                  | Exact name, `src` or Base64 `content`, inferred `content_type`, `state: present/absent`; returns stable `id` and `ref` |
+| `filters_sync`          | Global tabs keyed by scope and `external_key`, with scope-limited purge                                                |
+| `entry`, `entries_sync` | Entry/link icons accept `upload-name:<exact-name>`; both accept tag strings or `{tag, label}`                          |
+| `filter`                | Optional `view_mode`; omission preserves an existing layout                                                            |
+| `site_branding`         | Existing title/claim behavior retained                                                                                 |
+
+All modules belong to the `bookmarks` action group:
+
+```yaml
+- hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/leeo86.bookmarks.bookmarks:
+      api_url: https://bookmarks.example.com
+      api_token: '{{ vault_bookmarks_token }}'
+      validate_certs: true
+  tasks:
+    - name: Configure the portal
+      leeo86.bookmarks.settings:
+        site_title: MXL platform
+        site_claim: Production tools
+        accent_preset: custom
+        accent_colour: '#2563eb'
+        favicon_colour: '#2563eb'
+        all_tab_public: true
+        shared_tabs_public_by_default: true
+        logo_src: /srv/branding/logo.svg
+        tab_icon_src: /srv/branding/tab.png
+    - name: Install a custom mixer icon
+      leeo86.bookmarks.icon:
+        name: mxl-mixer
+        src: /srv/icons/mixer.svg
+    - name: Synchronise shared views
+      leeo86.bookmarks.filters_sync:
+        scope: mxl
+        purge: true
+        filters:
+          - external_key: production
+            name: Production
+            query: production:*
+            icon: camera
+            group_by: production
+            sort: 10
+            view_mode: cards
+            columns: [name, host]
+            is_public: true
+    - name: Synchronise entries
+      leeo86.bookmarks.entries_sync:
+        scope: mxl
+        entries:
+          - external_key: mixer
+            name: Audio mixer
+            icon: upload-name:mxl-mixer
+            tags:
+              - tag: production:demo
+                label: Demonstration production
+```
+
+`settings` supports `site_title`, `site_claim`, `accent_preset`, `accent_colour`,
+`favicon_colour`, `neutral_palette`, `default_colour_mode`, `background`,
+`all_tab_public`, `shared_tabs_public_by_default`, `client_checks_anonymous`,
+`favicon_tls_verify`, `favicon_refresh_days`, `audit_retention_days`, and
+`default_scope_edit_mode`. Only supplied keys change; colours compare without
+case sensitivity. A custom accent requires `accent_preset: custom` if a named
+preset is active. Selecting a named preset applies its canonical colour.
+Explicit `false`, `0`, and an empty claim retain their meanings.
+
+Image paths refer to the module execution host. An empty `logo_src` or
+`tab_icon_src` removes that custom image. SVG logo/icon comparisons use hashes
+of sanitised content, so removing an event handler during upload does not cause
+perpetual changes. Image diffs show metadata/hashes, not Base64. `icon` replaces
+bytes at the existing ID and refreshes the versioned image URL. Deleting an icon
+leaves its references in place; those entries use their fallback until the
+reference is cleared or replaced. No unrelated icons are garbage-collected.
+
+`filters_sync` never adopts a manual tab by name. Migrate existing automated
+manual tabs explicitly: create the scope-owned replacements, verify them, then
+remove only the old tabs you know automation created. The legacy `filter` module
+continues to manage unowned global tabs. Personal tabs and other scopes are never
+purged. Omitting `is_public` preserves existing visibility and uses the configured
+shared-tab default only on creation. Explicit `false` wins.
+
+Tag labels are global for a `namespace:value` token. An omitted label preserves
+it; an explicit `null` clears it. Conflicting explicit labels within one
+`entries_sync` request reject the entire batch before mutation. Omitted labels
+and one consistent explicit label may coexist. Separate syncs/scopes can update
+the same global label; coordinate its ownership in your inventory rather than
+assigning competing descriptions.
+
+When switching from uploaded workaround icons to automatic discovery, explicitly
+clear the previously managed override with `icon: ''`. Omitting the argument
+preserves it. `favicon_url` also accepts validated inline image data in 2.2.0.
