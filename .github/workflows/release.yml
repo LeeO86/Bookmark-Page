@@ -4,42 +4,104 @@ on:
   push:
     tags:
       - 'v2.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable release tag to rebuild
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  source:
+    name: Resolve release source
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+      tags: ${{ steps.release.outputs.tags }}
+    steps:
+      - name: Validate tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: '[[ "$RELEASE_TAG" =~ ^v2\.[0-9]+\.[0-9]+$ ]]'
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+      - id: release
+        name: Verify application and collection versions
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          python3 - "$version" <<'PY'
+          import json, pathlib, re, sys
+          expected = sys.argv[1]
+          assert json.loads(pathlib.Path('app/package.json').read_text())['version'] == expected
+          galaxy = pathlib.Path('ansible_collections/leeo86/bookmarks/galaxy.yml').read_text()
+          assert re.search(r'^version:\s*' + re.escape(expected) + r'\s*$', galaxy, re.M)
+          PY
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "tag=$RELEASE_TAG"
+            echo "tags=ghcr.io/leeo86/bookmark-page:$version,ghcr.io/leeo86/bookmark-page:${version%.*},ghcr.io/leeo86/bookmark-page:${version%%.*},ghcr.io/leeo86/bookmark-page:latest"
+          } >> "$GITHUB_OUTPUT"
+
   verify:
+    needs: source
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+
+  amd64:
+    needs: [source, verify]
+    uses: ./.github/workflows/release-platform.yml
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+      tag: ${{ needs.source.outputs.tag }}
+      platform: linux/amd64
+      runner: ubuntu-latest
+
+  arm64:
+    needs: [source, verify]
+    uses: ./.github/workflows/release-platform.yml
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+      tag: ${{ needs.source.outputs.tag }}
+      platform: linux/arm64
+      runner: ubuntu-24.04-arm
+
   image:
-    needs: verify
-    name: Publish container image
+    name: Publish verified multiarch image
+    needs: [source, amd64, arm64]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: tags
-        shell: bash
+      - name: Publish release aliases
+        env:
+          RELEASE_TAGS: ${{ needs.source.outputs.tags }}
+          AMD64_DIGEST: ${{ needs.amd64.outputs.digest }}
+          ARM64_DIGEST: ${{ needs.arm64.outputs.digest }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          minor="${version%.*}"
-          major="${version%%.*}"
-          echo "tags=ghcr.io/leeo86/bookmark-page:${version},ghcr.io/leeo86/bookmark-page:${minor},ghcr.io/leeo86/bookmark-page:${major},ghcr.io/leeo86/bookmark-page:latest" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.ref_name }}
+          set -euo pipefail
+          [[ "$AMD64_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$ARM64_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          IFS=',' read -ra tags <<< "$RELEASE_TAGS"
+          args=()
+          for tag in "${tags[@]}"; do args+=(--tag "$tag"); done
+          docker buildx imagetools create "${args[@]}" \
+            "ghcr.io/leeo86/bookmark-page@$AMD64_DIGEST" \
+            "ghcr.io/leeo86/bookmark-page@$ARM64_DIGEST"
