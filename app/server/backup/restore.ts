@@ -1,3 +1,4 @@
+import { newId } from '../db/ids'
 import { and, eq } from 'drizzle-orm'
 import { strFromU8, unzipSync } from 'fflate'
 import type { Actor } from '../auth/permissions'
@@ -231,6 +232,11 @@ function insertDocument(
         error: row.error,
         fetchedAt: dateOrNull(row.fetchedAt),
         failureCount: row.failureCount,
+        imageSource: row.imageSource,
+        suppliedBy: row.suppliedBy,
+        suppliedAt: dateOrNull(row.suppliedAt),
+        failureKind: row.failureKind,
+        retryPaused: row.retryPaused,
         data: row.hasData ? bytes(files, `favicons/${row.id}`) : null,
         createdAt: date(row.createdAt),
         updatedAt: date(row.updatedAt),
@@ -729,6 +735,34 @@ function mergeAll(
         .values({ ...row, createdAt: date(row.createdAt), updatedAt: date(row.updatedAt) })
         .run()
     }
+  }
+  for (const row of document.favicons) {
+    const current = tx.select().from(faviconCache).where(eq(faviconCache.origin, row.origin)).get()
+    if (!row.hasData || (current?.imageSource === 'supplied' && row.imageSource !== 'supplied'))
+      continue
+    const values = {
+      origin: row.origin,
+      sourceUrl: row.sourceUrl,
+      direct: row.direct,
+      status: row.status,
+      mediaType: row.mediaType,
+      byteSize: row.byteSize,
+      error: row.error,
+      fetchedAt: dateOrNull(row.fetchedAt),
+      failureCount: row.failureCount,
+      imageSource: row.imageSource,
+      suppliedBy: row.suppliedBy,
+      suppliedAt: dateOrNull(row.suppliedAt),
+      failureKind: row.failureKind,
+      retryPaused: row.retryPaused,
+      data: bytes(files, `favicons/${row.id}`),
+      updatedAt: date(row.updatedAt),
+    }
+    if (current) tx.update(faviconCache).set(values).where(eq(faviconCache.id, current.id)).run()
+    else
+      tx.insert(faviconCache)
+        .values({ ...values, id: newId(), createdAt: date(row.createdAt) })
+        .run()
   }
   return preview
 }

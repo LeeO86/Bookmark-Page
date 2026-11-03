@@ -1,3 +1,8 @@
+import {
+  previewEntryFavicon,
+  supplyEntryFavicon,
+  removeSuppliedFavicon,
+} from '../../icons/supplied'
 import { contentHash } from '../../icons/refs'
 import { syncFilters } from '../../services/filters-sync'
 import {
@@ -17,6 +22,7 @@ import {
   checkReportSchema,
   checkLeaseSchema,
   entryPatchSchema,
+  entryFaviconSupplySchema,
   entryWriteSchema,
   fieldDefinitionSchema,
   filterPatchSchema,
@@ -283,7 +289,36 @@ export default defineEventHandler(async (event) => {
         },
       )
     }
+    const faviconPreview = match(path, /^\/api\/v1\/entries\/([^/]+)\/favicon\/preview$/)
+    if (faviconPreview && method === 'POST') {
+      requireWrite(actor)
+      const id = decodeURIComponent(faviconPreview)
+      getEntry(actor, id)
+      const preview = previewEntryFavicon(
+        actor,
+        id,
+        entryFaviconSupplySchema.parse(await readBody(event)),
+      )
+      return {
+        contentHash: preview.contentHash,
+        mediaType: preview.image.mediaType,
+        currentHash: preview.currentHash,
+        currentSource: preview.currentSource,
+      }
+    }
     const faviconRefresh = match(path, /^\/api\/v1\/entries\/([^/]+)\/favicon$/)
+    if (faviconRefresh && method === 'DELETE') {
+      requireWrite(actor)
+      const id = decodeURIComponent(faviconRefresh)
+      getEntry(actor, id)
+      return removeSuppliedFavicon(actor, id)
+    }
+    if (faviconRefresh && method === 'PUT') {
+      requireWrite(actor)
+      const id = decodeURIComponent(faviconRefresh)
+      getEntry(actor, id)
+      return supplyEntryFavicon(actor, id, entryFaviconSupplySchema.parse(await readBody(event)))
+    }
     if (faviconRefresh && method === 'POST') {
       requireWrite(actor)
       return refreshEntryFavicons(actor, decodeURIComponent(faviconRefresh))

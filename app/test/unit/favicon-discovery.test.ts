@@ -208,6 +208,12 @@ it('persists failure backoff across restarts, permits manual retries and retains
   const { origin, requests } = await fixture(() =>
     healthy ? { type: 'image/png', body: png } : { type: 'text/html', body: 'down', status: 503 },
   )
+  vi.stubEnv('BOOKMARK_FAVICON_FETCH', '0')
+  createEntry(
+    { role: 'admin', kind: 'user', userId: null, tokenId: null, tokenScopes: [], label: 'admin' },
+    entryWriteSchema.parse({ name: 'Retry target', faviconUrl: origin }),
+  )
+  vi.stubEnv('BOOKMARK_FAVICON_FETCH', '1')
   queueFavicon(origin, false, true)
   await vi.waitFor(() =>
     expect(getDatabase().select().from(faviconCache).all()[0]?.failureCount).toBe(1),

@@ -11,7 +11,7 @@ import {
 
 export const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
 export const fieldTypes = ['text', 'url', 'number', 'secret'] as const
-export const checkKinds = ['icmp', 'tcp', 'http'] as const
+export const checkKinds = ['icmp', 'tcp', 'http', 'image'] as const
 export const checkExecutors = ['server', 'client'] as const
 export const editModes = ['locked', 'field_ownership', 'free'] as const
 export const tokenScopes = ['read', 'write', 'admin'] as const
@@ -311,6 +311,7 @@ export const settingsPatchSchema = z.object({
   faviconTlsVerify: z.boolean().optional(),
   faviconRefreshDays: z.number().int().min(1).max(365).optional(),
   clientChecksAnonymous: z.boolean().optional(),
+  browserFavicons: z.boolean().optional(),
   accentPreset: z.enum(accentPresetNames).optional(),
   neutralPalette: z.enum(neutralPalettes).optional(),
   defaultColourMode: z.enum(colourModes).optional(),
@@ -356,4 +357,9 @@ export const filtersSyncSchema = z.object({
   ),
   purge: z.boolean().default(false),
   dryRun: z.boolean().default(false),
+})
+
+export const entryFaviconSupplySchema = z.object({
+  contentType: z.string().min(1).max(100),
+  data: z.string().min(1).max(2_100_000),
 })

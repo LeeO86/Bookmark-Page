@@ -28,7 +28,7 @@ const editorState = computed(() => ({
 }))
 
 const linkTypes = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other'] as const
-const checkKinds = ['icmp', 'tcp', 'http'] as const
+const checkKinds = ['icmp', 'tcp', 'http', 'image'] as const
 const roles = ['anonymous', 'viewer', 'editor', 'admin'] as const
 
 interface DraftLink {
@@ -85,6 +85,7 @@ const iconPreview = computed(() => {
   }
   return null
 })
+const suppliedInput = ref<HTMLInputElement | null>(null)
 const iconRef = ref<string | null>(null)
 const faviconUrl = ref('')
 const iconQuery = ref('')
@@ -238,6 +239,46 @@ async function refetchFavicon() {
   formError.value = 'Favicon refetch started'
 }
 
+async function supplyFavicon(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !props.entry) return
+  try {
+    const types: Record<string, string> = {
+      svg: 'image/svg+xml',
+      png: 'image/png',
+      webp: 'image/webp',
+      ico: 'image/x-icon',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+    }
+    const contentType = file.type || types[file.name.split('.').pop()?.toLowerCase() ?? '']
+    if (!contentType) throw new Error('Choose an SVG, PNG, WebP, ICO, JPEG or GIF image')
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+    await apiFetch(`/api/v1/entries/${props.entry.id}/favicon`, {
+      method: 'PUT',
+      body: { contentType, data: btoa(binary) },
+    })
+    formError.value = 'Favicon supplied and retained until explicitly removed or replaced'
+  } catch (error) {
+    formError.value = error instanceof Error ? error.message : 'Favicon upload failed'
+  } finally {
+    input.value = ''
+  }
+}
+async function removeSuppliedFavicon() {
+  if (!props.entry) return
+  try {
+    await apiFetch(`/api/v1/entries/${props.entry.id}/favicon`, { method: 'DELETE' })
+    formError.value = 'Supplied image removed; automatic discovery restored'
+  } catch (error) {
+    formError.value = error instanceof Error ? error.message : 'Favicon removal failed'
+  }
+}
+
 function addTag() {
   const value = tagDraft.value.trim()
   if (!value || tags.value.includes(value)) {
@@ -307,6 +348,14 @@ function onDrop(index: number) {
   }
   copy.splice(index, 0, item)
   links.value = copy
+}
+
+function changeCheckKind(check: (typeof checks.value)[number]) {
+  if (check.kind === 'image') {
+    check.urlTemplate = ''
+    check.requestSpec = null
+    check.method = 'GET'
+  }
 }
 
 function addCheck() {
@@ -406,11 +455,11 @@ function buildBody(confirmDuplicates: boolean) {
       port: check.port ? Number(check.port) : null,
       linkLabel: check.linkLabel || null,
       requestSpec:
-        check.kind === 'http'
+        check.kind === 'http' || (check.kind === 'image' && check.urlTemplate.trim())
           ? {
               ...(check.requestSpec ??
                 requestSpec(check.method, check.urlTemplate, check.tlsVerify, check.timeoutMs)),
-              method: check.method,
+              method: check.kind === 'image' ? 'GET' : check.method,
               urlTemplate: check.urlTemplate,
             }
           : null,
@@ -571,9 +620,51 @@ function diffText(diff: Record<string, unknown>): string {
               Refetch favicon
             </button>
           </div>
+          <div v-if="entry" class="my-2 flex flex-wrap gap-2">
+            <UButton
+              type="button"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              @click="suppliedInput?.click()"
+              >Choose favicon file</UButton
+            >
+            <input
+              id="entry-supplied-favicon"
+              ref="suppliedInput"
+              aria-label="Supplied favicon file"
+              type="file"
+              class="sr-only"
+              accept="image/svg+xml,image/png,image/webp,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/gif"
+              @change="supplyFavicon"
+            />
+            <UButton
+              v-if="entry.faviconStatus?.source === 'supplied'"
+              type="button"
+              size="sm"
+              color="error"
+              variant="soft"
+              @click="removeSuppliedFavicon"
+              >Remove supplied favicon</UButton
+            >
+          </div>
           <p v-if="entry?.faviconStatus?.error" class="text-sm text-warning" role="status">
-            Favicon: {{ entry.faviconStatus.error }}. Automatic retry is scheduled; you can refetch
-            now.
+            Favicon: {{ entry.faviconStatus.error }}.
+            {{
+              entry.faviconStatus.retryPaused
+                ? 'Automatic retries are paused after repeated permanent failures.'
+                : entry.faviconStatus.source === 'supplied'
+                  ? 'The supplied image is retained.'
+                  : 'Automatic retry is scheduled.'
+            }}
+            You can refetch now.
+          </p>
+          <p v-if="entry?.faviconStatus" class="text-xs text-muted">
+            Source: {{ entry.faviconStatus.source || 'fetched' }}
+            <template v-if="entry.faviconStatus.suppliedAt">
+              · supplied {{ entry.faviconStatus.suppliedAt }} by
+              {{ entry.faviconStatus.suppliedBy }}</template
+            >
           </p>
           <div class="flex gap-1">
             <UInput
@@ -804,10 +895,16 @@ function diffText(diff: Record<string, unknown>): string {
             >
           </div>
           <p class="mb-1 text-xs text-muted">
-            Server checks run on a schedule. Browser checks only see whether a request starts: they
-            cannot read status codes, an HTTPS page cannot probe http:// targets, and untrusted
-            certificates make the result unreliable. ICMP needs CAP_NET_RAW on the server; otherwise
-            those checks stay unknown.
+            Server checks run on a schedule. HTTP/TCP browser checks only see whether a request
+            starts; they cannot read status codes or probe HTTP targets from an HTTPS page.
+            Untrusted certificates make results unreliable. ICMP needs CAP_NET_RAW on the server;
+            otherwise those checks stay unknown.
+          </p>
+          <p class="text-xs text-muted">
+            Image checks load a configured image (default: the device favicon) without reading its
+            bytes. Non-image responses, errors and timeouts count as down. Browser mixed-content
+            rules, certificate trust and local-network permissions may also prevent a load. Cached
+            or supplied images do not prove device availability.
           </p>
           <div
             v-for="(check, index) in checks"
@@ -820,7 +917,11 @@ function diffText(diff: Record<string, unknown>): string {
                 :disabled="locked(`checks:${check.name}`)"
                 class="flex-1"
               />
-              <select v-model="check.kind" class="rounded border border-default px-1 bg-default">
+              <select
+                v-model="check.kind"
+                class="rounded border border-default px-1 bg-default"
+                @change="changeCheckKind(check)"
+              >
                 <option v-for="kind in checkKinds" :key="kind" :value="kind">{{ kind }}</option>
               </select>
             </div>
@@ -828,8 +929,8 @@ function diffText(diff: Record<string, unknown>): string {
               <UInput v-model="check.host" class="flex-1" placeholder="Host" />
               <UInput v-model="check.port" class="w-24" placeholder="Port" />
             </div>
-            <div v-if="check.kind === 'http'" class="flex gap-1">
-              <UInput v-model="check.method" class="w-24" />
+            <div v-if="check.kind === 'http' || check.kind === 'image'" class="flex gap-1">
+              <UInput v-if="check.kind === 'http'" v-model="check.method" class="w-24" />
               <UInput v-model="check.urlTemplate" class="flex-1" placeholder="URL template" />
             </div>
             <div class="flex flex-wrap gap-2">
@@ -864,7 +965,7 @@ function diffText(diff: Record<string, unknown>): string {
                   type="checkbox"
                   :disabled="locked(`checks:${check.name}`)"
                 />
-                Verify TLS</label
+                Verify TLS (server only)</label
               >
             </div>
             <HttpRequestEditor

@@ -201,6 +201,7 @@ async function saveSettings() {
   if (!settings.value) {
     return
   }
+  const reloadImages = !!settings.value.browserFavicons !== !!portal.settings.value?.browserFavicons
   await run(async () => {
     settings.value = await apiFetch<AdminSettings>('/api/v1/settings', {
       method: 'PATCH',
@@ -219,6 +220,7 @@ async function saveSettings() {
         faviconTlsVerify: settings.value?.faviconTlsVerify,
         faviconRefreshDays: Number(settings.value?.faviconRefreshDays),
         clientChecksAnonymous: settings.value?.clientChecksAnonymous,
+        browserFavicons: settings.value?.browserFavicons,
         background: settings.value?.background,
       },
     })
@@ -226,6 +228,7 @@ async function saveSettings() {
       portal.settings.value = { ...portal.settings.value, ...settings.value }
     }
   }, 'Settings saved')
+  if (reloadImages && !error.value) window.location.reload()
 }
 
 async function uploadLogo(event: Event) {
@@ -420,6 +423,15 @@ function toggleScope(scope: string) {
             <input v-model="settings.faviconTlsVerify" type="checkbox" />
             Verify TLS certificates when fetching favicons
           </label>
+          <label class="flex items-center gap-2">
+            <input v-model="settings.browserFavicons" type="checkbox" />
+            Show device favicons directly in the browser when no cached image exists
+          </label>
+          <p class="text-xs text-muted">
+            Contacts only configured image targets. Browser mixed-content rules, certificates and
+            local-network permissions still apply. Saving this option reloads the page; reload after
+            adding new image hosts.
+          </p>
           <UFormField label="Favicon refresh days">
             <UInput v-model.number="settings.faviconRefreshDays" type="number" class="w-40" />
           </UFormField>

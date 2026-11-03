@@ -406,6 +406,128 @@ describe('HTTP API', async () => {
     })
     await send(admin.cookie, 'DELETE', '/api/v1/icons/' + icon.body.id)
   })
+  it('supplies entry favicons with write permissions, sanitising, idempotence, audit and SSE', async () => {
+    const admin = await login('admin', 'admin-pass-1')
+    for (const role of ['editor', 'viewer'])
+      await jsonRequest(admin.cookie, 'POST', '/api/v1/users', {
+        username: 'supply-' + role,
+        password: 'test-pass-123',
+        role,
+      })
+    const editor = await login('supply-editor', 'test-pass-123')
+    const viewer = await login('supply-viewer', 'test-pass-123')
+    const created = await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'Supplied HTTP device',
+      faviconUrl: 'http://supply-device.example/icon.ico',
+      iconRef: 'lucide:camera',
+    })
+    const path = '/api/v1/entries/' + created.body.entry.id + '/favicon'
+    const payload = {
+      contentType: 'image/svg+xml',
+      data: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="16" height="16" onload="bad()"/></svg>',
+      ).toString('base64'),
+    }
+    expect(await send('', 'PUT', path, payload)).toBe(403)
+    expect(await send(viewer.cookie, 'PUT', path, payload)).toBe(403)
+    expect(await send(viewer.cookie, 'POST', path + '/preview', payload)).toBe(403)
+    const preview = await jsonRequest<{ currentHash: string | null }>(
+      editor.cookie,
+      'POST',
+      path + '/preview',
+      payload,
+    )
+    expect(preview.body.currentHash).toBeNull()
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    const events = await fetch('/api/v1/events', {
+      headers: { cookie: editor.cookie },
+      signal: controller.signal,
+    })
+    const reader = events.body!.getReader()
+    await reader.read()
+    try {
+      const supplied = await jsonRequest<{ changed: boolean }>(editor.cookie, 'PUT', path, payload)
+      expect(supplied.body.changed).toBe(true)
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('event: entries')
+    } finally {
+      clearTimeout(timer)
+      controller.abort()
+    }
+    expect(
+      (await jsonRequest<{ changed: boolean }>(editor.cookie, 'PUT', path, payload)).body.changed,
+    ).toBe(false)
+    const entry = await jsonRequest<{
+      iconRef: string
+      faviconStatus: { source: string; suppliedBy: string | null; suppliedAt: string | null }
+    }>(admin.cookie, 'GET', '/api/v1/entries/' + created.body.entry.id)
+    expect(entry.body.iconRef).toBe('lucide:camera')
+    expect(entry.body.faviconStatus.source).toBe('supplied')
+    expect(entry.body.faviconStatus.suppliedAt).toBeTruthy()
+    const audit = await jsonRequest(admin.cookie, 'GET', '/api/v1/audit')
+    expect(JSON.stringify(audit.body)).toContain('entry.favicon.supply')
+    const token = await jsonRequest(admin.cookie, 'POST', '/api/v1/tokens', {
+      name: 'favicon-writer',
+      scopes: ['write'],
+    })
+    expect(
+      (
+        await fetch(path, {
+          method: 'PUT',
+          headers: {
+            authorization: 'Bearer ' + token.body.token,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+      ).status,
+    ).toBe(200)
+    expect(await send(editor.cookie, 'PUT', path, { contentType: 'image/png', data: '%%%' })).toBe(
+      400,
+    )
+    expect(await send(editor.cookie, 'DELETE', path)).toBe(200)
+    await send(admin.cookie, 'DELETE', '/api/v1/entries/' + created.body.entry.id)
+  })
+  it('only advertises visible configured image origins and preserves restrictive defaults', async () => {
+    const admin = await login('admin', 'admin-pass-1')
+    const shared = await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'Visible browser image',
+      faviconUrl: 'http://visible-image.example/icon.ico',
+      tags: ['images:public'],
+      checks: [{ name: 'Image', kind: 'image', executor: 'client' }],
+    })
+    const hidden = await jsonRequest(admin.cookie, 'POST', '/api/v1/entries', {
+      name: 'Hidden browser image',
+      faviconUrl: 'http://hidden-image.example/icon.ico',
+    })
+    const tab = await jsonRequest<{ id: string }>(admin.cookie, 'POST', '/api/v1/filters', {
+      name: 'Image privacy',
+      query: 'images:public',
+      global: true,
+      isPublic: true,
+    })
+    await send(admin.cookie, 'PATCH', '/api/v1/settings', {
+      allTabPublic: false,
+      browserFavicons: true,
+    })
+    const anonymous = await fetch('/')
+    const policy = anonymous.headers.get('content-security-policy') ?? ''
+    expect(policy).toContain('http://visible-image.example')
+    expect(policy).not.toContain('hidden-image.example')
+    const own = await fetch('/', { headers: { cookie: admin.cookie } })
+    expect(own.headers.get('content-security-policy')).toContain('http://hidden-image.example')
+    await send(admin.cookie, 'PATCH', '/api/v1/settings', { browserFavicons: false })
+    expect((await fetch('/')).headers.get('content-security-policy')).toContain(
+      'http://visible-image.example',
+    )
+    await send(admin.cookie, 'PATCH', '/api/v1/entries/' + shared.body.entry.id, { checks: [] })
+    expect((await fetch('/')).headers.get('content-security-policy')).toContain(
+      "img-src 'self' data:;",
+    )
+    await send(admin.cookie, 'DELETE', '/api/v1/entries/' + shared.body.entry.id)
+    await send(admin.cookie, 'DELETE', '/api/v1/entries/' + hidden.body.entry.id)
+    await send(admin.cookie, 'DELETE', '/api/v1/filters/' + tab.body.id)
+  })
 })
 
 async function login(username: string, password: string) {

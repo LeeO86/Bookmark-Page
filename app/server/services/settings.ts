@@ -35,6 +35,7 @@ const defaults = {
   favicon_tls_verify: false,
   favicon_refresh_days: 7,
   client_checks_anonymous: false,
+  browser_favicons: false,
 }
 
 export type SettingKey = keyof typeof defaults
@@ -85,6 +86,7 @@ export function publicSettings(db: Db = getDatabase()) {
     hasLogo: imageRecord(db, 'logo') !== null,
     hasTabFavicon: imageRecord(db, 'tab_favicon') !== null,
     clientChecksAnonymous: values.client_checks_anonymous === true,
+    browserFavicons: values.browser_favicons === true,
   }
 }
 
@@ -241,6 +243,7 @@ export function writeSettings(
     faviconTlsVerify: 'favicon_tls_verify',
     faviconRefreshDays: 'favicon_refresh_days',
     clientChecksAnonymous: 'client_checks_anonymous',
+    browserFavicons: 'browser_favicons',
   }
   if (patch.accentPreset && patch.accentPreset !== 'custom') {
     patch = { ...patch, accentColour: accentPresets[patch.accentPreset].seed }

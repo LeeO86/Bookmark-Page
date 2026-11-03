@@ -72,7 +72,7 @@ function href(entry: PortalEntry): string | null {
           data-testid="entry-favicon"
           :name="entry.name"
           :icon-ref="entry.iconRef"
-          :src="entry.iconUrl"
+          :src="entry.iconUrl || entry.browserIconUrl"
           :status="entry.status"
           :size="portal.tileSize.value === 'large' ? 'large' : 'tile'"
         />

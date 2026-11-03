@@ -8,6 +8,7 @@ import {
   checkReportSchema,
   checkLeaseSchema,
   faviconWriteSchema,
+  entryFaviconSupplySchema,
   iconWriteSchema,
   preferencesPatchSchema,
   syncEntrySchema,
@@ -67,7 +68,14 @@ const paths: Record<string, Record<string, { summary: string }>> = {
   '/api/v1/entries/{id}/history/{auditId}/restore': {
     post: { summary: 'Restore an entry version from the audit log' },
   },
-  '/api/v1/entries/{id}/favicon': { post: { summary: 'Refetch favicons for an entry' } },
+  '/api/v1/entries/{id}/favicon': {
+    post: { summary: 'Refetch favicons for an entry' },
+    put: { summary: 'Supply and retain a sanitised entry favicon without changing iconRef' },
+    delete: { summary: 'Remove the supplied favicon and resume discovery' },
+  },
+  '/api/v1/entries/{id}/favicon/preview': {
+    post: { summary: 'Validate supplied image bytes and compare sanitised hashes without storing' },
+  },
   '/api/v1/checks/lease': { post: { summary: 'Lease due browser checks' } },
   '/api/v1/checks/{id}/report': { post: { summary: 'Report a browser check result' } },
   '/api/v1/entries/{id}/actions': { get: { summary: 'List actions that can run on an entry' } },
@@ -178,7 +186,7 @@ export function openApiDocument(): Record<string, unknown> {
     openapi: '3.1.0',
     info: {
       title: 'Bookmark-Page',
-      version: '2.2.2',
+      version: '2.3.0',
     },
     paths: documentedPaths(),
     security: [{ sessionCookie: [] }, { bearerToken: [] }],
@@ -195,6 +203,7 @@ export function openApiDocument(): Record<string, unknown> {
         Login: jsonSchema(loginSchema),
         EntryWrite: jsonSchema(entryWriteSchema),
         EntryPatch: jsonSchema(entryPatchSchema),
+        EntryFaviconSupply: jsonSchema(entryFaviconSupplySchema),
         RequestSpec: jsonSchema(requestSpecSchema),
         UserWrite: jsonSchema(userWriteSchema),
         TokenWrite: jsonSchema(tokenWriteSchema),
@@ -226,6 +235,8 @@ const requestSchemas: Record<string, z.ZodType> = {
   'PATCH /api/v1/filters/{id}': filterPatchSchema,
   'POST /api/v1/fields': fieldDefinitionSchema,
   'PATCH /api/v1/fields/{id}': fieldDefinitionSchema.partial(),
+  'PUT /api/v1/entries/{id}/favicon': entryFaviconSupplySchema,
+  'POST /api/v1/entries/{id}/favicon/preview': entryFaviconSupplySchema,
   'POST /api/v1/icons': iconWriteSchema,
   'POST /api/v1/icons/preview': iconWriteSchema,
   'PUT /api/v1/icons/{id}': iconWriteSchema.partial({ name: true }),
@@ -378,6 +389,10 @@ const faviconStatusSchema = z.object({
   error: textOrNull,
   fetchedAt: textOrNull,
   failureCount: z.number(),
+  source: z.enum(['fetched', 'supplied']),
+  suppliedBy: textOrNull,
+  suppliedAt: textOrNull,
+  retryPaused: z.boolean(),
 })
 const uploadedIconSchema = z.object({
   id: idSchema,
@@ -397,6 +412,7 @@ const entryResponseSchema = z.object({
   faviconUrl: textOrNull,
   faviconStatus: faviconStatusSchema.nullable().optional(),
   iconUrl: textOrNull,
+  browserIconUrl: textOrNull.optional(),
   sort: z.number(),
   source: textOrNull,
   scope: textOrNull,
@@ -474,6 +490,26 @@ function responseSchema(path: string, method: string): Record<string, unknown> {
       path.includes('/links/')
         ? z.object({ url: z.string() })
         : z.object({ key: z.string(), value: z.string() }),
+    )
+  if (path === '/api/v1/entries/{id}/favicon' && method === 'delete')
+    return jsonSchema(z.object({ changed: z.boolean() }))
+  if (path === '/api/v1/entries/{id}/favicon' && method === 'put')
+    return jsonSchema(
+      z.object({
+        changed: z.boolean(),
+        contentHash: z.string(),
+        mediaType: z.string(),
+        source: z.literal('supplied'),
+      }),
+    )
+  if (path === '/api/v1/entries/{id}/favicon/preview')
+    return jsonSchema(
+      z.object({
+        contentHash: z.string(),
+        mediaType: z.string(),
+        currentHash: textOrNull,
+        currentSource: textOrNull,
+      }),
     )
   if (method === 'delete' || path.endsWith('/logout') || path.endsWith('/report'))
     return jsonSchema(z.object({ ok: z.literal(true) }))

@@ -274,3 +274,40 @@ with inline icons near byte 300. The previous full-response read applied the
 512 KiB image cap before parsing, discarded the early link and fell through to
 a missing ICO. Bounded prefix discovery fixes this without increasing the
 image-size limit or downloading the whole JavaScript bundle.
+
+## 2026-11-03 — Supplied device images and explicit browser probes
+
+**Decision:** Store supplied favicons in the existing URL/origin slot, preserve
+`iconRef`, record source/actor/time, audit/SSE mutations and retain bytes in both
+backup restore modes. Pin supplied images until explicit replacement/removal:
+even a later successful server retry cannot replace them. Shared slots affect
+all references. Skip orphan cache rows during background retry but retain them
+for backup. Prioritise queued user/sync work without aborting in-flight requests.
+Pause three consecutive permanent DNS/404/410 failures; manual refresh can retry.
+
+**Reason:** The server may never reach a device HTTP interface, and supplied
+images may be the only recoverable copy. Silently overwriting or pruning them
+would lose deliberate migration data. Foreground priority prevents a startup
+backlog from delaying editor work.
+
+**Decision:** Supply via local files or a reachable Ansible execution host;
+V1 downloads remain on the controller while API calls may be delegated. Do not
+attempt cross-origin browser byte upload without device CORS support. Offer
+optional browser-direct images and an explicit image check, defaulting to the
+live device favicon rather than cached bytes. The server image executor performs
+a bounded GET and validates the image. Non-image responses count as down.
+
+**Reason:** Browser image display does not grant byte access. Mixed-content/TLS
+behaviour varies: real trusted-HTTPS tests loaded an HTTP IP image in Chromium
+153/156 but upgraded it to HTTPS in Firefox 155. Keep that limitation visible,
+retain browser protections, and allow only configured visible image origins in
+CSP. Controller-supplied images and server ICMP checks are the dependable option
+where that matches network access.
+
+**Decision:** Preserve legacy Ansible field `value` and its conservative initial
+redaction, then release only known public field values from result masking after
+metadata lookup. Add explicit `secret_value`, always redacted. Unknown/secret
+legacy values remain protected, including metadata failures.
+
+**Reason:** This fixes short public values masking unrelated result names while
+preserving existing secret arguments and their invocation/error privacy.

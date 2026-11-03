@@ -1,3 +1,4 @@
+import { browserImageOrigins } from '../services/browser-images'
 import { createError, defineEventHandler, getCookie, getRequestURL, setCookie } from 'nuxt/server'
 import { resolveActor } from '../auth/resolve'
 import { readPreferences } from '../services/preferences'
@@ -33,6 +34,7 @@ export default defineEventHandler(async (event) => {
       mode = cookieMode
     }
     const actor = await resolveActor(event)
+    event.context.bookmarkImageOrigins = browserImageOrigins(actor)
     const stored = actor.userId ? readPreferences(actor.userId) : null
     if (stored?.colourMode) {
       mode = stored.colourMode

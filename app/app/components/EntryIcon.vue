@@ -21,7 +21,18 @@ const props = withDefaults(
 const lucide = computed(() =>
   props.iconRef?.startsWith('lucide:') ? props.iconRef.slice('lucide:'.length) : null,
 )
+const imageElement = ref<HTMLImageElement | null>(null)
 const failed = ref(false)
+onMounted(() => {
+  // SSR images can fail before Vue attaches the error handler.
+  if (imageElement.value?.complete && imageElement.value.naturalWidth === 0) failed.value = true
+})
+watch(
+  () => [props.src, props.status],
+  () => {
+    failed.value = false
+  },
+)
 const box = computed(() => {
   if (props.size === 'large') {
     return 'size-14'
@@ -70,8 +81,10 @@ const maskStyle = computed(() => {
       class="icon-plate flex size-full items-center justify-center rounded-xl p-1 shadow-sm"
     >
       <img
+        ref="imageElement"
         :src="src"
         alt=""
+        referrerpolicy="no-referrer"
         class="size-full object-contain"
         :class="status === 'down' ? 'opacity-60 grayscale' : ''"
         @error="failed = true"

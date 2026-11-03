@@ -1,6 +1,8 @@
+import { probeImageTarget } from '../utils/image-probe'
 import { apiFetch } from '../utils/api'
 
 interface LeasedCheck {
+  kind: 'icmp' | 'tcp' | 'http' | 'image'
   id: string
   leaseId: string
   name: string
@@ -66,6 +68,8 @@ async function probe(check: LeasedCheck): Promise<{
       message: check.note ?? 'Browser check has no target',
     }
   }
+  if (check.kind === 'image')
+    return probeImageTarget({ url: check.url, timeoutMs: check.timeoutMs })
   if (location.protocol === 'https:' && check.url.startsWith('http:')) {
     return {
       state: 'unknown',

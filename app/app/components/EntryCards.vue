@@ -78,7 +78,7 @@ function shownFields(entry: PortalEntry) {
           data-testid="entry-favicon"
           :name="entry.name"
           :icon-ref="entry.iconRef"
-          :src="entry.iconUrl"
+          :src="entry.iconUrl || entry.browserIconUrl"
           :status="entry.status"
           size="card"
         />
