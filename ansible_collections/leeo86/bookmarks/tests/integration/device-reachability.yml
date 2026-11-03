@@ -1,0 +1,257 @@
+---
+- name: Create a source entry for supplied-image checks
+  leeo86.bookmarks.entry:
+    scope: supplied-images
+    external_key: one
+    name: Supplied image
+    favicon_url: '{{ v1_fixture_url }}/device-fixture/icon.svg'
+  register: supplied_entry
+
+- name: Find the entry id after creation
+  leeo86.bookmarks.entry_info: {}
+  register: supplied_created
+
+- name: Select supplied_created scope
+  ansible.builtin.set_fact:
+    supplied_created:
+      entries: '{{ supplied_created.entries | selectattr("scope", "equalto", "supplied-images") | list }}'
+
+- name: Preview a supplied image without storing it
+  leeo86.bookmarks.entry_favicon:
+    id: '{{ supplied_created.entries[0].id }}'
+    src: '{{ playbook_dir }}/v1-fixture/device-fixture/icon.svg'
+  check_mode: true
+  register: supplied_preview
+
+- name: Confirm the image preview wrote nothing
+  leeo86.bookmarks.entry_info: {}
+  register: supplied_before
+
+- name: Select supplied_before scope
+  ansible.builtin.set_fact:
+    supplied_before:
+      entries: '{{ supplied_before.entries | selectattr("scope", "equalto", "supplied-images") | list }}'
+
+- name: Apply the supplied SVG by scope and key
+  leeo86.bookmarks.entry_favicon:
+    scope: supplied-images
+    external_key: one
+    src: '{{ playbook_dir }}/v1-fixture/device-fixture/icon.svg'
+  register: supplied_applied
+
+- name: Repeat using Base64 and the entry id
+  leeo86.bookmarks.entry_favicon:
+    id: '{{ supplied_created.entries[0].id }}'
+    content: '{{ lookup("ansible.builtin.file", playbook_dir ~ "/v1-fixture/device-fixture/icon.svg") | b64encode }}'
+  register: supplied_repeated
+
+- name: Fetch the unchanged image from a URL on the module host
+  leeo86.bookmarks.entry_favicon:
+    scope: supplied-images
+    external_key: one
+    url: '{{ v1_fixture_url }}/device-fixture/icon.svg'
+    timeout: 3
+    max_bytes: 524288
+  register: supplied_url
+
+- name: Confirm supplied-image hash, check mode, diff and idempotence
+  ansible.builtin.assert:
+    that:
+      - supplied_preview.changed
+      - supplied_before.entries[0].iconUrl is none
+      - supplied_applied.changed
+      - not supplied_repeated.changed
+      - not supplied_url.changed
+      - supplied_applied.content_hash == supplied_preview.content_hash
+      - supplied_preview.diff.before.contentHash is none
+      - supplied_preview.diff.after.source == 'supplied'
+
+- name: Preview the direct-browser setting
+  leeo86.bookmarks.settings:
+    browser_favicons: true
+  check_mode: true
+  register: browser_setting_preview
+
+- name: Apply the direct-browser setting
+  leeo86.bookmarks.settings:
+    browser_favicons: true
+  register: browser_setting_applied
+
+- name: Repeat the direct-browser setting
+  leeo86.bookmarks.settings:
+    browser_favicons: true
+  register: browser_setting_same
+
+- name: Check the setting change and restore its default
+  ansible.builtin.assert:
+    that:
+      - browser_setting_preview.changed
+      - browser_setting_applied.changed
+      - not browser_setting_same.changed
+      - browser_setting_preview.diff.after.browserFavicons
+
+- name: Restore browser fallback to opt-in
+  leeo86.bookmarks.settings:
+    browser_favicons: false
+
+- name: Prepare the secret field dependency for first-run check mode
+  leeo86.bookmarks.field_definition:
+    key: user8
+    label: Secret
+    type: secret
+    min_role: viewer
+    searchable: false
+    show_as_column: true
+    sort: 8
+
+- name: Sync an explicit secret value
+  leeo86.bookmarks.entries_sync:
+    scope: secret-option-fixture
+    entries: &private_entry
+      - external_key: one
+        name: Explicit secret fixture
+        fields:
+          - key: user8
+            secret_value: fixture-only-explicit-private
+  register: explicit_secret
+
+- name: Repeat the explicit secret value
+  leeo86.bookmarks.entries_sync:
+    scope: secret-option-fixture
+    entries: *private_entry
+  register: explicit_secret_same
+
+- name: Confirm secret-value compatibility and idempotence
+  ansible.builtin.assert:
+    that:
+      - explicit_secret.changed
+      - not explicit_secret_same.changed
+
+- name: Add a synthetic API execution host alias
+  ansible.builtin.add_host:
+    name: favicon-api-fixture
+    ansible_connection: local
+    ansible_python_interpreter: '{{ ansible_playbook_python }}'
+
+- name: Preview a new device migration
+  ansible.builtin.include_role:
+    name: leeo86.bookmarks.v1_import
+    apply:
+      check_mode: true
+  vars: &device_import
+    v1_url: '{{ v1_fixture_url }}/device-fixture'
+    v1_scope: device-migration
+    v1_import_api_delegate_to: favicon-api-fixture
+    v1_import_tag_fields:
+      user3:
+        namespace: ''
+        split: ','
+    v1_import_secret_fields: [user8]
+    v1_import_checks:
+      - name: ping
+        kind: icmp
+        executor: server
+        interval_seconds: 60
+    v1_import_favicon_checks: true
+    v1_import_favicon_overrides:
+      '11': '{{ v1_fixture_url }}/device-fixture/icon.svg'
+    v1_import_supply_favicons: true
+    v1_import_favicon_validate_certs: true
+    v1_import_favicon_timeout: 2
+    v1_import_favicon_max_bytes: 524288
+
+- name: Verify migration check mode and readable public names
+  ansible.builtin.assert:
+    that:
+      - v1_sync.created | length == 2
+      - v1_sync.created | map(attribute='name') | sort | list == ['Device - One', 'user']
+      - v1_favicons.downloads_failed | int == 1
+
+- name: Check that the dry run created no entries
+  leeo86.bookmarks.entry_info: {}
+  register: migration_before
+
+- name: Select migration_before scope
+  ansible.builtin.set_fact:
+    migration_before:
+      entries: '{{ migration_before.entries | selectattr("scope", "equalto", "device-migration") | list }}'
+
+- name: Perform the device migration
+  ansible.builtin.include_role:
+    name: leeo86.bookmarks.v1_import
+  vars: *device_import
+
+- name: Verify first migration supplies the reachable image and reports the missing one
+  ansible.builtin.assert:
+    that:
+      - migration_before.entries | length == 0
+      - v1_sync.created | length == 2
+      - v1_sync.created | map(attribute='name') | sort | list == ['Device - One', 'user']
+      - v1_favicons.downloads_failed | int == 1
+      - v1_favicons.uploads | length == 1
+
+- name: Repeat the same migration
+  ansible.builtin.include_role:
+    name: leeo86.bookmarks.v1_import
+  vars: *device_import
+
+- name: Verify imported state and an unchanged second run
+  leeo86.bookmarks.entry_info: {}
+  register: migrated_devices
+
+- name: Select migrated_devices scope
+  ansible.builtin.set_fact:
+    migrated_devices:
+      entries: '{{ migrated_devices.entries | selectattr("scope", "equalto", "device-migration") | list }}'
+
+- name: Check the supplied image, split tags and both managed check kinds
+  ansible.builtin.assert:
+    that:
+      - v1_sync.updated | length == 0
+      - v1_sync.created | length == 0
+      - v1_favicon_uploaded.results | selectattr("changed") | list | length == 0
+      - v1_favicons.uploads | length == 1
+      - migrated_devices.entries[0].name == 'Device - One'
+      - migrated_devices.entries[0].faviconStatus.source == 'supplied'
+      - migrated_devices.entries[0].iconUrl is not none
+      - migrated_devices.entries[0].tags | selectattr('value', 'equalto', 'Vendor') | list | length == 1
+      - migrated_devices.entries[0].tags | selectattr('value', 'equalto', 'Model') | list | length == 1
+      - migrated_devices.entries[0].checks | map(attribute='kind') | sort | list == ['icmp', 'image']
+
+- name: Remove the managed checks and clear old favicon overrides
+  ansible.builtin.include_role:
+    name: leeo86.bookmarks.v1_import
+  vars: &removed_checks
+    v1_url: '{{ v1_fixture_url }}/device-fixture'
+    v1_scope: device-migration
+    v1_import_api_delegate_to: favicon-api-fixture
+    v1_import_tag_fields:
+      user3:
+        namespace: ''
+        split: ','
+    v1_import_secret_fields: [user8]
+    v1_import_checks: []
+    v1_import_favicon_checks: false
+    v1_import_favicon_overrides: { '11': '', '12': '' }
+    v1_import_supply_favicons: false
+
+- name: Repeat removal of managed checks and bad overrides
+  ansible.builtin.include_role:
+    name: leeo86.bookmarks.v1_import
+  vars: *removed_checks
+
+- name: Inspect the clean managed state
+  leeo86.bookmarks.entry_info: {}
+  register: removed_devices
+
+- name: Select removed_devices scope
+  ansible.builtin.set_fact:
+    removed_devices:
+      entries: '{{ removed_devices.entries | selectattr("scope", "equalto", "device-migration") | list }}'
+
+- name: Verify check removal and discovery override are idempotent
+  ansible.builtin.assert:
+    that:
+      - v1_sync.updated | length == 0
+      - removed_devices.entries | map(attribute='checks') | flatten | length == 0
+      - removed_devices.entries | selectattr('faviconUrl', 'equalto', none) | list | length == 2

@@ -109,20 +109,23 @@ options:
         type: str
   fields:
     description:
-      - Custom field values. The field definition must already exist.
+    - Custom field values. Definitions must already exist.
     type: list
     elements: dict
     suboptions:
       key:
-        description:
-          - Field key.
+        description: [Field key.]
         type: str
         required: true
       value:
-            description:
-              - Field value. Ansible redacts it in logs.
-            type: str
-            required: true
+        description:
+        - Legacy field value. Secret definitions remain redacted; public values keep results readable.
+        type: str
+      secret_value:
+        description:
+        - Always redact this value in Ansible output. Storage encryption depends on the field definition.
+        type: str
+        version_added: 2.3.0
   checks:
     description:
       - Online checks stored on the entry.
@@ -139,7 +142,7 @@ options:
           - Check kind.
         type: str
         required: true
-        choices: [icmp, tcp, http]
+        choices: [icmp, tcp, http, image]
       executor:
         description:
           - Where the check runs.
@@ -221,6 +224,7 @@ from ansible_collections.leeo86.bookmarks.plugins.module_utils.bookmarks import 
     build_entry,
     check_spec,
     common_argument_spec,
+    protect_entry_fields,
     resolve_entry_icon_names,
     entry_matches,
     field_value_spec,
@@ -252,6 +256,7 @@ def main():
         supports_check_mode=True,
         required_if=[('state', 'present', ['name'])],
     )
+    protect_entry_fields(module)
     scope = module.params['scope']
     external_key = module.params['external_key']
     current = find_managed(module, scope, external_key)

@@ -87,6 +87,11 @@ options:
     - Desired value for C(sharedTabsPublicByDefault). Omit to preserve the current
       setting.
     type: bool
+  browser_favicons:
+    description:
+    - Show configured device images directly when the server has no cached image.
+    type: bool
+    version_added: 2.3.0
   client_checks_anonymous:
     description:
     - Desired value for C(clientChecksAnonymous). Omit to preserve the current setting.
@@ -152,6 +157,7 @@ SETTINGS = {
     'background': ('background', 'str', ['gradient', 'tint', 'plain']),
     'all_tab_public': ('allTabPublic', 'bool', None),
     'shared_tabs_public_by_default': ('sharedTabsPublicByDefault', 'bool', None),
+    'browser_favicons': ('browserFavicons', 'bool', None),
     'client_checks_anonymous': ('clientChecksAnonymous', 'bool', None),
     'favicon_tls_verify': ('faviconTlsVerify', 'bool', None),
     'favicon_refresh_days': ('faviconRefreshDays', 'int', None),

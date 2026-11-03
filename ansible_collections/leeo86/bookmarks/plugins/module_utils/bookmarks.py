@@ -19,7 +19,7 @@ from ansible.module_utils.urls import fetch_url
 
 
 LINK_TYPES = ['web', 'api', 'ssh', 'vnc', 'rdp', 'telnet', 'other']
-CHECK_KINDS = ['icmp', 'tcp', 'http']
+CHECK_KINDS = ['icmp', 'tcp', 'http', 'image']
 CHECK_EXECUTORS = ['server', 'client']
 FIELD_TYPES = ['text', 'url', 'number', 'secret']
 ROLES = ['anonymous', 'viewer', 'editor', 'admin']
@@ -69,7 +69,8 @@ def field_value_spec():
         elements='dict',
         options=dict(
             key=dict(type='str', required=True, no_log=False),
-            value=dict(type='str', required=True, no_log=True),
+            value=dict(type='str', no_log=True),
+            secret_value=dict(type='str', no_log=True),
         ),
     )
 
@@ -241,7 +242,7 @@ def build_check(check):
         payload['port'] = check['port']
     if check.get('link_label'):
         payload['linkLabel'] = check['link_label']
-    if check['kind'] == 'http':
+    if check['kind'] == 'http' or (check['kind'] == 'image' and check.get('url_template')):
         payload['requestSpec'] = {
             'method': (check.get('method') or 'GET').upper(),
             'urlTemplate': check.get('url_template') or 'https://{{host}}/',
@@ -281,7 +282,7 @@ def build_entry(params):
     if params.get('links') is not None:
         payload['links'] = build_links(params['links'])
     if params.get('fields') is not None:
-        payload['fields'] = [{'key': item['key'], 'value': item['value']} for item in params['fields']]
+        payload['fields'] = [build_field_value(item) for item in params['fields']]
     if params.get('checks') is not None:
         payload['checks'] = [build_check(item) for item in params['checks']]
     return payload
@@ -445,7 +446,7 @@ def check_same(found, check):
         return False
     if (found.get('linkLabel') or None) != (check.get('linkLabel') or None):
         return False
-    if check['kind'] == 'http':
+    if check['kind'] in ('http', 'image'):
         return same_json(found.get('requestSpec') or {}, check.get('requestSpec') or {})
     return True
 
@@ -615,7 +616,7 @@ def clean_check(check):
     return cleaned
 
 
-def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url=''):
+def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url='', checks=None, favicon_checks=False, favicon_overrides=None):
     if not isinstance(settings, Mapping):
         raise BookmarkBuildError('V1 globals must be a JSON object')
     if not isinstance(bookmarks, Mapping):
@@ -653,17 +654,42 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=No
                         merged[external]['fields'].append({'key': key, 'value': value})
                     elif value and current_fields.get(key) != value:
                         raise BookmarkBuildError('V1 entry %s has conflicting values for %s' % (external, key))
-            for key, tag_namespace in tag_fields.items():
-                value = text_of(bookmark.get(key)).strip()
-                if value:
+            for key, tag_options in tag_fields.items():
+                raw = text_of(bookmark.get(key))
+                parts = raw.split(tag_options['split']) if tag_options['split'] else [raw]
+                tag_namespace = tag_options['namespace']
+                for part in parts:
+                    value = part.strip()
+                    if not value:
+                        continue
                     token = '%s:%s' % (tag_namespace, value) if tag_namespace else value
                     if len(token) > 200:
                         raise BookmarkBuildError('V1 tag from %s exceeds 200 characters' % key)
                     if not tag_namespace and ':' in value:
                         raise BookmarkBuildError('V1 tag column %s needs a namespace for values containing a colon' % key)
                     merged[external]['tags'].append(token)
+    if not isinstance(checks or [], list) or not all(isinstance(check, Mapping) for check in checks or []):
+        raise BookmarkBuildError('v1_import_checks must be a list of check definitions')
+    overrides = favicon_overrides or {}
+    if not isinstance(overrides, Mapping):
+        raise BookmarkBuildError('v1_import_favicon_overrides must map V1 ids to URLs or empty strings')
+    overrides = {str(key): value for key, value in overrides.items()}
     for entry in merged.values():
         entry['tags'] = sorted(set(entry['tags']))
+        if entry['external_key'] in overrides:
+            value = overrides[entry['external_key']]
+            if not isinstance(value, str):
+                raise BookmarkBuildError('Favicon overrides must be URLs or empty strings')
+            parsed = urlparse(value)
+            if value and (parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password):
+                raise BookmarkBuildError('Favicon overrides must be absolute HTTP(S) URLs without credentials')
+            entry['favicon_url'] = value
+        entry['checks'] = [dict(check) for check in checks or []] if entry['host'] else []
+        if favicon_checks and entry['favicon_url']:
+            entry['checks'].append(dict(name='favicon', kind='image', executor='client', url_template=entry['favicon_url'], interval_seconds=60))
+        names = [check.get('name') for check in entry['checks']]
+        if len(names) != len(set(names)):
+            raise BookmarkBuildError('Imported checks must have unique names; favicon is reserved when favicon checks are enabled')
     return {'fields': fields, 'entries': [merged[key] for key in order]}
 
 
@@ -672,16 +698,26 @@ def validate_tag_fields(tag_fields, secrets):
         return {}
     if not isinstance(tag_fields, Mapping):
         raise BookmarkBuildError('v1_import_tag_fields must map user1..user8 to tag namespaces')
-    for key, namespace in tag_fields.items():
+    normalized = {}
+    for key, options in tag_fields.items():
         if key not in ['user%d' % index for index in range(1, 9)]:
             raise BookmarkBuildError('Tag field must be user1..user8')
         if key in secrets:
             raise BookmarkBuildError('A V1 column cannot be both a secret field and a tag field')
+        if isinstance(options, str):
+            namespace, separator = options, None
+        elif isinstance(options, Mapping) and set(options) <= {'namespace', 'split'}:
+            namespace, separator = options.get('namespace', ''), options.get('split')
+        else:
+            raise BookmarkBuildError('Tag fields need a namespace string or namespace/split options')
         if not isinstance(namespace, str) or (namespace and not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', namespace)):
             raise BookmarkBuildError('Tag namespaces must be empty or lower-case namespace names')
+        if separator is not None and (not isinstance(separator, str) or not separator or len(separator) > 64):
+            raise BookmarkBuildError('Tag split separators must be non-empty strings up to 64 characters')
         if namespace in ('state', 'is', 'has'):
             raise BookmarkBuildError('Tag namespace is reserved by the query language')
-    return tag_fields
+        normalized[key] = {'namespace': namespace, 'split': separator}
+    return normalized
 
 
 def v1_field_definitions(settings, secrets, populated=None):
@@ -831,3 +867,46 @@ def image_payload(module, src, content=None, content_type=None):
     if not inferred:
         module.fail_json(msg='Cannot infer content_type from the image')
     return {'contentType': inferred, 'data': encoded}
+
+
+def build_field_value(item):
+    present = [name for name in ('value', 'secret_value') if item.get(name) is not None]
+    if len(present) != 1:
+        raise BookmarkBuildError('Each field needs exactly one of value or secret_value')
+    return {'key': item['key'], 'value': item[present[0]]}
+
+
+def protect_entry_fields(module):
+    # Legacy values stay conservatively protected through validation, invocation logging
+    # and metadata lookup. Only known public field values are released for final output.
+    groups = module.params.get('entries') or [module.params]
+    if not any(item.get('fields') for item in groups):
+        return
+    definitions = api(module, 'GET', '/api/v1/fields').get('fields') or []
+    public = {item['key'] for item in definitions if item.get('type') in ('text', 'url', 'number')}
+    spec = module.argument_spec
+    fields_spec = spec.get('fields') or (spec.get('entries') or {}).get('options', {}).get('fields')
+    if fields_spec:
+        fields_spec['options']['value']['no_log'] = False
+
+    def explicit_secrets(options, values):
+        protected = set()
+        for key, option in options.items():
+            value = values.get(key)
+            if value is None:
+                continue
+            if option.get('no_log'):
+                if isinstance(value, str) and value:
+                    protected.add(value)
+            elif option.get('options'):
+                for nested in value if isinstance(value, list) else [value]:
+                    if isinstance(nested, Mapping):
+                        protected.update(explicit_secrets(option['options'], nested))
+        return protected
+
+    protected = explicit_secrets(spec, module.params)
+    for item in groups:
+        for field in item.get('fields') or []:
+            if field.get('value') and field['key'] not in public:
+                protected.add(field['value'])
+    module.no_log_values = protected
