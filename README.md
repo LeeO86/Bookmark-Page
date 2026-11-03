@@ -95,7 +95,7 @@ The V1 importer can also copy the site title and claim independently with `v1_im
 
 ## Automation and favicon improvements in v2.2.1
 
-App and Ansible collection ship together as 2.2.2. Configure a persistent admin token
+App and Ansible collection ship together as 2.3.0. Configure a persistent admin token
 with `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`; existing API tokens and module
 arguments remain supported. The collection adds `settings`, `icon`, `filters_sync`
 and `group/leeo86.bookmarks.bookmarks` module defaults. It also accepts session
@@ -110,3 +110,5 @@ apply. See [configuration](docs/configuration.md) and the [changelog](CHANGELOG.
 
 The v2.2.2 patch streams discovery pages only through `</head>` or the first
 256 KiB, so large self-contained HTML apps retain their early icon links.
+
+Supplied device favicons, opt-in browser image fallback, image checks and V1 controller imports are documented in [configuration](docs/configuration.md#devices-reachable-only-from-users-or-automation-hosts-230) and [migration](docs/migration-v1.md#restricted-device-networks-230).

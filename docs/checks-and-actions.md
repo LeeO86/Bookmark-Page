@@ -14,7 +14,7 @@ A container that should send ICMP needs `cap_add: [NET_RAW]`. The image installs
 
 `POST /api/v1/checks/lease` returns a few due checks the caller is allowed to see and leases them so another browser skips them. The browser then calls `POST /api/v1/checks/{id}/report`. Signed-in users can report. Anonymous visitors can report only when an admin enables “Allow anonymous visitors to run browser checks”.
 
-The browser probe is deliberately weak:
+The ordinary HTTP/TCP/ICMP browser probe is deliberately weak:
 
 - It uses `fetch` with `mode: "no-cors"` or stops before the request. A successful probe means the request started, not that the device returned a healthy status code.
 - An HTTPS page cannot probe an `http://` target. Mixed content is reported as `unknown`.
@@ -32,8 +32,38 @@ This is intentional access from the server to the target URL, which may be a pri
 
 ## Favicons
 
-Favicon fetches run on the server when a link is saved, when an editor chooses refetch, and again after the configured number of days. TLS verification is off unless an admin enables it, because lab devices often use a private certificate. Only `http` and `https` URLs are fetched, with a 5 second timeout, a 512 KB limit, and at most 3 redirects. A failed fetch keeps the letter avatar.
+Favicon fetches run on the server when a link is saved, when an editor chooses refetch, and again after the configured number of days. TLS verification is off unless an admin enables it, because lab devices often use a private certificate. Only `http` and `https` URLs are fetched, with a 5 second timeout, a 512 KB limit, and at most 3 redirects. A failed fetch retains the last good or supplied image; without an image it keeps the letter avatar.
 
 ## Metrics
 
 `GET /metrics` is Prometheus text. It includes the entry count, check states, per-entry check state, check latency, and an action execution counter. Set `METRICS_TOKEN` to require `Authorization: Bearer <token>`. An empty token leaves the endpoint open.
+
+## Image checks
+
+`kind: image` supports `executor: client` and `executor: server`. The default
+URL is the entry's explicit HTTP(S) favicon URL, otherwise the primary link's
+origin plus `/favicon.ico`. Optionally set `requestSpec.urlTemplate` (GET only);
+`{{host}}` is supported. A data URI or a secret-backed/unresolved link cannot
+establish live availability and stays unknown. Field placeholders are withheld.
+
+The browser uses `new Image()` with a timeout, without reading cross-origin
+bytes. A load means up; an error or timeout means down. A reachable device that
+returns HTML or another non-image response also counts as down. Each probe adds
+`_bp_check=<nonce>` to avoid falsely reporting cached images as live; image
+endpoints must tolerate that query parameter. Displayed, supplied or cached
+favicons are never used as the probe result.
+
+Unlike ordinary fetch checks, an image check attempts the load on an HTTPS
+portal. This does **not** bypass mixed-content, certificate or local-network
+restrictions. The actual Chromium/Firefox differences and exact CSP allowlist
+are documented in [configuration](configuration.md#https-portal-compatibility).
+A blocked image can mean down even when the device itself is reachable. Reload
+after configuring a new image origin. Anonymous image checks require the same
+admin permission setting as other browser checks.
+
+The server executor performs a bounded GET using the check's TLS verification
+and timeout, plus `FAVICON_MAX_BYTES`
+and validates the response as ICO, PNG, SVG, WebP, JPEG or GIF; SVG sanitising also
+applies. A non-2xx, malformed image or timeout means down. It does not write the
+favicon cache. For a server that can ping but cannot HTTP devices, use a server
+ICMP check for dependable reachability and supplied images for display.

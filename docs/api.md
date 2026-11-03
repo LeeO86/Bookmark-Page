@@ -160,3 +160,39 @@ configuration and deduplicating/bounding concurrent jobs.
 Format-1 backups now preserve managed-token identity, tab scope/external keys, and
 favicon failure counts. Older archives still restore with safe empty/default
 values for the additional fields.
+
+## Supplied entry favicons and image checks (2.3.0)
+
+Editors/admins with write access, including write-scoped tokens, can use:
+
+- `PUT /api/v1/entries/{id}/favicon` with `{ "contentType": "image/svg+xml",
+"data": "<standard Base64>" }`. Accepts ICO, PNG, SVG, WebP, JPEG and GIF,
+  using fetcher validation, SVG sanitising and `FAVICON_MAX_BYTES`. Returns
+  `{changed, contentHash, mediaType, source: "supplied"}`. Repeating the same
+  sanitised bytes and supplied source is unchanged.
+- `POST /api/v1/entries/{id}/favicon/preview`, same payload, returns
+  `{contentHash, mediaType, currentHash, currentSource}` without writing.
+- `DELETE /api/v1/entries/{id}/favicon` returns `{changed}`; removes only a
+  supplied image and queues discovery. Existing POST still forces a server retry.
+
+The entry must be visible and have a resolved explicit favicon URL or a public
+HTTP(S) primary link. No `iconRef` is changed. Cache slots and pinning follow
+[configuration](configuration.md#devices-reachable-only-from-users-or-automation-hosts-230).
+Supply/removal are audited and emit an `entries` SSE event. Non-editors cannot
+supply/preview/remove. Editor diagnostics extend `faviconStatus` with `source`
+(`fetched`/`supplied`), nullable `suppliedBy`/`suppliedAt`, and `retryPaused`.
+Diagnostics remain omitted for viewers and anonymous visitors. Backups preserve
+bytes/provenance; older format-1 archives receive safe defaults.
+
+Admin `PATCH /api/v1/settings` accepts `browserFavicons` (default false). Entry
+responses include nullable `browserIconUrl`, derived only for a visible entry
+with fallback enabled and no selected/cached image. It is a display target, not
+cached bytes or an online-state assertion.
+
+Check definitions accept `kind: "image"` with either executor. An omitted
+`requestSpec` uses the live favicon URL; optional `requestSpec.urlTemplate`
+overrides it (GET only, `{{host}}` allowed, field placeholders withheld). Client
+leases carry this live image target, never its supplied/cache URL. An unresolved,
+secret-backed or data-only default target stays unknown. The server fetches and
+validates the image; the browser uses `Image` load/error/timeout. See
+[checks](checks-and-actions.md#image-checks) for false-down cases and browser limits.
