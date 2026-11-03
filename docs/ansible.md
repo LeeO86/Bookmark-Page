@@ -14,7 +14,7 @@ From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so An
 
 Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and token also come from `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`. The token is redacted in Ansible output. The server does not read those variables.
 
-`entry` and `entries_sync` need `write`; `entry_info` needs `read`. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
+`entry`, `entries_sync` and `entry_favicon` need `write`; `entry_info` needs `read`. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
 
 ## Modules
 

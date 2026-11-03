@@ -217,7 +217,8 @@ external references) before storage.
 
 A check belongs to an entry (default target: `host`) or to a specific link.
 
-- `kind`: `icmp` | `tcp` (host + port) | `http` (uses the request spec of §8).
+- `kind`: `icmp` | `tcp` (host + port) | `http` (uses the request spec of §8) |
+  `image` (defaults to the live favicon URL; GET override optional).
 - `executor`: `server` | `client`.
 - `interval` (default 60 s, global minimum configurable), `timeout`, `tls_verify` (default false).
 
@@ -233,8 +234,10 @@ cannot, e.g. firewalls):
 - The browser performs a lightweight probe (image load or `fetch` with `mode: "no-cors"`
   and a timeout) and reports the result via `POST /api/v1/checks/{id}/report`.
 - Document the browser limits honestly in the UI help and docs: opaque responses (no
-  status code validation), mixed content (an HTTPS page cannot probe `http://` targets),
-  and untrusted certificates make client probes unreliable.
+  status code validation for fetch probes), mixed content (ordinary fetch probes from
+  HTTPS cannot reach HTTP; image loads vary by browser), local-network permissions
+  and untrusted certificates make client probes unreliable. Image errors/timeouts
+  and non-image responses count as down. See configuration for tested compatibility.
 - Reporting requires an authenticated user by default (admin setting may allow anonymous).
 
 **Status:** `check_status` stores state (`up` | `down` | `unknown`), latency, message,
