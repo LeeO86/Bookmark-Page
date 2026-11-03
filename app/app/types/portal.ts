@@ -21,6 +21,7 @@ export interface PortalSettings {
   hasLogo: boolean
   hasTabFavicon: boolean
   clientChecksAnonymous: boolean
+  browserFavicons?: boolean
   auditRetentionDays?: number
   faviconTlsVerify?: boolean
   faviconRefreshDays?: number
@@ -120,7 +121,7 @@ export interface PortalEntryField {
 export interface PortalCheck {
   id: string
   name: string
-  kind: 'icmp' | 'tcp' | 'http'
+  kind: 'icmp' | 'tcp' | 'http' | 'image'
   executor: 'server' | 'client'
   intervalSeconds: number
   timeoutMs: number
@@ -179,11 +180,16 @@ export interface PortalEntry {
   host: string | null
   iconRef: string | null
   faviconUrl: string | null
+  browserIconUrl?: string | null
   faviconStatus?: {
     status: string
     error: string | null
     fetchedAt: string | null
     failureCount: number
+    source?: 'fetched' | 'supplied'
+    suppliedBy?: string | null
+    suppliedAt?: string | null
+    retryPaused?: boolean
   } | null
   iconUrl: string | null
   sort: number

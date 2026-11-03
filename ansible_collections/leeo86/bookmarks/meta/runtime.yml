@@ -4,6 +4,7 @@ action_groups:
     - action_template
     - entries_sync
     - entry
+    - entry_favicon
     - entry_info
     - field_definition
     - filter

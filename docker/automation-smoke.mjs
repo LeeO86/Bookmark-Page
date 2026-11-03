@@ -34,7 +34,13 @@ for (let attempt = 0; ; attempt++) {
 const svg =
   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#2563eb" onload="alert(1)"/><script>alert(1)</script></svg>'
 const requests = []
+let unavailable = false
 const fixture = createServer((request, response) => {
+  if (unavailable) {
+    response.writeHead(503)
+    response.end()
+    return
+  }
   requests.push(request.url)
   response.writeHead(200, { 'content-type': 'text/html' })
   response.end(
@@ -162,6 +168,75 @@ try {
   check('Anonymous entry omits discovery diagnostics', !('faviconStatus' in guest))
   const refreshed = await api('POST', '/api/v1/favicons/refresh-missing')
   check('Admin missing-favicon refresh is available', typeof refreshed.queued === 'number')
+  const supplyPath = '/api/v1/entries/' + entry.id + '/favicon'
+  const suppliedPayload = {
+    contentType: 'image/svg+xml',
+    data: Buffer.from(svg.replace('#2563eb', '#ec4899')).toString('base64'),
+  }
+  const suppliedPreview = await api('POST', supplyPath + '/preview', suppliedPayload)
+  check(
+    'Supplied preview leaves the fetched image unchanged',
+    (await api('GET', '/api/v1/entries/' + entry.id)).faviconStatus.source === 'fetched',
+  )
+  const supplied = await api('PUT', supplyPath, suppliedPayload)
+  check(
+    'Supplying sanitised pixels matches preview and pins provenance',
+    supplied.changed && supplied.contentHash === suppliedPreview.contentHash,
+  )
+  check(
+    'Repeated image supply is unchanged',
+    !(await api('PUT', supplyPath, suppliedPayload)).changed,
+  )
+  const pinned = await api('GET', '/api/v1/entries/' + entry.id)
+  check(
+    'Supply preserves the entry icon choice and exposes provenance',
+    pinned.iconRef === null &&
+      pinned.faviconStatus.source === 'supplied' &&
+      !!pinned.faviconStatus.suppliedAt,
+  )
+  const pinnedSvg = await (await fetch(base + pinned.iconUrl)).text()
+  check(
+    'Supplied image is served sanitised through the favicon cache',
+    pinnedSvg.includes('#ec4899') && !/script|onload/.test(pinnedSvg),
+  )
+  const awaitStatus = async (status) => {
+    for (let i = 0; i < 80; i++) {
+      const current = await api('GET', '/api/v1/entries/' + entry.id)
+      if (current.faviconStatus.status === status) return current
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error('Favicon status did not become ' + status)
+  }
+  unavailable = true
+  await api('POST', supplyPath)
+  check(
+    'Failed server retry retains supplied bytes',
+    (await awaitStatus('error')).iconUrl === pinned.iconUrl,
+  )
+  unavailable = false
+  await api('POST', supplyPath)
+  check(
+    'Successful server retry also retains supplied bytes',
+    (await awaitStatus('ok')).iconUrl === pinned.iconUrl,
+  )
+  check(
+    'Browser fallback remains opt-in',
+    (await api('GET', '/api/v1/settings')).browserFavicons === false,
+  )
+  await api('PATCH', '/api/v1/entries/' + entry.id, {
+    checks: [{ name: 'Image', kind: 'image', executor: 'client' }],
+  })
+  const imageLease = (await api('POST', '/api/v1/checks/lease', {})).checks.find(
+    (item) => item.kind === 'image',
+  )
+  check(
+    'Image lease targets the live device rather than the supplied cache',
+    imageLease?.url === new URL('/favicon.ico', source).href,
+  )
+  check(
+    'Removing supplied bytes resumes automatic discovery',
+    (await api('DELETE', supplyPath)).changed,
+  )
   console.log(JSON.stringify({ passed: true, checks }, null, 2))
 } finally {
   await new Promise((resolve) => fixture.close(resolve))

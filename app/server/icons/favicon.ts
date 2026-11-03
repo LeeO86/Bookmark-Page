@@ -1,3 +1,4 @@
+import { faviconSources } from './sources'
 import { decodeDataImage } from '../../shared/data-image'
 import { publishLive } from '../services/live'
 import { eq } from 'drizzle-orm'
@@ -14,53 +15,56 @@ const maxBytes = () => numberEnv('FAVICON_MAX_BYTES', 512 * 1024)
 const timeoutMs = () => numberEnv('FAVICON_TIMEOUT_MS', 5000)
 const htmlHeadMaxBytes = 256 * 1024
 
-const inflight = new Set<string>()
-const pending: Array<() => Promise<void>> = []
-let active = 0
+interface FaviconJob {
+  key: string
+  url: string
+  direct: boolean
+  priority: 'foreground' | 'background'
+}
+const running = new Set<string>()
+const pending = new Map<string, FaviconJob>()
 
 export function faviconFetchEnabled(): boolean {
   return process.env.BOOKMARK_FAVICON_FETCH !== '0'
 }
 
-export function queueFavicon(url: string | null, force = false, direct = false): void {
-  if (!faviconFetchEnabled() || !url) {
-    return
-  }
-  let origin: string
+export function queueFavicon(
+  url: string | null,
+  force = false,
+  direct = false,
+  priority: FaviconJob['priority'] = 'foreground',
+): void {
+  if (!faviconFetchEnabled() || !url) return
+  let key: string
   try {
-    origin = faviconCacheKey(direct && /^data:/i.test(url) ? url : parseHttpUrl(url).href, direct)
+    key = faviconCacheKey(direct && /^data:/i.test(url) ? url : parseHttpUrl(url).href, direct)
   } catch {
     return
   }
-  if (inflight.has(origin)) {
+  const queued = pending.get(key)
+  if (queued) {
+    if (priority === 'foreground') Object.assign(queued, { priority, url, direct })
     return
   }
-  if (!force && fresh(origin)) {
-    return
-  }
-  inflight.add(origin)
-  pending.push(async () => {
-    try {
-      await storeFavicon(origin, url, direct)
-    } finally {
-      inflight.delete(origin)
-      publishLive({ type: 'entries' })
-    }
-  })
+  if (running.has(key) || (!force && fresh(key))) return
+  pending.set(key, { key, url, direct, priority })
   drain()
 }
 
 function drain(): void {
-  while (active < 4 && pending.length) {
-    const task = pending.shift()!
-    active += 1
-    void task()
-      .catch(() => {
-        /* Failures are persisted by storeFavicon. */
-      })
+  while (running.size < 4 && pending.size) {
+    const jobs = [...pending.values()]
+    const job = jobs.find((item) => item.priority === 'foreground') ?? jobs[0]!
+    pending.delete(job.key)
+    running.add(job.key)
+    void storeFavicon(job.key, job.url, job.direct)
       .finally(() => {
-        active -= 1
+        running.delete(job.key)
+        publishLive({ type: 'entries' })
         drain()
+      })
+      .catch(() => {
+        /* The worker records failures in the cache. */
       })
   }
 }
@@ -72,8 +76,26 @@ export function faviconRetryMs(failureCount: number): number {
 
 export async function refreshStaleFavicons(): Promise<void> {
   if (!faviconFetchEnabled()) return
-  for (const row of getDatabase().select().from(faviconCache).all()) {
-    if (!fresh(row.origin)) queueFavicon(row.sourceUrl ?? row.origin, false, row.direct)
+  const referenced = new Set(
+    faviconSources().flatMap((entry) => entry.requests.map((item) => item.key)),
+  )
+  for (const row of getDatabase()
+    .select({
+      origin: faviconCache.origin,
+      sourceUrl: faviconCache.sourceUrl,
+      direct: faviconCache.direct,
+      imageSource: faviconCache.imageSource,
+      retryPaused: faviconCache.retryPaused,
+    })
+    .from(faviconCache)
+    .all()) {
+    if (
+      referenced.has(row.origin) &&
+      row.imageSource !== 'supplied' &&
+      !row.retryPaused &&
+      !fresh(row.origin)
+    )
+      queueFavicon(row.sourceUrl ?? row.origin, false, row.direct, 'background')
   }
 }
 
@@ -164,6 +186,26 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
   try {
     const image = await fetchFaviconBytes(pageUrl, faviconTlsVerify(), direct)
     const timestamp = now()
+    const existing = getDatabase()
+      .select()
+      .from(faviconCache)
+      .where(eq(faviconCache.origin, origin))
+      .get()
+    if (existing?.imageSource === 'supplied') {
+      getDatabase()
+        .update(faviconCache)
+        .set({
+          status: 'ok',
+          error: null,
+          failureCount: 0,
+          retryPaused: false,
+          failureKind: null,
+          fetchedAt: timestamp,
+        })
+        .where(eq(faviconCache.id, existing.id))
+        .run()
+      return
+    }
     getDatabase()
       .insert(faviconCache)
       .values({
@@ -173,6 +215,8 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
         direct,
         status: 'ok',
         failureCount: 0,
+        retryPaused: false,
+        failureKind: null,
         mediaType: image.mediaType,
         byteSize: image.bytes.length,
         error: null,
@@ -188,6 +232,8 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
           direct,
           status: 'ok',
           failureCount: 0,
+          retryPaused: false,
+          failureKind: null,
           mediaType: image.mediaType,
           byteSize: image.bytes.length,
           error: null,
@@ -203,6 +249,7 @@ async function storeFavicon(origin: string, pageUrl: string, direct: boolean): P
       pageUrl,
       direct,
       error instanceof Error ? error.message : 'Favicon fetch failed',
+      permanentFailure(error),
     )
   }
 }
@@ -212,6 +259,7 @@ function rememberFailure(
   sourceUrl: string,
   direct: boolean,
   message: string,
+  permanent: boolean,
 ): void {
   const timestamp = now()
   const previous = getDatabase()
@@ -219,7 +267,12 @@ function rememberFailure(
     .from(faviconCache)
     .where(eq(faviconCache.origin, origin))
     .get()
-  const failureCount = (previous?.failureCount ?? 0) + 1
+  const failureKind = permanent ? 'permanent' : 'temporary'
+  const failureCount =
+    previous?.failureKind === failureKind && previous.sourceUrl === sourceUrl
+      ? previous.failureCount + 1
+      : 1
+  const retryPaused = permanent && previous?.failureKind === 'permanent' && failureCount >= 3
   getDatabase()
     .insert(faviconCache)
     .values({
@@ -229,6 +282,8 @@ function rememberFailure(
       direct,
       status: 'error',
       failureCount,
+      failureKind,
+      retryPaused,
       mediaType: null,
       byteSize: null,
       error: message.slice(0, 500),
@@ -244,6 +299,8 @@ function rememberFailure(
         direct,
         status: 'error',
         failureCount,
+        failureKind,
+        retryPaused,
         error: message.slice(0, 500),
         fetchedAt: timestamp,
         updatedAt: timestamp,
@@ -253,7 +310,18 @@ function rememberFailure(
 }
 
 function fresh(origin: string): boolean {
-  const row = getDatabase().select().from(faviconCache).where(eq(faviconCache.origin, origin)).get()
+  const row = getDatabase()
+    .select({
+      imageSource: faviconCache.imageSource,
+      retryPaused: faviconCache.retryPaused,
+      fetchedAt: faviconCache.fetchedAt,
+      status: faviconCache.status,
+      failureCount: faviconCache.failureCount,
+    })
+    .from(faviconCache)
+    .where(eq(faviconCache.origin, origin))
+    .get()
+  if (row?.imageSource === 'supplied' || row?.retryPaused) return true
   if (!row?.fetchedAt) return false
   const interval =
     row.status === 'error'
@@ -262,7 +330,7 @@ function fresh(origin: string): boolean {
   return Date.now() - row.fetchedAt.getTime() < interval
 }
 
-function normalizeImage(
+export function normalizeImage(
   contentType: string,
   bytes: Buffer,
   svgHint = false,
@@ -335,4 +403,11 @@ function isGif(bytes: Buffer): boolean {
 
 function isIco(bytes: Buffer): boolean {
   return bytes.length > 4 && bytes[0] === 0 && bytes[1] === 0 && (bytes[2] === 1 || bytes[2] === 2)
+}
+
+function permanentFailure(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (/returned (404|410)\b/.test(error.message) || ('code' in error && error.code === 'ENOTFOUND'))
+  )
 }

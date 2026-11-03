@@ -1,11 +1,11 @@
 # Ansible
 
-The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.2.2, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
+The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.3.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
 
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.2"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.3.0"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
@@ -14,7 +14,7 @@ From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so An
 
 Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and token also come from `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`. The token is redacted in Ansible output. The server does not read those variables.
 
-`entry` and `entries_sync` need `write`; `entry_info` needs `read`. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
+`entry`, `entries_sync` and `entry_favicon` need `write`; `entry_info` needs `read`. Namespace, field, filter, action-template and site-branding changes need `admin`. An admin token covers both.
 
 ## Modules
 
@@ -22,6 +22,7 @@ Every module takes `api_url`, `api_token`, and `validate_certs`. The URL and tok
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | `entry`            | One entry addressed by `scope` and `external_key`. A tag is a string, or a mapping with `tag` and an optional display `label`. |
 | `entries_sync`     | Full list for a scope, with optional `purge`                                                                                   |
+| `entry_favicon`    | Supply/cache a favicon from a module-host file, Base64 or URL                                                                  |
 | `entry_info`       | Query entries with the portal query language                                                                                   |
 | `tag_namespace`    | One tag namespace                                                                                                              |
 | `field_definition` | One custom field                                                                                                               |
@@ -194,7 +195,7 @@ All modules belong to the `bookmarks` action group:
 
 `settings` supports `site_title`, `site_claim`, `accent_preset`, `accent_colour`,
 `favicon_colour`, `neutral_palette`, `default_colour_mode`, `background`,
-`all_tab_public`, `shared_tabs_public_by_default`, `client_checks_anonymous`,
+`all_tab_public`, `shared_tabs_public_by_default`, `client_checks_anonymous`, `browser_favicons`,
 `favicon_tls_verify`, `favicon_refresh_days`, `audit_retention_days`, and
 `default_scope_edit_mode`. Only supplied keys change; colours compare without
 case sensitivity. A custom accent requires `accent_preset: custom` if a named
@@ -226,3 +227,51 @@ assigning competing descriptions.
 When switching from uploaded workaround icons to automatic discovery, explicitly
 clear the previously managed override with `icon: ''`. Omitting the argument
 preserves it. `favicon_url` also accepts validated inline image data in 2.2.1.
+
+## Device reachability additions (2.3.0)
+
+| Module/option               | Purpose                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `entry_favicon`             | Supply an existing entry's favicon by `id` or `scope` + `external_key`; choose exactly one of `src`, Base64 `content`, or `url` |
+| `settings.browser_favicons` | Optional browser-direct display fallback, false by default                                                                      |
+| `checks[].kind: image`      | Browser image load or server image validation, with optional GET `request_spec`                                                 |
+| `fields[].secret_value`     | Explicit secret alternative to the compatible `value`; exactly one must be set                                                  |
+
+`entry_favicon` downloads `url` on the host where its module executes; `src` is
+also local to that host. It supports `content_type` inference, `validate_certs`,
+`timeout` (5 seconds), `max_bytes` (524288), check mode and hash-only diffs. The
+portal preview computes the **sanitised** hash, so a repeated SVG with stripped
+attributes is unchanged. First supply pins the image even if the fetched bytes
+were identical; it does not change `icon`. All 12 modules belong to
+`group/leeo86.bookmarks.bookmarks`, including this module.
+
+```yaml
+- name: Supply a device image from the reachable API host
+  leeo86.bookmarks.entry_favicon:
+    scope: devices
+    external_key: mixer
+    url: http://device.example/vendor/icon.ico
+    validate_certs: true
+  delegate_to: portal_host
+```
+
+The V1 role additionally supports:
+
+| Variable                           | Default     | Meaning                                                                           |
+| ---------------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `v1_import_supply_favicons`        | `false`     | Download effective V1 favicon URLs on the controller and supply successful images |
+| `v1_import_favicon_validate_certs` | `true`      | Verify controller image-download certificates                                     |
+| `v1_import_favicon_timeout`        | `5`         | Download timeout in seconds                                                       |
+| `v1_import_favicon_max_bytes`      | `524288`    | Controller image-size limit; server limit also applies                            |
+| `v1_import_favicon_overrides`      | `{}`        | V1 id to replacement HTTP(S) URL, or empty string for discovery                   |
+| `v1_import_checks`                 | `[]`        | Managed check definitions for each imported entry with a host                     |
+| `v1_import_favicon_checks`         | `false`     | Add a managed client image check for each effective V1 favicon URL                |
+| `v1_import_api_delegate_to`        | `localhost` | Inventory host that executes API modules; controller downloads stay local         |
+
+Tag mappings retain `user3: room`, or accept
+`user3: {namespace: '', split: ','}`. Omitting `split` retains the entire cell.
+`v1_sync` is the scope result; `v1_favicons` reports download failures and upload
+hashes. Image failures do not abort the role. See [migration](migration-v1.md#restricted-device-networks-230)
+for delegation, check-mode prerequisites, managed removal and TLS separation.
+Ordinary known public field values are released from result masking after a
+successful metadata lookup; legacy secret and unknown values stay redacted.

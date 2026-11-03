@@ -85,7 +85,7 @@ function mark(key: string): string {
               <EntryIcon
                 :name="entry.name"
                 :icon-ref="entry.iconRef"
-                :src="entry.iconUrl"
+                :src="entry.iconUrl || entry.browserIconUrl"
                 :status="entry.status"
                 size="list"
               />
@@ -100,7 +100,7 @@ function mark(key: string): string {
               <EntryIcon
                 :name="entry.name"
                 :icon-ref="entry.iconRef"
-                :src="entry.iconUrl"
+                :src="entry.iconUrl || entry.browserIconUrl"
                 :status="entry.status"
                 size="list"
               />

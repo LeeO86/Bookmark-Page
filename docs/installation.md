@@ -35,7 +35,7 @@ The image runs as the non-root `node` user, uid 1000. The database file is `/dat
 
 `docker/docker-compose.traefik.yml` is the same service with Traefik labels. It expects an external Docker network named `traefik`.
 
-Pull the v2.2.2 release with `docker pull ghcr.io/leeo86/bookmark-page:2.2.2`. Keep the existing `/data` volume and `BOOKMARK_SECRET_KEY` when updating an installation.
+Pull the v2.3.0 release with `docker pull ghcr.io/leeo86/bookmark-page:2.3.0`. Keep the existing `/data` volume and `BOOKMARK_SECRET_KEY` when updating an installation.
 
 Release images are built on native AMD64 and ARM64 runners. Each exact image digest
 must pass the offline asset and automation smoke checks on its own architecture

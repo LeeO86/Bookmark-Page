@@ -44,7 +44,7 @@ import { queueFavicon, faviconFetchEnabled } from '../icons/favicon'
 import { publishLive } from './live'
 import { writeAudit, visibleAuditDiff } from './audit'
 import { assertKnownPlaceholders, resolveLinkUrl, resolvePlaceholders } from './placeholders'
-import { allTabPublic } from './settings'
+import { allTabPublic, readSettingsMap } from './settings'
 
 const namespaceColour = '#64748b'
 
@@ -155,7 +155,10 @@ export function listEntries(actor: Actor, rawQuery: string) {
     .orderBy(asc(entries.sort), asc(entries.name))
     .all()
   const icons = faviconMap(db)
-  return { entries: hydrate(db, rows).map((entry) => present(entry, actor.role, icons)) }
+  const browserImages = readSettingsMap(db).browser_favicons === true
+  return {
+    entries: hydrate(db, rows).map((entry) => present(entry, actor.role, icons, browserImages)),
+  }
 }
 
 export function getEntry(actor: Actor, id: string) {
@@ -1168,6 +1171,12 @@ function validateChildren(
     if (check.kind === 'tcp' && (check.port === null || check.port === undefined)) {
       throw badRequest('TCP checks need a port')
     }
+    if (
+      check.kind === 'image' &&
+      check.requestSpec &&
+      check.requestSpec.method.toUpperCase() !== 'GET'
+    )
+      throw badRequest('Image checks use GET')
     if (check.kind === 'http') {
       if (!check.requestSpec) {
         throw badRequest('HTTP checks need a request spec')
@@ -1336,6 +1345,19 @@ function primaryUrl(
   return httpOrigin(resolved.url) ? resolved.url : null
 }
 
+function browserFaviconUrl(entry: LoadedEntry, primary: string | null): string | null {
+  try {
+    const url = entry.faviconUrl
+      ? resolveFaviconUrl(entry.faviconUrl, primary, entry.host)
+      : primary
+        ? new URL('/favicon.ico', primary).href
+        : null
+    return url && /^https?:\/\//i.test(url) ? url : null
+  } catch {
+    return null
+  }
+}
+
 function entryFaviconKey(entry: LoadedEntry, primary: string | null): string | null {
   if (!entry.faviconUrl) return primary ? faviconCacheKey(primary) : null
   try {
@@ -1413,6 +1435,7 @@ function present(
   entry: LoadedEntry,
   role: Role,
   icons: Map<string, string> = faviconMap(getDatabase()),
+  browserImages = readSettingsMap().browser_favicons === true,
 ) {
   const visibleFields = entry.fields.filter((field) => roleAtLeast(role, field.minRoleToView))
   const fieldMap: Record<string, string> = {}
@@ -1434,6 +1457,12 @@ function present(
     ...(roleAtLeast(role, 'editor')
       ? { faviconStatus: entryFaviconStatus(entry, primaryUrl(entry, fieldMap, secretFields)) }
       : {}),
+    browserIconUrl:
+      browserImages &&
+      !entry.iconRef &&
+      !icons.has(entryFaviconKey(entry, primaryUrl(entry, fieldMap, secretFields)) ?? '')
+        ? browserFaviconUrl(entry, primaryUrl(entry, fieldMap, secretFields))
+        : null,
     iconUrl: iconUrl(
       entry.iconRef,
       entryFaviconKey(entry, primaryUrl(entry, fieldMap, secretFields)),
@@ -2088,6 +2117,10 @@ function entryFaviconStatus(entry: LoadedEntry, primary: string | null) {
         error: row.error,
         fetchedAt: row.fetchedAt?.toISOString() ?? null,
         failureCount: row.failureCount,
+        source: row.imageSource,
+        suppliedBy: row.suppliedBy,
+        suppliedAt: row.suppliedAt?.toISOString() ?? null,
+        retryPaused: row.retryPaused,
       }
     : null
 }

@@ -169,9 +169,10 @@ term     := ns ":" value                    # namespaced tag, value may end with
 ## 6. Icons and favicons
 
 Resolution order for an entry/link icon: manually chosen library icon → uploaded icon →
-fetched favicon → letter avatar (initials, colour derived from name).
+fetched/supplied favicon → optional direct browser favicon → letter avatar
+(initials, colour derived from name).
 
-**Favicon fetching (server-side only):**
+**Favicon discovery/cache (server-side, with opt-in browser display fallback):**
 
 - Entry expert option `favicon_url` overrides discovery with an HTTP(S) image URL, a
   path relative to the primary HTTP(S) link, or a URL using `{{host}}`. Empty restores
@@ -201,7 +202,9 @@ fetched favicon → letter avatar (initials, colour derived from name).
   or `/data/icons`; serve from `/api/icons/...` with long cache headers and an ETag.
 - Record failures with a reason; failed fetches fall back to the letter avatar, never a
   broken image. Preserve last good bytes during a failed refresh. Persist failure count
-  and retry after 5 minutes, 1 hour, then every 6 hours with a separate minute scheduler,
+  and retry after 5 minutes, 1 hour, then every 6 hours with a separate minute scheduler.
+  Pause after three consecutive DNS/404/410 permanent failures; skip orphan rows
+  and supplied images. Foreground work takes priority over queued background retries,
   even when device checks are disabled. Limit concurrent discoveries to four. Editors
   see diagnostics; admins can refresh all missing icons. Content-version image URLs.
 
@@ -214,7 +217,8 @@ external references) before storage.
 
 A check belongs to an entry (default target: `host`) or to a specific link.
 
-- `kind`: `icmp` | `tcp` (host + port) | `http` (uses the request spec of §8).
+- `kind`: `icmp` | `tcp` (host + port) | `http` (uses the request spec of §8) |
+  `image` (defaults to the live favicon URL; GET override optional).
 - `executor`: `server` | `client`.
 - `interval` (default 60 s, global minimum configurable), `timeout`, `tls_verify` (default false).
 
@@ -230,8 +234,10 @@ cannot, e.g. firewalls):
 - The browser performs a lightweight probe (image load or `fetch` with `mode: "no-cors"`
   and a timeout) and reports the result via `POST /api/v1/checks/{id}/report`.
 - Document the browser limits honestly in the UI help and docs: opaque responses (no
-  status code validation), mixed content (an HTTPS page cannot probe `http://` targets),
-  and untrusted certificates make client probes unreliable.
+  status code validation for fetch probes), mixed content (ordinary fetch probes from
+  HTTPS cannot reach HTTP; image loads vary by browser), local-network permissions
+  and untrusted certificates make client probes unreliable. Image errors/timeouts
+  and non-image responses count as down. See configuration for tested compatibility.
 - Reporting requires an authenticated user by default (admin setting may allow anonymous).
 
 **Status:** `check_status` stores state (`up` | `down` | `unknown`), latency, message,
@@ -298,7 +304,7 @@ Managed entries display a badge with the scope name.
 
 ### 9.3 Ansible collection `leeo86.bookmarks`
 Located at `ansible_collections/leeo86/bookmarks`, installable via
-`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.2"`.
+`ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.3.0"`.
 
 Common options: `api_url`, `api_token` (fallback env `BOOKMARKS_API_URL`,
 `BOOKMARKS_API_TOKEN`), `validate_certs`. All modules support `check_mode` and `--diff`,
@@ -543,3 +549,25 @@ example playbooks and inventory, sanity and integration tests in CI.
 
 **M6 – Data and polish:** backup/restore, CSV import, remaining docs, accessibility pass,
 e2e smoke tests, release workflow.
+
+
+### 2.3.0 device reachability extension (2026-11-03)
+
+Supplied favicon bytes use the existing explicit-URL or primary-origin cache
+slot, preserve icon choice, record provenance, and remain pinned until explicit
+removal/replacement. Supply/preview/remove require visible-entry write access;
+mutations audit and publish SSE. Backups retain supplied bytes, including merge
+restore. Background retries skip unreferenced/supplied slots; foreground jobs
+have priority, and repeated permanent failures pause automatic retries.
+
+Optional `browserFavicons` is false by default and adds only visible configured
+origins to image CSP. Image errors fall back to initials, including errors before
+hydration. Client/server `image` checks probe live images, never cache/supplied
+bytes; load/valid image means up and error/timeout/non-image means down, subject
+to documented browser restrictions. No cross-origin byte upload is attempted.
+
+The matching collection supplies favicons idempotently by sanitised hash and
+extends V1 import with controller image downloads, API delegation, split tag
+columns, favicon overrides and scope-managed checks. Existing arguments and
+stored data remain compatible; explicit secret field values remain redacted.
+See configuration, migration, API and Ansible docs for the complete contract.

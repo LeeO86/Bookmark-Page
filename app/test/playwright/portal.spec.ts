@@ -820,9 +820,9 @@ for (const view of ['cards', 'tiles'] as const) {
           modifiers: options.modifier ? [options.modifier] : [],
         }),
       ])
-      await expect(popup).toHaveURL(primary)
-      // Chromium may defer rendering a native background tab until it is selected.
+      // Chromium may defer navigation/rendering until the native background tab is selected.
       await popup.bringToFront()
+      await expect(popup).toHaveURL(primary)
       await expect(popup).toHaveTitle('Launcher target')
       expect(await popup.evaluate(() => window.opener === null)).toBe(true)
       await popup.close()

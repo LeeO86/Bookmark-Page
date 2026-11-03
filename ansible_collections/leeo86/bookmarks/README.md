@@ -5,9 +5,14 @@ Ansible collection for a Bookmark-Page V2 server. The modules are GPL-3.0-or-lat
 Install from this repository:
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.2.2"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.3.0"
 ```
 
 Every module accepts `api_url`, `api_token`, and `validate_certs`. The URL and token also come from `BOOKMARKS_API_URL` and `BOOKMARKS_API_TOKEN`.
 
 Roles `inventory_sync` and `v1_import` build entries from an Ansible inventory or from a V1 site. See `docs/ansible.md` in the Bookmark-Page repository.
+
+Version 2.3.0 adds `entry_favicon` (file, Base64 or module-host URL), image checks,
+explicit `secret_value`, and V1 import options for controller image supply, API
+delegation, split tag columns, overrides and managed checks. Existing arguments
+remain compatible. See the repository [Ansible guide](https://github.com/LeeO86/Bookmark-Page/blob/v2.3.0/docs/ansible.md).

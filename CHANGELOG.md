@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.3.0 — 2026-11-03
+
+- Supply and pin entry favicons through an audited, idempotent write API, local
+  file chooser and Ansible `entry_favicon`; preserve sanitised bytes/provenance
+  in backups and across failed or successful server retries.
+- Add opt-in browser-direct image display with a visible-target CSP allowlist,
+  reliable letter fallback after SSR and documented Chromium/Firefox limits.
+- Add client/server `image` checks against live device URLs, including timeout,
+  non-image rejection and cache-bypassing browser probes.
+- Prioritise foreground favicon jobs, skip orphan retries without losing backup
+  bytes, and pause repeated permanent DNS/404/410 failures.
+- Extend V1 imports with controller-supplied images, delegated API execution,
+  managed checks, optional image checks, favicon overrides and split tag columns.
+- Keep existing Ansible arguments/data compatible; public field values no longer
+  mask result names, while legacy secrets and explicit `secret_value` stay protected.
+- Test real trusted HTTPS with Chromium and Firefox, new HTTP/queue/backup paths,
+  and Ansible check mode, diffs and unchanged repeat runs. App/collection are 2.3.0.
+
 ## 2.2.2 — 2026-11-01
 
 - Stream favicon discovery pages through `</head>` or the first 256 KiB and use

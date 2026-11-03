@@ -6,7 +6,15 @@ export default defineNitroPlugin((nitroApp) => {
     const html = responseBody(response)
     const headers = securityHeaders(pathname, import.meta.dev)
     if (headers['content-security-policy'] && !pathname.startsWith('/api/icons')) {
-      headers['content-security-policy'] = contentSecurityPolicyFor(html, import.meta.dev)
+      headers['content-security-policy'] = contentSecurityPolicyFor(
+        html,
+        import.meta.dev,
+        Array.isArray(event.context.bookmarkImageOrigins)
+          ? event.context.bookmarkImageOrigins.filter(
+              (value): value is string => typeof value === 'string',
+            )
+          : [],
+      )
     }
     for (const [name, value] of Object.entries(headers)) {
       if (pathname.startsWith('/api/icons') && name === 'content-security-policy') {

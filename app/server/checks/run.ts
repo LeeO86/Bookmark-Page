@@ -1,3 +1,4 @@
+import { imageCheckTarget } from './image-target'
 import { eq } from 'drizzle-orm'
 import type { RequestSpec } from '../../shared/contracts'
 import { getDatabase } from '../db/client'
@@ -6,7 +7,7 @@ import { now } from '../db/ids'
 import { checks, checkStatus, entries, fieldDefinitions, fieldValues } from '../db/schema'
 import { resolvePlaceholders, redactSecretValues } from '../services/placeholders'
 import { publishLive } from '../services/live'
-import { probeHttp, probeIcmp, probeTcp, type ProbeResult } from './probe'
+import { probeHttp, probeIcmp, probeTcp, probeImage, type ProbeResult } from './probe'
 
 const inFlight = new Set<string>()
 
@@ -59,7 +60,16 @@ export async function runServerCheck(checkId: string): Promise<void> {
   }
   const host = check.host?.trim() || entry.host || ''
   let result: ProbeResult
-  if (check.kind === 'icmp') {
+  if (check.kind === 'image') {
+    const url = imageCheckTarget(check)
+    result = url
+      ? await probeImage(url, check.tlsVerify, check.timeoutMs)
+      : {
+          state: 'unknown',
+          latencyMs: null,
+          message: 'Image checks need a resolved HTTP(S) image target',
+        }
+  } else if (check.kind === 'icmp') {
     result = await probeIcmp(host, check.timeoutMs)
   } else if (check.kind === 'tcp') {
     result = check.port

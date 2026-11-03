@@ -8,3 +8,11 @@ v1_validate_certs: true
 v1_purge: true
 v1_group_namespace: group
 v1_group_label: Group
+v1_import_checks: []
+v1_import_favicon_checks: false
+v1_import_favicon_overrides: {}
+v1_import_supply_favicons: false
+v1_import_favicon_validate_certs: true
+v1_import_favicon_timeout: 5
+v1_import_favicon_max_bytes: 524288
+v1_import_api_delegate_to: localhost

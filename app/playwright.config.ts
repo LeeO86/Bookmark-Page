@@ -12,7 +12,18 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'chromium-network',
+      testMatch: '**/image-compat.spec.ts',
+      use: { browserName: 'chromium' },
+    },
+    {
+      name: 'firefox-network',
+      testMatch: '**/image-compat.spec.ts',
+      use: { browserName: 'firefox' },
+    },
+    {
       name: 'chromium',
+      testIgnore: '**/image-compat.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
   ],

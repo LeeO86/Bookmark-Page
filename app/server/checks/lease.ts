@@ -1,3 +1,4 @@
+import { imageCheckTarget } from './image-target'
 import { requireTokenScope } from '../auth/permissions'
 import { eq } from 'drizzle-orm'
 import type { RequestSpec } from '../../shared/contracts'
@@ -23,7 +24,7 @@ export interface LeasedCheck {
   id: string
   leaseId: string
   name: string
-  kind: 'icmp' | 'tcp' | 'http'
+  kind: 'icmp' | 'tcp' | 'http' | 'image'
   url: string | null
   timeoutMs: number
   note: string | null
@@ -35,6 +36,7 @@ export function leaseChecks(actor: Actor, limit = 5): LeasedCheck[] {
     throw forbidden('Sign in to report browser checks')
   }
   const nowMs = Date.now()
+  for (const [id, lease] of leases) if (lease.until <= nowMs) leases.delete(id)
   const minimum = numberEnv('CHECK_MIN_INTERVAL_SECONDS', 15)
   const leaseMs = numberEnv('CLIENT_CHECK_LEASE_SECONDS', 30) * 1000
   const db = getDatabase()
@@ -87,6 +89,20 @@ export function leaseChecks(actor: Actor, limit = 5): LeasedCheck[] {
     const link = check.linkId ? linkRows.get(check.linkId) : undefined
     const host = check.host?.trim() || entry?.host || ''
     const spec = check.requestSpec as RequestSpec | null
+    if (check.kind === 'image') {
+      const url = imageCheckTarget(check, actor.role)
+      return {
+        id: check.id,
+        leaseId,
+        name: check.name,
+        kind: check.kind,
+        url,
+        timeoutMs: check.timeoutMs,
+        note: url
+          ? null
+          : 'Image check needs a resolved HTTP(S) URL; cached or inline images do not show device availability',
+      }
+    }
     const template =
       spec?.urlTemplate ||
       link?.urlTemplate ||

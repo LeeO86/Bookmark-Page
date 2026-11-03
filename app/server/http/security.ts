@@ -40,8 +40,25 @@ export function inlineScriptHashes(html: string): string[] {
   return hashes
 }
 
-export function contentSecurityPolicyFor(html: string, development = false): string {
-  const policy = development ? developmentPolicy : contentSecurityPolicy
+export function contentSecurityPolicyFor(
+  html: string,
+  development = false,
+  imageOrigins: readonly string[] = [],
+): string {
+  let policy = development ? developmentPolicy : contentSecurityPolicy
+  const origins = imageOrigins.filter((value) => {
+    try {
+      const url = new URL(value)
+      return /^https?:$/.test(url.protocol) && url.origin === value
+    } catch {
+      return false
+    }
+  })
+  if (origins.length)
+    policy = policy.replace(
+      "img-src 'self' data:",
+      "img-src 'self' data: " + [...new Set(origins)].join(' '),
+    )
   const hashes = inlineScriptHashes(html)
   if (development || hashes.length === 0) {
     return policy

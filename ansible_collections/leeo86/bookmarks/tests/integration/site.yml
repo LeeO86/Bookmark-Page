@@ -912,3 +912,5 @@
         that:
           - not session_info.changed
           - not session_env_info.changed
+    - name: Exercise device-network migration extensions
+      ansible.builtin.import_tasks: device-reachability.yml

@@ -247,6 +247,13 @@ export const faviconCache = sqliteTable('favicon_cache', {
   error: text('error'),
   fetchedAt: integer('fetched_at', { mode: 'timestamp_ms' }),
   failureCount: integer('failure_count').notNull().default(0),
+  imageSource: text('image_source', { enum: ['fetched', 'supplied'] })
+    .notNull()
+    .default('fetched'),
+  suppliedBy: text('supplied_by'),
+  suppliedAt: integer('supplied_at', { mode: 'timestamp_ms' }),
+  failureKind: text('failure_kind'),
+  retryPaused: integer('retry_paused', { mode: 'boolean' }).notNull().default(false),
   data: blob('data', { mode: 'buffer' }),
   createdAt,
   updatedAt,
@@ -261,7 +268,7 @@ export const checks = sqliteTable(
       .references(() => entries.id, { onDelete: 'cascade' }),
     linkId: text('link_id').references(() => links.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
-    kind: text('kind', { enum: ['icmp', 'tcp', 'http'] }).notNull(),
+    kind: text('kind', { enum: ['icmp', 'tcp', 'http', 'image'] }).notNull(),
     executor: text('executor', { enum: ['server', 'client'] }).notNull(),
     intervalSeconds: integer('interval_seconds').notNull().default(60),
     timeoutMs: integer('timeout_ms').notNull().default(5000),

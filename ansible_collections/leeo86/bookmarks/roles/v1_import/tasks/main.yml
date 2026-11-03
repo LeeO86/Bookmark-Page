@@ -11,7 +11,7 @@
 
 - name: Plan the V1 import
   ansible.builtin.set_fact:
-    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace, v1_import_tag_fields, v1_url) }}'
+    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace, v1_import_tag_fields, v1_url, v1_import_checks, v1_import_favicon_checks, v1_import_favicon_overrides) }}'
   no_log: true
   delegate_to: localhost
   run_once: true
@@ -26,7 +26,7 @@
   when: >-
     (v1_import_site_title | bool and 'name' in v1_global) or
     (v1_import_site_claim | bool and 'claim' in v1_global)
-  delegate_to: localhost
+  delegate_to: '{{ v1_import_api_delegate_to }}'
   run_once: true
   register: v1_branding_result
 
@@ -37,7 +37,7 @@
     validate_certs: '{{ validate_certs | default(true) }}'
     name: '{{ v1_group_namespace }}'
     label: '{{ v1_group_label }}'
-  delegate_to: localhost
+  delegate_to: '{{ v1_import_api_delegate_to }}'
   run_once: true
 
 - name: Ensure V1 field definitions
@@ -55,7 +55,7 @@
   loop: '{{ v1_plan.fields }}'
   loop_control:
     label: '{{ item.key }}'
-  delegate_to: localhost
+  delegate_to: '{{ v1_import_api_delegate_to }}'
   run_once: true
 
 - name: Sync imported entries
@@ -66,13 +66,69 @@
     scope: '{{ v1_scope }}'
     purge: '{{ v1_purge }}'
     entries: '{{ v1_plan.entries }}'
-  delegate_to: localhost
+  delegate_to: '{{ v1_import_api_delegate_to }}'
   run_once: true
   register: v1_sync_result
+
+- name: Initialise favicon supply results
+  ansible.builtin.set_fact:
+    v1_favicon_downloads: []
+  run_once: true
+
+- name: Download configured V1 favicons on the controller
+  ansible.builtin.set_fact:
+    v1_favicon_downloads: "{{ v1_favicon_downloads + [(query('leeo86.bookmarks.favicon_image', item.favicon_url, validate_certs=v1_import_favicon_validate_certs, timeout=v1_import_favicon_timeout, max_bytes=v1_import_favicon_max_bytes) | first) | combine({'external_key': item.external_key})] }}"
+  loop: "{{ v1_plan.entries | selectattr('favicon_url') | list }}"
+  loop_control:
+    label: '{{ item.external_key }}'
+  when: v1_import_supply_favicons | bool
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Supply reachable favicons without failing the migration for image errors
+  leeo86.bookmarks.entry_favicon:
+    api_url: '{{ api_url }}'
+    api_token: '{{ api_token }}'
+    validate_certs: '{{ validate_certs | default(true) }}'
+    scope: '{{ v1_scope }}'
+    external_key: '{{ item.external_key }}'
+    content: '{{ item.data }}'
+    content_type: '{{ item.contentType }}'
+    max_bytes: '{{ v1_import_favicon_max_bytes }}'
+  loop: '{{ v1_favicon_downloads | selectattr("ok") | list }}'
+  loop_control:
+    label: '{{ item.external_key }}'
+  when: not (ansible_check_mode and item.external_key in (v1_sync_result.created | map(attribute='externalKey') | list))
+  delegate_to: '{{ v1_import_api_delegate_to }}'
+  run_once: true
+  register: v1_favicon_uploaded
+  failed_when: false
+  no_log: true
+
+- name: Report unavailable favicon downloads
+  ansible.builtin.debug:
+    msg: 'V1 entry {{ item.external_key }} favicon was not supplied: {{ item.error }}'
+  loop: '{{ v1_favicon_downloads | rejectattr("ok") | list }}'
+  loop_control:
+    label: '{{ item.external_key }}'
+  run_once: true
+
+- name: Report favicon upload failures
+  ansible.builtin.debug:
+    msg: 'V1 entry {{ item.item.external_key }} favicon was not supplied: {{ item.msg | default("Image rejected") }}'
+  loop: '{{ v1_favicon_uploaded.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item.external_key }}'
+  when: not (item.skipped | default(false)) and item.content_hash is not defined
+  run_once: true
 
 - name: Publish the import result
   ansible.builtin.set_fact:
     v1_sync: '{{ v1_sync_result }}'
     v1_branding: '{{ v1_branding_result }}'
+    v1_favicons:
+      downloads_failed: '{{ v1_favicon_downloads | rejectattr("ok") | list | length }}'
+      uploads: '{{ v1_favicon_uploaded.results | default([]) | selectattr("content_hash", "defined") | map(attribute="content_hash") | list }}'
   delegate_to: localhost
   run_once: true

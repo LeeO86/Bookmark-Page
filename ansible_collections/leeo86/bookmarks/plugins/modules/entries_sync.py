@@ -113,20 +113,23 @@ options:
             type: str
       fields:
         description:
-          - Custom field values. The field definition must already exist.
+        - Custom field values. Definitions must already exist.
         type: list
         elements: dict
         suboptions:
           key:
-            description:
-              - Field key.
+            description: [Field key.]
             type: str
             required: true
           value:
             description:
-              - Field value. Ansible redacts it in logs.
+            - Legacy field value. Secret definitions remain redacted; public values keep results readable.
             type: str
-            required: true
+          secret_value:
+            description:
+            - Always redact this value in Ansible output. Storage encryption depends on the field definition.
+            type: str
+            version_added: 2.3.0
       checks:
         description:
           - Online checks stored on the entry.
@@ -143,7 +146,7 @@ options:
               - Check kind.
             type: str
             required: true
-            choices: [icmp, tcp, http]
+            choices: [icmp, tcp, http, image]
           executor:
             description:
               - Where the check runs.
@@ -231,6 +234,7 @@ from ansible_collections.leeo86.bookmarks.plugins.module_utils.bookmarks import 
     api,
     build_entries,
     common_argument_spec,
+    protect_entry_fields,
     resolve_entry_icon_names,
     entry_argument_spec,
     quote_path,
@@ -247,6 +251,7 @@ def main():
         entries=dict(type='list', elements='dict', required=True, options=entry_options),
     )
     module = AnsibleModule(argument_spec=spec, supports_check_mode=True)
+    protect_entry_fields(module)
     try:
         entries = [resolve_entry_icon_names(module, item) for item in build_entries(module.params['entries'])]
     except BookmarkBuildError as error:

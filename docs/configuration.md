@@ -110,3 +110,63 @@ Automatic favicon work never resolves links containing secret-field placeholders
 Those links remain behind explicit reveal. Configure a separate public favicon
 override if such an entry needs an image. Secret values cannot enter stored retry
 sources through background link resolution.
+
+## Devices reachable only from users or automation hosts (2.3.0)
+
+Prefer **supplied favicons** when the portal cannot reach a device over HTTP(S).
+The entry editor accepts a local image file; `entry_favicon` or the opt-in V1
+role downloads on a reachable automation host. Bytes are validated and SVGs
+sanitised using the same `FAVICON_MAX_BYTES` limit as discovery. Images and their
+source, supplying actor and timestamp are included in backups, including merge
+restore. The entry's selected icon still takes priority.
+
+Supplied images are pinned: automatic retry skips them and even a successful
+manual server refresh keeps their bytes and provenance. Failed refreshes retain
+them too. **Remove supplied image** (or DELETE on the favicon endpoint) restores
+discovery. Cache slots are shared by the resolved explicit favicon URL, or by
+primary-link origin when there is no override; supply/removal affects other
+entries using that same slot. Changing the URL selects another slot. Unreferenced
+slots are skipped by background retries but retained in backups, because supplied
+bytes cannot necessarily be downloaded again.
+
+Foreground editor/sync work takes priority over queued background retries;
+running requests are allowed to finish, with four jobs at most. Three consecutive
+permanent failures (DNS ENOTFOUND or final 404/410) pause automatic retries.
+Temporary failures keep the 5-minute, 1-hour, 6-hour backoff. Manual refresh bypasses
+a pause/backoff; a successful fetch clears it. Diagnostics show the last failure
+and paused state. An entry/link change that selects a different slot starts fresh.
+
+The admin setting `browser_favicons` (API `browserFavicons`) defaults to **false**.
+If enabled and no selected/cached icon is available, the browser displays the
+explicit HTTP(S) favicon URL, otherwise the primary origin's `/favicon.ico`.
+Image errors fall back to the letter avatar. This does not copy bytes into the
+cache: cross-origin images without CORS cannot be read or uploaded by JavaScript.
+An inline data override continues to use server validation/discovery.
+
+CSP `img-src` permits only origins derived from entries visible to the current
+visitor, plus their HTTPS counterparts for browser upgrades. Configured client
+image checks independently add their visible target origins, even with display
+fallback off. Otherwise `img-src` stays `'self' data:`. Reload after adding a new
+device origin or signing in to obtain the document's current allowlist; saving
+the admin toggle reloads automatically. Proxy CSP can further restrict requests.
+
+### HTTPS portal compatibility
+
+Real trusted-HTTPS tests on 2026-11-03 used a non-loopback HTTP IP image target,
+without disabling browser security or ignoring certificate errors:
+
+| Target from an HTTPS portal               | Chromium 153 / 156                                   | Firefox 155                                          |
+| ----------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| HTTP image on an IP address               | Loads, with a mixed-content warning                  | Upgrades to HTTPS; fails against an HTTP-only device |
+| HTTP image on a hostname                  | Upgrades to HTTPS; fails against an HTTP-only device | Upgrades to HTTPS; fails against an HTTP-only device |
+| HTTPS image with an untrusted certificate | Fails                                                | Fails                                                |
+| Valid trusted HTTPS image                 | Loads                                                | Loads                                                |
+
+Localhost portals have special treatment and are not a valid test of a deployed
+HTTPS portal. Browser versions, enterprise policy and local-network permission
+prompts can change these results. Do not promise portable HTTP-IP support or
+relax TLS/mixed-content protections. Install the device CA or use supplied images
+for dependable display. The [Mixed Content standard](https://www.w3.org/TR/mixed-content/)
+and [MDN guidance](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content)
+also describe restrictions; the table records actual browser tests, not a
+cross-browser guarantee. See [image checks](checks-and-actions.md#image-checks).

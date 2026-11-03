@@ -1,3 +1,4 @@
+import { normalizeImage } from '../icons/favicon'
 import { spawn } from 'node:child_process'
 import { connect } from 'node:net'
 import { limitedRequest } from '../http/limited'
@@ -139,4 +140,34 @@ export function icmpUnavailable(): ProbeResult {
 
 function safeHost(host: string): boolean {
   return /^[A-Za-z0-9.:%-]+$/.test(host) && !host.startsWith('-')
+}
+
+export async function probeImage(
+  url: string,
+  tlsVerify: boolean,
+  timeoutMs: number,
+): Promise<ProbeResult> {
+  const started = Date.now()
+  try {
+    const response = await limitedRequest(url, {
+      timeoutMs,
+      maxBytes: Number(process.env.FAVICON_MAX_BYTES) || 524288,
+      maxRedirects: 3,
+      tlsVerify,
+    })
+    if (response.status < 200 || response.status >= 300)
+      throw new Error(`Image returned ${response.status}`)
+    normalizeImage(response.headers['content-type'] ?? '', response.body)
+    return {
+      state: 'up',
+      latencyMs: Date.now() - started,
+      message: 'The configured image loaded and passed validation',
+    }
+  } catch (error) {
+    return {
+      state: 'down',
+      latencyMs: Date.now() - started,
+      message: error instanceof Error ? error.message : 'Image probe failed',
+    }
+  }
 }
