@@ -19,6 +19,7 @@ export function startMonitors(): void {
   }
   started = true
   void detectIcmp()
+  void runDueServerChecks()
   const timer = setInterval(() => {
     void runDueServerChecks()
   }, 5000)

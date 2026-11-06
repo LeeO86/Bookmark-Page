@@ -1,3 +1,5 @@
+import { createGunzip, createInflate } from 'node:zlib'
+import type { Readable } from 'node:stream'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import type { IncomingHttpHeaders } from 'node:http'
@@ -76,10 +78,13 @@ function rawRequest(
 ): Promise<Omit<LimitedResponse, 'finalUrl'>> {
   return new Promise((resolve, reject) => {
     let settled = false
+    const decoders: Array<ReturnType<typeof createGunzip> | ReturnType<typeof createInflate>> = []
     const fail = (error: Error) => {
       if (settled) return
       settled = true
       reject(error)
+      req.destroy()
+      for (const decoder of decoders) decoder.destroy()
     }
     const transport = url.protocol === 'https:' ? httpsRequest : httpRequest
     const req = transport(
@@ -95,6 +100,26 @@ function rawRequest(
         rejectUnauthorized: options.tlsVerify,
       },
       (res) => {
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          settled = true
+          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.alloc(0) })
+          res.destroy()
+          return
+        }
+        const codings = (res.headers['content-encoding'] ?? '')
+          .split(',')
+          .map((v) => v.trim().toLowerCase())
+          .filter((v) => v && v !== 'identity')
+        if (codings.length > 3 || codings.some((v) => !['gzip', 'x-gzip', 'deflate'].includes(v))) {
+          res.resume()
+          fail(new Error('Unsupported response Content-Encoding'))
+          return
+        }
         const chunks: Buffer[] = []
         let size = 0
         // Discovery pages may return images; those must still obey the full-image limit.
@@ -111,7 +136,27 @@ function rawRequest(
             body: Buffer.concat(chunks, size),
           })
         }
+        let wireSize = 0
         res.on('data', (chunk: Buffer) => {
+          wireSize += chunk.length
+          if (wireSize > Math.max(options.maxBytes, headLimit ?? 0))
+            fail(new Error('Response is too large (encoded bytes)'))
+        })
+        let decoded: Readable = res
+        for (let layer = 0; layer < codings.length; layer++) {
+          const decoder =
+            codings[codings.length - 1 - layer] === 'deflate' ? createInflate() : createGunzip()
+          decoders.push(decoder)
+          decoder.on('error', fail)
+          let decodedSize = 0
+          decoder.on('data', (chunk: Buffer) => {
+            decodedSize += chunk.length
+            if ((!head || layer < codings.length - 1) && decodedSize > options.maxBytes)
+              fail(new Error('Response is too large (decoded bytes)'))
+          })
+          decoded = decoded.pipe(decoder)
+        }
+        decoded.on('data', (chunk: Buffer) => {
           if (settled) return
           if (head && headLimit !== undefined) {
             const prefix = chunk.subarray(0, headLimit - size)
@@ -122,6 +167,7 @@ function rawRequest(
             if (end !== null || size >= headLimit) {
               finish()
               res.destroy()
+              for (const decoder of decoders) decoder.destroy()
             }
             return
           }
@@ -133,7 +179,7 @@ function rawRequest(
           }
           chunks.push(chunk)
         })
-        res.on('end', finish)
+        decoded.on('end', finish)
         res.on('error', fail)
         res.on('close', () => {
           if (!res.complete) fail(new Error('Response was aborted'))

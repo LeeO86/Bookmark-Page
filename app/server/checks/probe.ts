@@ -1,3 +1,4 @@
+import { imageAccept } from '../../shared/image-accept'
 import { normalizeImage } from '../icons/favicon'
 import { spawn } from 'node:child_process'
 import { connect } from 'node:net'
@@ -150,6 +151,7 @@ export async function probeImage(
   const started = Date.now()
   try {
     const response = await limitedRequest(url, {
+      headers: { accept: imageAccept },
       timeoutMs,
       maxBytes: Number(process.env.FAVICON_MAX_BYTES) || 524288,
       maxRedirects: 3,

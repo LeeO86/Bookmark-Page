@@ -131,11 +131,23 @@ it('keeps supplied bytes after failed and successful manual network refreshes an
   expect(requests).toBe(0)
   queueFavicon(origin + '/icon.png', true, true)
   await vi.waitFor(() =>
-    expect(getDatabase().select().from(faviconCache).get()?.status).toBe('error'),
+    expect(getDatabase().select().from(faviconCache).get()?.fetchedAt?.getTime()).not.toBe(
+      before.fetchedAt?.getTime(),
+    ),
   )
+  expect(getDatabase().select().from(faviconCache).get()).toMatchObject({
+    status: 'ok',
+    error: null,
+    failureCount: 0,
+  })
+  const failedAttempt = getDatabase().select().from(faviconCache).get()!.fetchedAt!.getTime()
   healthy = true
   queueFavicon(origin + '/icon.png', true, true)
-  await vi.waitFor(() => expect(getDatabase().select().from(faviconCache).get()?.status).toBe('ok'))
+  await vi.waitFor(() =>
+    expect(getDatabase().select().from(faviconCache).get()?.fetchedAt?.getTime()).not.toBe(
+      failedAttempt,
+    ),
+  )
   const after = getDatabase().select().from(faviconCache).get()!
   expect(after.data).toEqual(before.data)
   expect(after.imageSource).toBe('supplied')

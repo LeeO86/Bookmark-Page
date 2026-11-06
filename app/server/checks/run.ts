@@ -1,3 +1,4 @@
+import { inFlightServerChecks as inFlight, serverCheckSchedule } from './schedule'
 import { imageCheckTarget } from './image-target'
 import { eq } from 'drizzle-orm'
 import type { RequestSpec } from '../../shared/contracts'
@@ -9,43 +10,57 @@ import { resolvePlaceholders, redactSecretValues } from '../services/placeholder
 import { publishLive } from '../services/live'
 import { probeHttp, probeIcmp, probeTcp, probeImage, type ProbeResult } from './probe'
 
-const inFlight = new Set<string>()
+let pumping = false
+let lastCapacityWarning = 0
 
 export async function runDueServerChecks(): Promise<number> {
-  const concurrency = numberEnv('CHECK_CONCURRENCY', 4)
-  const minimum = numberEnv('CHECK_MIN_INTERVAL_SECONDS', 15)
-  const rows = getDatabase()
-    .select()
-    .from(checks)
-    .all()
-    .filter((check) => check.executor === 'server')
-  const statuses = new Map(
-    getDatabase()
-      .select()
-      .from(checkStatus)
-      .all()
-      .map((status) => [status.checkId, status]),
-  )
+  return pumpServerChecks()
+}
+
+function pumpServerChecks(): number {
+  if (pumping) return 0
+  pumping = true
   let started = 0
-  for (const check of rows) {
-    if (inFlight.size >= concurrency) {
-      break
+  try {
+    const schedule = serverCheckSchedule()
+    if (schedule.overdue && Date.now() - lastCapacityWarning >= 60_000) {
+      lastCapacityWarning = Date.now()
+      console.warn(
+        'Server checks are overdue by more than their interval; review CHECK_CONCURRENCY and probe timeouts',
+        {
+          overdue: schedule.overdue,
+          concurrency: schedule.concurrency,
+          maxOverdueSeconds: Math.floor(schedule.maxOverdueSeconds),
+        },
+      )
     }
-    if (inFlight.has(check.id)) {
-      continue
+    for (const { check } of schedule.due) {
+      if (inFlight.size >= schedule.concurrency) break
+      if (inFlight.has(check.id)) continue
+      inFlight.add(check.id)
+      started++
+      void runServerCheck(check.id)
+        .catch(() => {
+          // Unexpected probe errors must neither become unhandled rejections nor spin forever.
+          if (getDatabase().select().from(checks).where(eq(checks.id, check.id)).get())
+            writeStatus(
+              check.id,
+              { state: 'unknown', latencyMs: null, message: 'Server check could not complete' },
+              'server',
+            )
+        })
+        .finally(() => {
+          inFlight.delete(check.id)
+          pumpServerChecks()
+        })
+        .catch(() => {
+          console.error('Server check scheduling failed; the next monitor sweep will retry')
+        })
     }
-    const status = statuses.get(check.id)
-    const interval = Math.max(check.intervalSeconds, minimum) * 1000
-    if (status?.checkedAt && Date.now() - status.checkedAt.getTime() < interval) {
-      continue
-    }
-    inFlight.add(check.id)
-    started += 1
-    void runServerCheck(check.id).finally(() => {
-      inFlight.delete(check.id)
-    })
+    return started
+  } finally {
+    pumping = false
   }
-  return started
 }
 
 export async function runServerCheck(checkId: string): Promise<void> {
@@ -182,15 +197,6 @@ export function writeStatus(checkId: string, result: ProbeResult, reportedBy: st
   ) {
     publishLive({ type: 'status' })
   }
-}
-
-function numberEnv(name: string, fallback: number): number {
-  const raw = process.env[name]
-  if (!raw) {
-    return fallback
-  }
-  const value = Number(raw)
-  return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
 function secretValues(entryId: string): string[] {

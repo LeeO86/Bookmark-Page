@@ -1,3 +1,4 @@
+import { imageAccept } from '../../shared/image-accept'
 import { faviconSources } from './sources'
 import { decodeDataImage } from '../../shared/data-image'
 import { publishLive } from '../services/live'
@@ -108,8 +109,11 @@ export async function fetchFaviconBytes(
     const image = decodeDataImage(pageUrl, maxBytes())
     return normalizeImage(image.mediaType, Buffer.from(image.bytes))
   }
-  const request = (url: string, htmlHead = false) =>
+  const request = (url: string, htmlHead = false, image = !htmlHead) =>
     limitedRequest(url, {
+      headers: {
+        accept: image ? imageAccept : 'text/html,application/xhtml+xml,image/*,*/*;q=0.8',
+      },
       timeoutMs: timeoutMs(),
       maxBytes: maxBytes(),
       ...(htmlHead ? { htmlHeadMaxBytes } : {}),
@@ -154,7 +158,7 @@ export async function fetchFaviconBytes(
   if (linked) return linked
   if (manifest) {
     try {
-      const document = await request(manifest)
+      const document = await request(manifest, false, false)
       if (document.status < 200 || document.status >= 300)
         throw new Error(`Manifest request returned ${document.status}`)
       const image = await tryCandidates(
@@ -267,6 +271,22 @@ function rememberFailure(
     .from(faviconCache)
     .where(eq(faviconCache.origin, origin))
     .get()
+  // A queued/in-flight request may finish after supply; retain the pinned successful image.
+  if (previous?.imageSource === 'supplied') {
+    getDatabase()
+      .update(faviconCache)
+      .set({
+        status: 'ok',
+        error: null,
+        failureCount: 0,
+        failureKind: null,
+        retryPaused: false,
+        fetchedAt: timestamp,
+      })
+      .where(eq(faviconCache.id, previous.id))
+      .run()
+    return
+  }
   const failureKind = permanent ? 'permanent' : 'temporary'
   const failureCount =
     previous?.failureKind === failureKind && previous.sourceUrl === sourceUrl
