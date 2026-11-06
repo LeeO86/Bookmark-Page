@@ -1,3 +1,4 @@
+import type { OidcRoleDiagnostics } from '../../shared/oidc-role'
 import {
   blob,
   index,
@@ -24,6 +25,9 @@ export const users = sqliteTable(
     authSource: text('auth_source', { enum: ['local', 'oidc', 'header'] }).notNull(),
     oidcIssuer: text('oidc_issuer'),
     oidcSubject: text('oidc_subject'),
+    oidcRoleDiagnostics: text('oidc_role_diagnostics', {
+      mode: 'json',
+    }).$type<OidcRoleDiagnostics>(),
     createdAt,
     updatedAt,
     createdBy: text('created_by'),

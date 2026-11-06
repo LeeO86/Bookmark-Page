@@ -67,6 +67,16 @@ async function boot() {
       id: 'identity-user',
       username: 'identity-user',
       displayName: 'Fixture Display Name',
+      oidcRoleDiagnostics: {
+        issuer: 'https://idp.example',
+        subject: 'fixture-user',
+        claim: 'roles',
+        values: ['fixture-admin'],
+        matched: true,
+        truncated: false,
+        ignoredNonStringValues: false,
+        receivedAt: '2026-11-06T12:00:00.000Z',
+      },
       role: 'admin',
       authSource: 'oidc',
       oidcIssuer: 'https://idp.example',
@@ -84,14 +94,21 @@ it.each(['merge', 'replace'] as const)(
     getDatabase().update(users).set({ displayName: 'Changed after backup' }).run()
     restoreBackup(admin, archive, mode, false, undefined)
     expect(getDatabase().select().from(users).get()?.displayName).toBe('Fixture Display Name')
+    expect(getDatabase().select().from(users).get()?.oidcRoleDiagnostics?.values).toEqual([
+      'fixture-admin',
+    ])
   },
 )
 it('restores a pre-display-name format-1 archive with a nullable fallback', async () => {
   await boot()
   const files = unzipSync(createBackup(admin, false, undefined))
   const document = JSON.parse(strFromU8(files['backup.json']!))
-  for (const user of document.users) delete user.displayName
+  for (const user of document.users) {
+    delete user.displayName
+    delete user.oidcRoleDiagnostics
+  }
   files['backup.json'] = strToU8(JSON.stringify(document))
   restoreBackup(admin, zipSync(files), 'replace', false, undefined)
   expect(getDatabase().select().from(users).get()?.displayName).toBeNull()
+  expect(getDatabase().select().from(users).get()?.oidcRoleDiagnostics).toBeNull()
 })

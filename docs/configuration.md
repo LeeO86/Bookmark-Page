@@ -219,3 +219,29 @@ stored in nullable `users.display_name` and included in backups. Missing names
 fall back to the user name. Older archives restore with a null display name.
 Provider roles are mapped again at each sign-in; the admin list explains their
 provider ownership. Local/header sign-ins retain their existing role enforcement.
+
+## Restricted-network transport and check capacity (2.4.2)
+
+Favicon images and server image checks send a browser-like image Accept header
+with a `*/*` fallback. Discovery pages additionally accept HTML. The bounded HTTP
+client decodes gzip/deflate from `Content-Encoding`, including unsolicited
+compression, before image validation or head scanning. Full responses enforce
+limits on wire bytes and decoded bytes at each layer; malformed/truncated or
+unsupported encodings fail safely. HTML discovery still reads only the decoded
+head or 256 KiB prefix. Images retain `FAVICON_MAX_BYTES`, SVG sanitising, timeout,
+redirect and TLS settings. Only configured targets/redirects are contacted.
+
+Supplying an image pins successful diagnostics as well as bytes/provenance.
+A late failed fetch records its attempt time without marking supplied pixels as
+failed. The migration also repairs existing supplied-slot error states without
+changing bytes or provenance. Explicit removal resumes normal discovery.
+
+`CHECK_CONCURRENCY` defaults to 4 and `CHECK_MIN_INTERVAL_SECONDS` to 15; both use
+positive integers. Server checks run never-run/oldest first and refill freed slots
+immediately. Capacity is limited by latency/timeouts, rather than four starts per
+five-second sweep. Watch the overdue gauges and rate-limited warning naming
+`CHECK_CONCURRENCY`; see [capacity guidance](checks-and-actions.md#server-check-capacity-and-fairness-242).
+
+Verified OIDC role diagnostics are saved per user and exposed only in Admin Users
+and its admin-only API, not public auth options or the current-actor payload.
+No raw token is logged or stored. See [Entra role Values](auth-entra.md#app-roles-map-the-value-from-the-id-token).

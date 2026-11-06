@@ -343,6 +343,7 @@ function mergeAll(
       .set({
         email: row.email,
         displayName: row.displayName,
+        oidcRoleDiagnostics: row.oidcRoleDiagnostics,
         passwordHash: row.passwordHash ?? current.passwordHash,
         role: row.role,
         breakGlass: row.breakGlass,

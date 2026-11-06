@@ -67,3 +67,29 @@ and validates the response as ICO, PNG, SVG, WebP, JPEG or GIF; SVG sanitising a
 applies. A non-2xx, malformed image or timeout means down. It does not write the
 favicon cache. For a server that can ping but cannot HTTP devices, use a server
 ICMP check for dependable reachability and supplied images for display.
+
+## Server-check capacity and fairness (2.4.2)
+
+The scheduler discovers newly due work every five seconds and at startup.
+Never-run server checks are first, then the oldest `checkedAt` results; stable
+creation/id ties keep ordering predictable. When a probe finishes (including a
+timeout or failure), its slot immediately starts the next due probe. The five
+second discovery tick no longer limits a batch to `CHECK_CONCURRENCY` starts.
+Edits/deletions are read again between probes; client-executed checks are excluded.
+
+Capacity still depends on probe duration. Roughly, `concurrency / mean duration`
+is the sustainable checks/second; all-down devices occupy slots until timeout.
+For example, four slots with five-second probes sustain about 48 checks/minute;
+164 checks/minute need at least 14 slots at that duration, plus operating headroom.
+`CHECK_CONCURRENCY=32` may suit that workload if the host/network can support it.
+Increasing the interval or reducing a suitable timeout also reduces pressure.
+
+A check is overdue when it has waited more than one additional effective interval
+past its due time. Never-run checks are due from creation; completed checks are
+due from `checkedAt + max(interval, CHECK_MIN_INTERVAL_SECONDS)`. At most once a
+minute, the scheduler warns with `CHECK_CONCURRENCY`, overdue count and maximum
+delay. `/metrics` exposes `bookmark_server_check_concurrency`,
+`bookmark_server_checks_in_flight`, `bookmark_server_checks_due`,
+`bookmark_server_checks_overdue` and `bookmark_server_check_max_overdue_seconds`.
+Due/overdue counts include currently running probes until their result arrives;
+metric access retains the existing optional `METRICS_TOKEN` protection.

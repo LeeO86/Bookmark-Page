@@ -592,3 +592,15 @@ other predicates and saved tabs retained, and typed OR/parentheses left filtered
 Single selections switch on plain click, selected values toggle off and move
 first, and Shift-OR/Alt-NOT remain available. Full contracts and boundaries are
 in configuration, API, query-language and decision documentation. Fixes #46.
+
+
+### 2.4.2 restricted-network follow-up (2026-11-06)
+
+Compatible image negotiation, bounded gzip/deflate decoding, explicit proxy bypass,
+loopback check exclusions and per-column V1 minimum roles preserve existing
+arguments/defaults. Supplied bytes and successful diagnostics survive late fetch
+failures. Server checks are never-run/oldest-first with immediate refill and
+capacity warnings/metrics. Latest verified OIDC role values are admin-only,
+nullable/backed-up diagnostics; map actual ID-token app-role Values, retain
+Viewer fallback and document direct-group membership. Contracts are in the
+configuration, migration, Ansible, authentication and API documents.

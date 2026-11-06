@@ -95,7 +95,7 @@ The V1 importer can also copy the site title and claim independently with `v1_im
 
 ## Automation and favicon improvements in v2.2.1
 
-App and Ansible collection ship together as 2.4.0. Configure a persistent admin token
+App and Ansible collection ship together as 2.4.2. Configure a persistent admin token
 with `ADMIN_API_TOKEN` or `ADMIN_API_TOKEN_FILE`; existing API tokens and module
 arguments remain supported. The collection adds `settings`, `icon`, `filters_sync`
 and `group/leeo86.bookmarks.bookmarks` module defaults. It also accepts session

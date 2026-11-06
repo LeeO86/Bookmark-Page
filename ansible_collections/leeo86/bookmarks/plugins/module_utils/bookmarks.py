@@ -11,6 +11,8 @@ import base64
 import mimetypes
 import json
 import re
+import ipaddress
+from socket import inet_aton
 from collections.abc import Mapping, Sequence
 from urllib.parse import quote, urljoin, urlparse
 
@@ -616,7 +618,8 @@ def clean_check(check):
     return cleaned
 
 
-def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url='', checks=None, favicon_checks=False, favicon_overrides=None):
+def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=None, v1_url='', checks=None,
+            favicon_checks=False, favicon_overrides=None, field_min_roles=None):
     if not isinstance(settings, Mapping):
         raise BookmarkBuildError('V1 globals must be a JSON object')
     if not isinstance(bookmarks, Mapping):
@@ -628,7 +631,7 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=No
                  for item in (items or []) if isinstance(item, Mapping)
                  for key in ('user%d' % index for index in range(1, 9))
                  if text_of(item.get(key)) != ''}
-    fields = v1_field_definitions(settings, secrets, populated - set(tag_fields))
+    fields = v1_field_definitions(settings, secrets, populated - set(tag_fields), field_min_roles)
     fields = [field for field in fields if field['key'] not in tag_fields]
     allowed = [field['key'] for field in fields]
     merged = {}
@@ -684,8 +687,8 @@ def v1_plan(settings, bookmarks, secret_fields, namespace='group', tag_fields=No
             if value and (parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password):
                 raise BookmarkBuildError('Favicon overrides must be absolute HTTP(S) URLs without credentials')
             entry['favicon_url'] = value
-        entry['checks'] = [dict(check) for check in checks or []] if entry['host'] else []
-        if favicon_checks and entry['favicon_url']:
+        entry['checks'] = [dict(check) for check in checks or []] if entry['host'] and not v1_loopback_host(entry['host']) else []
+        if favicon_checks and entry['favicon_url'] and not v1_loopback_host(entry['host']):
             entry['checks'].append(dict(name='favicon', kind='image', executor='client', url_template=entry['favicon_url'], interval_seconds=60))
         names = [check.get('name') for check in entry['checks']]
         if len(names) != len(set(names)):
@@ -720,7 +723,26 @@ def validate_tag_fields(tag_fields, secrets):
     return normalized
 
 
-def v1_field_definitions(settings, secrets, populated=None):
+def v1_loopback_host(host):
+    normalized = host.rstrip('.').lower()
+    if normalized == 'localhost':
+        return True
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        try:
+            # Numeric IPv4 shorthand is parsed locally, without DNS or network access.
+            address = ipaddress.ip_address(inet_aton(normalized))
+        except OSError:
+            return False
+    return address.is_loopback or bool(getattr(address, 'ipv4_mapped', None) and address.ipv4_mapped.is_loopback)
+
+
+def v1_field_definitions(settings, secrets, populated=None, field_min_roles=None):
+    roles = field_min_roles if field_min_roles is not None else {}
+    if not isinstance(roles, Mapping) or any(key not in ['user%d' % i for i in range(1, 9)] or
+                                             role not in ('anonymous', 'viewer', 'editor', 'admin') for key, role in roles.items()):
+        raise BookmarkBuildError('v1_import_field_min_roles must map user1..user8 to anonymous/viewer/editor/admin')
     fields = []
     for index in range(1, 9):
         key = 'user%d' % index
@@ -733,7 +755,7 @@ def v1_field_definitions(settings, secrets, populated=None):
             'key': key,
             'label': label or key,
             'type': field_type,
-            'min_role': 'viewer',
+            'min_role': roles.get(key, 'viewer'),
             'searchable': field_type != 'secret',
             'show_as_column': not hidden,
             'sort': index,

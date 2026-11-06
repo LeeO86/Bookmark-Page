@@ -1,3 +1,4 @@
+import { oidcRoleDiagnosticsSchema } from '../shared/oidc-role'
 import { z } from 'zod'
 import {
   actionExecuteSchema,
@@ -186,7 +187,7 @@ export function openApiDocument(): Record<string, unknown> {
     openapi: '3.1.0',
     info: {
       title: 'Bookmark-Page',
-      version: '2.4.0',
+      version: '2.4.2',
     },
     paths: documentedPaths(),
     security: [{ sessionCookie: [] }, { bearerToken: [] }],
@@ -500,6 +501,7 @@ const userResponseSchema = userWriteSchema.omit({ password: true }).extend({
   id: idSchema,
   email: textOrNull,
   displayName: textOrNull,
+  oidcRoleDiagnostics: oidcRoleDiagnosticsSchema.nullable(),
   authSource: z.enum(['local', 'oidc', 'header']),
 })
 const tokenResponseSchema = tokenWriteSchema.extend({

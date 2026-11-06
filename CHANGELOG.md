@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.2 — 2026-11-06
+
+- Send a compatible image Accept header and decode bounded gzip/deflate image responses in controller downloads and server requests, including unsolicited compression.
+- Add `use_proxy` to favicon URL downloads/lookup and `v1_import_favicon_use_proxy` to migration; defaults keep proxy handling enabled.
+- Keep supplied favicon diagnostics successful when a queued/running fetch fails later, and repair existing supplied-slot error states without changing bytes/provenance.
+- Schedule server checks never-run first and oldest checked time next; refill slots immediately and expose overdue/capacity metrics with a warning naming `CHECK_CONCURRENCY`.
+- Skip loopback targets for imported checks and add `v1_import_field_min_roles`, keeping viewer defaults and existing arguments compatible.
+- Save the latest verified OIDC role-claim diagnostics for admins and log unmapped claims without tokens. Clarify Entra ID-token app-role Values, direct group membership and nested-group limits.
+- Application and collection versions remain aligned at 2.4.2; offline assets and existing storage/API contracts remain compatible.
+
 ## 2.4.0 — 2026-11-06
 
 - Add opt-in automatic OIDC on top-level document navigation with `prompt=none`,

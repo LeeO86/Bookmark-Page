@@ -353,6 +353,46 @@ describe('real OpenID HTTP flow against the local TLS provider', async () => {
       })
     },
   )
+  it.each([
+    undefined,
+    [],
+    ['Bookmark.Admin'],
+    ['fixture-viewer', 'unmapped'],
+    ['fixture-editor', 'fixture-admin'],
+  ])(
+    'keeps latest role-claim diagnostics admin-only and explains fallback for %j',
+    async (roleValues) => {
+      provider.configure({ subject: 'role-diagnostic-user', roleValues })
+      const browser = new Browser()
+      await flow(browser)
+      const actor = (await (await browser.request('/api/v1/auth/session')).json()).actor
+      const expected =
+        Array.isArray(roleValues) && roleValues.includes('fixture-admin') ? 'admin' : 'viewer'
+      expect(actor.role).toBe(expected)
+      expect(actor).not.toHaveProperty('oidcRoleDiagnostics')
+      const response = await new Browser().request('/api/v1/users', {
+        headers: { authorization: 'Bearer ' + token },
+      })
+      const user = (await response.json()).users.find(
+        (item: { oidcRoleDiagnostics?: { subject: string } }) =>
+          item.oidcRoleDiagnostics?.subject === 'role-diagnostic-user',
+      )
+      expect(user.oidcRoleDiagnostics).toMatchObject({
+        issuer: provider.origin,
+        subject: 'role-diagnostic-user',
+        claim: 'roles',
+        values: roleValues ?? [],
+        matched:
+          Array.isArray(roleValues) &&
+          roleValues.some((v) => ['fixture-viewer', 'fixture-editor', 'fixture-admin'].includes(v)),
+        truncated: false,
+        ignoredNonStringValues: false,
+      })
+      if (expected !== 'admin') expect((await browser.request('/api/v1/users')).status).toBe(403)
+      expect((await new Browser().request('/api/v1/users')).status).toBe(403)
+    },
+  )
+
   it('falls back to the canonical user name when the provider has no name claim', async () => {
     provider.configure({ name: null })
     const browser = new Browser()

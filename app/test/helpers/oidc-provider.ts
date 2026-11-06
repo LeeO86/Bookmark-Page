@@ -11,6 +11,7 @@ import { chromium } from '@playwright/test'
 export type MockRole = 'viewer' | 'editor' | 'admin'
 export interface OidcScenario {
   role?: MockRole
+  roleValues?: unknown
   subject?: string
   name?: string | null
   error?: string
@@ -27,11 +28,23 @@ export interface OidcScenario {
 }
 
 export async function freeTestPort(): Promise<number> {
-  const server = netServer()
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
+  let server: ReturnType<typeof netServer> | undefined
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const candidate = netServer()
+    const port = 18000 + Math.floor(Math.random() * 12000)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        candidate.once('error', reject)
+        candidate.listen(port, '127.0.0.1', resolve)
+      })
+      server = candidate
+      break
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'EADDRINUSE')
+        throw error
+    }
+  }
+  if (!server) throw new Error('No unused fixture port below the ephemeral client range')
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing test port')
   await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -237,7 +250,9 @@ export async function createOidcProvider() {
           ...(transaction.scenario.name === null
             ? {}
             : { name: transaction.scenario.name ?? `Fixture ${role}` }),
-          roles: ['fixture-' + role],
+          roles: Object.hasOwn(transaction.scenario, 'roleValues')
+            ? transaction.scenario.roleValues
+            : ['fixture-' + role],
         }
         const input =
           Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'fixture-rsa' })).toString('base64url') +

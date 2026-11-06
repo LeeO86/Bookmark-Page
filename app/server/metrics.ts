@@ -1,3 +1,4 @@
+import { serverCheckSchedule } from './checks/schedule'
 import { timingSafeEqual } from 'node:crypto'
 import { getDatabase } from './db/client'
 import { checkStatus, checks, entries } from './db/schema'
@@ -32,6 +33,7 @@ export function renderMetrics(): string {
       .all()
       .map((status) => [status.checkId, status]),
   )
+  const schedule = serverCheckSchedule()
   const counts = { up: 0, down: 0, unknown: 0, unchecked: 0 }
   const lines = [
     '# HELP bookmark_entries Number of entries',
@@ -66,6 +68,21 @@ export function renderMetrics(): string {
     '# HELP bookmark_check_latency_ms Most recent check latency in milliseconds',
     '# TYPE bookmark_check_latency_ms gauge',
     ...latency,
+    '# HELP bookmark_server_check_concurrency Configured CHECK_CONCURRENCY limit',
+    '# TYPE bookmark_server_check_concurrency gauge',
+    `bookmark_server_check_concurrency ${schedule.concurrency}`,
+    '# HELP bookmark_server_checks_in_flight Active server probes',
+    '# TYPE bookmark_server_checks_in_flight gauge',
+    `bookmark_server_checks_in_flight ${schedule.inFlight}`,
+    '# HELP bookmark_server_checks_due Due server checks including in-flight checks',
+    '# TYPE bookmark_server_checks_due gauge',
+    `bookmark_server_checks_due ${schedule.due.length}`,
+    '# HELP bookmark_server_checks_overdue Server checks delayed by more than their interval',
+    '# TYPE bookmark_server_checks_overdue gauge',
+    `bookmark_server_checks_overdue ${schedule.overdue}`,
+    '# HELP bookmark_server_check_max_overdue_seconds Largest delay beyond the next due time',
+    '# TYPE bookmark_server_check_max_overdue_seconds gauge',
+    `bookmark_server_check_max_overdue_seconds ${schedule.maxOverdueSeconds}`,
     '# HELP bookmark_action_executions_total Action executions',
     '# TYPE bookmark_action_executions_total counter',
     `bookmark_action_executions_total ${actionExecutions}`,

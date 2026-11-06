@@ -1,6 +1,7 @@
 /** Run inside a disposable, network-isolated release container. Synthetic data only. */
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
+import { gzipSync } from 'node:zlib'
 
 const base = 'http://127.0.0.1:3000'
 const token = process.env.ADMIN_API_TOKEN
@@ -35,6 +36,7 @@ const svg =
   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#2563eb" onload="alert(1)"/><script>alert(1)</script></svg>'
 const requests = []
 let unavailable = false
+let imageAccept = null
 const fixture = createServer((request, response) => {
   if (unavailable) {
     response.writeHead(503)
@@ -42,9 +44,21 @@ const fixture = createServer((request, response) => {
     return
   }
   requests.push(request.url)
-  response.writeHead(200, { 'content-type': 'text/html' })
+  if (request.url === '/icon.svg.gz') {
+    imageAccept = request.headers.accept
+    if (!imageAccept?.includes('image/*,*/*;q=0.8')) {
+      response.writeHead(415).end()
+      return
+    }
+    response.writeHead(200, { 'content-type': 'image/svg+xml', 'content-encoding': 'gzip' })
+    response.end(gzipSync(svg))
+    return
+  }
+  response.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'gzip' })
   response.end(
-    `<html><head><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(svg)}"><script>${'x'.repeat(700 * 1024)}</script></head><body></body></html>`,
+    gzipSync(
+      `<html><head><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(svg)}"><script>${'x'.repeat(700 * 1024)}</script></head><body></body></html>`,
+    ),
   )
 })
 await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve))
@@ -55,6 +69,16 @@ try {
   check(
     'Automatic OIDC is off by default with the default provider label',
     !auth.oidcAutoLogin && !auth.oidcEnabled && auth.oidcProviderName === 'OpenID',
+  )
+  const capacity = await (await fetch(base + '/metrics')).text()
+  check(
+    'Server-check metrics expose configured capacity and overdue work',
+    capacity.includes('bookmark_server_check_concurrency 4') &&
+      capacity.includes('bookmark_server_checks_overdue 0'),
+  )
+  check(
+    'Admin user records include nullable role diagnostics after migration',
+    (await api('GET', '/api/v1/users')).users[0].oidcRoleDiagnostics === null,
   )
   const identity = (await api('GET', '/api/v1/auth/session')).actor
   check(
@@ -104,7 +128,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   check(
-    '700 KiB page with an early inline icon obtains a cached iconUrl',
+    '700 KiB gzip page with an early inline icon obtains a cached iconUrl',
     loaded.iconUrl?.startsWith('/api/icons/favicon/'),
   )
   check(
@@ -228,25 +252,33 @@ try {
     'Supplied image is served sanitised through the favicon cache',
     pinnedSvg.includes('#ec4899') && !/script|onload/.test(pinnedSvg),
   )
-  const awaitStatus = async (status) => {
+  const awaitStatus = async (status, previousAttempt) => {
     for (let i = 0; i < 80; i++) {
       const current = await api('GET', '/api/v1/entries/' + entry.id)
-      if (current.faviconStatus.status === status) return current
+      if (
+        current.faviconStatus.status === status &&
+        current.faviconStatus.fetchedAt !== previousAttempt
+      )
+        return current
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
     throw new Error('Favicon status did not become ' + status)
   }
   unavailable = true
   await api('POST', supplyPath)
+  const failedAttempt = await awaitStatus('ok', pinned.faviconStatus.fetchedAt)
+  check('Failed server retry retains supplied bytes', failedAttempt.iconUrl === pinned.iconUrl)
   check(
-    'Failed server retry retains supplied bytes',
-    (await awaitStatus('error')).iconUrl === pinned.iconUrl,
+    'Failed server retry keeps supplied diagnostics successful',
+    failedAttempt.faviconStatus.error === null &&
+      failedAttempt.faviconStatus.failureCount === 0 &&
+      failedAttempt.faviconStatus.source === 'supplied',
   )
   unavailable = false
   await api('POST', supplyPath)
   check(
     'Successful server retry also retains supplied bytes',
-    (await awaitStatus('ok')).iconUrl === pinned.iconUrl,
+    (await awaitStatus('ok', failedAttempt.faviconStatus.fetchedAt)).iconUrl === pinned.iconUrl,
   )
   check(
     'Browser fallback remains opt-in',
@@ -265,6 +297,21 @@ try {
   check(
     'Removing supplied bytes resumes automatic discovery',
     (await api('DELETE', supplyPath)).changed,
+  )
+  const { entry: compressed } = await api('POST', '/api/v1/entries', {
+    name: 'Compressed icon device',
+    faviconUrl: new URL('/icon.svg.gz', source).href,
+  })
+  let compressedEntry
+  for (let i = 0; i < 80; i++) {
+    compressedEntry = await api('GET', '/api/v1/entries/' + compressed.id)
+    if (compressedEntry.iconUrl) break
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  check('Direct unsolicited gzip favicon is discovered and stored', !!compressedEntry.iconUrl)
+  check(
+    'Direct image requests use the compatible image Accept fallback',
+    imageAccept?.includes('image/*,*/*;q=0.8'),
   )
   console.log(JSON.stringify({ passed: true, checks }, null, 2))
 } finally {

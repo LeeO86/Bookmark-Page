@@ -1,3 +1,4 @@
+import { oidcRoleDiagnosticsSchema } from '../../shared/oidc-role'
 import { z } from 'zod'
 import {
   preferencesPatchSchema,
@@ -24,6 +25,7 @@ export const backupDocumentSchema = z.object({
       id: z.string(),
       username: z.string(),
       displayName: z.string().nullable().default(null),
+      oidcRoleDiagnostics: oidcRoleDiagnosticsSchema.nullable().default(null),
       email: z.string().nullable(),
       passwordHash: z.string().nullable(),
       role: z.enum(['viewer', 'editor', 'admin']),
