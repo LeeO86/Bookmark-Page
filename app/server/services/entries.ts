@@ -14,7 +14,7 @@ import {
   type SyncEntry,
   type TagRefInput,
 } from '../../shared/contracts'
-import { parseQuery } from '../../shared/query'
+import { parseQuery, type QueryNode } from '../../shared/query'
 import { faviconCacheKey, resolveFaviconUrl } from '../../shared/favicon'
 import { roleAtLeast, type Role } from '../../shared/roles'
 import type { Actor } from '../auth/permissions'
@@ -131,13 +131,19 @@ export interface EntryWarning {
   message: string
 }
 
+/** Shared by entry payloads and counts so a facet cannot widen visibility or field search. */
+export function entryQueryWhere(actor: Actor, ast: QueryNode | null) {
+  const db = getDatabase()
+  return sql`${visibilitySql(actor.role, publicFilters(db), allTabPublic(db))} and ${compileQuery(ast, actor.role)}`
+}
+
 export function countEntries(actor: Actor, rawQuery: string): number {
   const parsed = parseQuery(rawQuery)
   if (!parsed.ok) {
     return 0
   }
   const db = getDatabase()
-  const where = sql`${visibilitySql(actor.role, publicFilters(db), allTabPublic(db))} and ${compileQuery(parsed.ast, actor.role)}`
+  const where = entryQueryWhere(actor, parsed.ast)
   return db.select({ id: entries.id }).from(entries).where(where).all().length
 }
 
@@ -147,7 +153,7 @@ export function listEntries(actor: Actor, rawQuery: string) {
     throw badRequest(parsed.message, 'invalid_query')
   }
   const db = getDatabase()
-  const where = sql`${visibilitySql(actor.role, publicFilters(db), allTabPublic(db))} and ${compileQuery(parsed.ast, actor.role)}`
+  const where = entryQueryWhere(actor, parsed.ast)
   const rows = db
     .select()
     .from(entries)

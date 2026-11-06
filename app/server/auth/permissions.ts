@@ -10,6 +10,11 @@ export interface Actor {
   tokenScopes: TokenScope[]
   kind: 'anonymous' | 'user' | 'token'
   label: string
+  displayName?: string
+  username?: string
+  email?: string | null
+  authMethod?: 'oidc' | 'local' | 'break-glass' | 'trusted-header' | 'token'
+  authProvider?: string | null
 }
 
 export const anonymousActor: Actor = {

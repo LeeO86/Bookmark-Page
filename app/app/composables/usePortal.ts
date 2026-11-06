@@ -1,3 +1,4 @@
+import type { EntryFacets } from '#shared/facets'
 import { combineQueries, queryChips } from '#shared/query-chips'
 import { initialPortalFilter } from '#shared/portal'
 import { isTileSize, isViewMode, type TileSize, type ViewMode } from '#shared/theme'
@@ -32,6 +33,8 @@ export function usePortal() {
     oidcEnabled: false,
   }))
   const entries = useState<PortalEntry[]>('portal-entries', () => [])
+  const entryFacets = useState<EntryFacets | null>('portal-entry-facets', () => null)
+  const entriesRequest = useState('portal-entries-request', () => 0)
   const filters = useState<PortalFilter[]>('portal-filters', () => [])
   const tags = useState<PortalTag[]>('portal-tags', () => [])
   const namespaces = useState<PortalNamespace[]>('portal-namespaces', () => [])
@@ -43,6 +46,7 @@ export function usePortal() {
   const collapsed = useState<string[]>('portal-collapsed', () => [])
   const sidebarOpen = useState('portal-sidebar', () => true)
   const loginOpen = useState('portal-login', () => false)
+  const authError = useState<string | null>('portal-auth-error', () => null)
   const suggestionsOpen = useState('portal-suggest', () => false)
   const ready = useState('portal-ready', () => false)
   const initialReady = useState('portal-initial-ready', () => false)
@@ -278,16 +282,25 @@ export function usePortal() {
     queryError.value = null
     const filter = activeFilter.value
     const combined = combineQueries(filter?.query ?? '', queryText.value)
+    const version = ++entriesRequest.value
     try {
-      const body = await apiFetch<{ entries: PortalEntry[] }>(
-        `/api/v1/entries?q=${encodeURIComponent(combined)}`,
+      const params = new URLSearchParams({
+        q: combined,
+        facetQuery: queryText.value,
+        facetTab: filter?.id ?? 'all',
+      })
+      const body = await apiFetch<{ entries: PortalEntry[]; facets?: EntryFacets }>(
+        `/api/v1/entries?${params}`,
       )
+      if (version !== entriesRequest.value) return
       entries.value = body.entries
+      entryFacets.value = body.facets ?? null
       if (!selectedId.value || !body.entries.some((entry) => entry.id === selectedId.value)) {
         selectedId.value = body.entries[0]?.id ?? null
       }
     } catch (error) {
-      queryError.value = error instanceof ApiError ? error.message : 'Could not load entries'
+      if (version === entriesRequest.value)
+        queryError.value = error instanceof ApiError ? error.message : 'Could not load entries'
     }
   }
 
@@ -407,6 +420,7 @@ export function usePortal() {
   async function login(username: string, password: string) {
     await apiFetch('/api/v1/auth/login', { method: 'POST', body: { username, password } })
     loginOpen.value = false
+    authError.value = null
     ready.value = false
     await load()
   }
@@ -423,6 +437,7 @@ export function usePortal() {
     actor,
     authOptions,
     entries,
+    entryFacets,
     filters,
     tags,
     namespaces,

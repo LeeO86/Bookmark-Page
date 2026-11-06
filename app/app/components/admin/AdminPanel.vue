@@ -13,6 +13,7 @@ interface AdminSettings extends PortalSettings {
 interface AdminUser {
   id: string
   username: string
+  displayName?: string | null
   email: string | null
   role: 'viewer' | 'editor' | 'admin'
   breakGlass: boolean
@@ -530,12 +531,27 @@ function toggleScope(scope: string) {
           <div
             v-for="user in users"
             :key="user.id"
+            :data-testid="`admin-user-${user.id}`"
             class="flex flex-wrap items-center gap-2 border-t py-2"
           >
-            <span class="font-medium">{{ user.username }}</span>
-            <span class="text-xs text-muted">{{ user.authSource }}</span>
+            <div class="min-w-40">
+              <p class="font-medium">{{ user.displayName || user.username }}</p>
+              <p class="text-xs text-muted">
+                {{ user.username
+                }}<span v-if="user.email && user.email !== user.username"> · {{ user.email }}</span>
+              </p>
+              <p class="text-xs text-muted">
+                {{
+                  user.authSource === 'oidc'
+                    ? `Role managed by ${portal.authOptions.value.oidcProviderName || 'OpenID'}; updated at every sign-in.`
+                    : user.authSource
+                }}
+              </p>
+            </div>
             <select
               :value="user.role"
+              :disabled="user.authSource === 'oidc'"
+              :aria-label="`Role for ${user.username}`"
               class="rounded border px-2 py-1 bg-default"
               @change="
                 run(async () => {

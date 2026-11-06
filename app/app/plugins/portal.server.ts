@@ -1,12 +1,20 @@
-import type { InitialPortal, PortalActor, PortalSettings } from '../types/portal'
+import type { InitialPortal, PortalActor, PortalSettings, AuthOptions } from '../types/portal'
 
 export default defineNuxtPlugin(() => {
   const context = useRequestEvent()?.context
   const branding = context?.bookmarkBranding as
-    { settings: PortalSettings; actor: PortalActor } | undefined
+    | {
+        settings: PortalSettings
+        actor: PortalActor
+        authOptions: AuthOptions
+        authError: string | null
+      }
+    | undefined
   if (branding) {
     useState<PortalSettings | null>('portal-settings', () => null).value = branding.settings
     useState<PortalActor | null>('portal-actor', () => null).value = branding.actor
+    useState<AuthOptions>('portal-auth', () => branding.authOptions).value = branding.authOptions
+    useState<string | null>('portal-auth-error', () => null).value = branding.authError
   }
   // The request context carries the same redacted JSON view models as the API.
   const initial = context?.bookmarkPortal as InitialPortal | undefined
@@ -18,6 +26,7 @@ export default defineNuxtPlugin(() => {
   useState('portal-namespaces', () => initial.namespaces).value = initial.namespaces
   useState('portal-fields', () => initial.fields).value = initial.fields
   useState('portal-entries', () => initial.entries).value = initial.entries
+  useState('portal-entry-facets', () => initial.entryFacets).value = initial.entryFacets
   useState<string | null>('portal-selected', () => null).value = initial.entries[0]?.id ?? null
   useState<string | null>('portal-query-error', () => null).value = initial.queryError
   useState<string | null>('portal-group', () => null).value = initial.groupBy

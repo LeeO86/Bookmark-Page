@@ -28,6 +28,9 @@ export async function resolveActor(event: RequestEvent): Promise<Actor> {
   if (!user) {
     return anonymousActor
   }
+  const authMethod =
+    session.data.signInMethod ??
+    (user.authSource === 'oidc' ? 'oidc' : user.breakGlass ? 'break-glass' : 'local')
   return {
     role: user.role,
     userId: user.id,
@@ -35,6 +38,11 @@ export async function resolveActor(event: RequestEvent): Promise<Actor> {
     tokenScopes: [],
     kind: 'user',
     label: user.username,
+    displayName: user.displayName || user.username,
+    username: user.username,
+    email: user.email,
+    authMethod,
+    authProvider: authMethod === 'oidc' ? getRuntimeEnv().oidcProviderName : null,
   }
 }
 
@@ -72,6 +80,11 @@ function actorFromToken(token: string): Actor {
     tokenScopes: row.scopes,
     kind: 'token',
     label: `${user.username}:${row.name}`,
+    displayName: user.displayName || user.username,
+    username: user.username,
+    email: user.email,
+    authMethod: 'token',
+    authProvider: null,
   }
 }
 
@@ -136,6 +149,11 @@ function actorFromTrustedHeader(event: RequestEvent): Actor | null {
     tokenScopes: [],
     kind: 'user',
     label: username,
+    displayName: existing?.displayName || username,
+    username,
+    email,
+    authMethod: 'trusted-header',
+    authProvider: null,
   }
 }
 

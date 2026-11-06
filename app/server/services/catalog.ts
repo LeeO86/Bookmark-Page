@@ -852,6 +852,7 @@ function presentUser(row: typeof users.$inferSelect) {
   return {
     id: row.id,
     username: row.username,
+    displayName: row.displayName,
     email: row.email,
     role: row.role,
     breakGlass: row.breakGlass,

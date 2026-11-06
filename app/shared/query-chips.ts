@@ -77,6 +77,73 @@ export function toggleQueryTerm(input: string, term: string, mode: QueryAppend):
   return appendQueryTerm(query, term, mode)
 }
 
+/** Namespace identity is shared by server counts and sidebar-only query edits. */
+export function facetNamespace(node: QueryNode): string | undefined {
+  if (node.type === 'not') return facetNamespace(node.child)
+  if (node.type === 'tag') return node.namespace === null ? 'plain' : `tag:${node.namespace}`
+  if (node.type === 'state') return 'state'
+  return undefined
+}
+
+export function simpleFacetTerms(input: string): QueryNode[] | null {
+  const parsed = parseQuery(input)
+  const chips = queryChips(input)
+  if (!parsed.ok || chips.chips.some((chip) => chip.kind === 'group' || chip.join === 'or'))
+    return null
+  const flatten = (node: QueryNode | null): QueryNode[] | null => {
+    if (!node) return []
+    if (node.type === 'or') return null
+    if (node.type === 'and') {
+      const left = flatten(node.left),
+        right = flatten(node.right)
+      return left && right ? [...left, ...right] : null
+    }
+    if (node.type === 'not' && (node.child.type === 'and' || node.child.type === 'or')) return null
+    return [node]
+  }
+  return flatten(parsed.ast)
+}
+
+export function withoutFacetNamespace(terms: QueryNode[], namespace: string): QueryNode | null {
+  return terms
+    .filter((term) => facetNamespace(term) !== namespace)
+    .reduce<QueryNode | null>((left, right) => (left ? { type: 'and', left, right } : right), null)
+}
+
+/** A single selected facet switches; the existing chip/query helpers keep their semantics. */
+export function toggleSidebarQueryTerm(input: string, term: string, mode: QueryAppend): string {
+  if (mode !== 'and') return toggleQueryTerm(input, term, mode)
+  const parsed = parseQuery(input),
+    target = parseQuery(formatTerm(term))
+  if (!parsed.ok || !target.ok || !target.ast) return input
+  const namespace = facetNamespace(target.ast)
+  if (namespace === undefined) return toggleQueryTerm(input, term, mode)
+  if (queryHasTerm(input, term)) {
+    const remaining = removeTerm(removeTerm(parsed.ast, target.ast), {
+      type: 'not',
+      child: target.ast,
+    })
+    return remaining ? formatNode(remaining) : ''
+  }
+  const matches: QueryNode[] = []
+  const visit = (node: QueryNode | null) => {
+    if (!node) return
+    if (node.type === 'and' || node.type === 'or') {
+      visit(node.left)
+      visit(node.right)
+    } else if (facetNamespace(node) === namespace) matches.push(node)
+  }
+  visit(parsed.ast)
+  if (matches.length !== 1) return toggleQueryTerm(input, term, mode)
+  const replace = (node: QueryNode): QueryNode => {
+    if (sameTerm(node, matches[0]!)) return target.ast!
+    if (node.type === 'and' || node.type === 'or')
+      return { ...node, left: replace(node.left), right: replace(node.right) }
+    return node
+  }
+  return parsed.ast ? formatNode(replace(parsed.ast)) : formatNode(target.ast)
+}
+
 function sameTerm(node: QueryNode, target: QueryNode): boolean {
   return JSON.stringify(node) === JSON.stringify(target)
 }

@@ -51,6 +51,20 @@ await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve))
 try {
   const settings = await api('GET', '/api/v1/settings')
   check('Bootstrap token authenticates without a login', typeof settings.siteTitle === 'string')
+  const auth = await api('GET', '/api/v1/auth/status')
+  check(
+    'Automatic OIDC is off by default with the default provider label',
+    !auth.oidcAutoLogin && !auth.oidcEnabled && auth.oidcProviderName === 'OpenID',
+  )
+  const identity = (await api('GET', '/api/v1/auth/session')).actor
+  check(
+    'The current actor exposes its enforced role and actual token sign-in method',
+    identity.role === 'admin' && identity.username === 'admin' && identity.authMethod === 'token',
+  )
+  check(
+    'Users include the nullable migrated display name',
+    (await api('GET', '/api/v1/users')).users.every((user) => 'displayName' in user),
+  )
   const source = `http://127.0.0.1:${fixture.address().port}/ui/`
   await api('POST', '/api/v1/fields', {
     key: 'icon_secret',
@@ -158,6 +172,21 @@ try {
   check(
     'Repeated tab sync is unchanged',
     (await api('POST', '/api/v1/scopes/smoke/filters/sync', tabs)).unchanged.length === 1,
+  )
+  await api('POST', '/api/v1/entries', { name: 'Facet alpha', tags: ['group:smoke-a'] })
+  await api('POST', '/api/v1/entries', { name: 'Facet beta', tags: ['group:smoke-b'] })
+  const facetPath = '/api/v1/entries?q=group%3Asmoke-a&facetQuery=group%3Asmoke-a'
+  const facets = await api('GET', facetPath)
+  check(
+    'Own-namespace counts retain the peer group while entry filtering remains unchanged',
+    facets.entries.length === 1 &&
+      facets.entries[0].name === 'Facet alpha' &&
+      facets.facets.tags['group:smoke-b'] === 1,
+  )
+  const hiddenFacets = await api('GET', facetPath, undefined, false)
+  check(
+    'Anonymous facet counts reveal no private tags',
+    hiddenFacets.entries.length === 0 && Object.keys(hiddenFacets.facets.tags).length === 0,
   )
   await api('PATCH', '/api/v1/settings', { allTabPublic: true })
   check(

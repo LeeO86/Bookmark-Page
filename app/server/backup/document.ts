@@ -23,6 +23,7 @@ export const backupDocumentSchema = z.object({
     z.object({
       id: z.string(),
       username: z.string(),
+      displayName: z.string().nullable().default(null),
       email: z.string().nullable(),
       passwordHash: z.string().nullable(),
       role: z.enum(['viewer', 'editor', 'admin']),

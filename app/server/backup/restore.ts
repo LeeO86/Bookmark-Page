@@ -342,6 +342,7 @@ function mergeAll(
     tx.update(users)
       .set({
         email: row.email,
+        displayName: row.displayName,
         passwordHash: row.passwordHash ?? current.passwordHash,
         role: row.role,
         breakGlass: row.breakGlass,

@@ -6,6 +6,11 @@ export interface AppSession {
   userId?: string
   oidcState?: string
   oidcVerifier?: string
+  oidcReturnPath?: string
+  oidcSilent?: boolean
+  oidcStartedAt?: number
+  oidcError?: string
+  signInMethod?: 'oidc' | 'local' | 'break-glass'
 }
 
 export function sessionConfig(): SessionConfig {

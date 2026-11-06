@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0 — 2026-11-06
+
+- Add opt-in automatic OIDC on top-level document navigation with `prompt=none`,
+  safe return paths, bounded transactions, provider-failure fallback and retry/
+  logout suppression. API, asset and machine clients retain existing behaviour.
+- Make the configured provider the primary sign-in action, retain emergency local
+  login, and show safe interactive errors in the portal.
+- Refresh and back up OIDC display names, show effective role/account/sign-in
+  method in the user menu and explain provider-managed roles in the admin list.
+- Fixes #46: retain alternative group facets, compute visibility-safe counts with
+  own namespace terms excluded, switch single selections in one click and put
+  selections first. Keep Shift-OR, Alt-NOT, tabs and query-chip semantics.
+- Add a local TLS/signing/PKCE OIDC provider and HTTP/browser/security/backup/facet
+  regressions. Update environment/API/OpenAPI/provider/filter documentation.
+- Application and Ansible collection versions remain aligned at 2.4.0.
+
 ## 2.3.0 — 2026-11-03
 
 - Supply and pin entry favicons through an audited, idempotent write API, local

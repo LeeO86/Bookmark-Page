@@ -160,7 +160,8 @@ term     := ns ":" value                    # namespaced tag, value may end with
 - Example: `type:audio (room:studio1 OR room:studio2) -status:spare lawo`.
 - UI: a query bar that shows parsed terms as chips (tag chips coloured by namespace),
   with autocomplete for namespaces and values and inline syntax errors. Clicking a tag in
-  the sidebar toggles it with AND, Alt/Option-click toggles it negated, Shift-click toggles it with OR.
+  the sidebar selects it, replaces a single selection in that namespace, or removes it.
+  Alt/Option-click toggles it negated; Shift-click toggles it with OR.
   Repeating the same selection removes all matching occurrences, including existing duplicates.
   Changing between positive and negated selection replaces the previous selection.
 - Query and active tab are reflected in the URL so views can be shared.
@@ -419,8 +420,9 @@ sidebar and a navbar toggle that opens it as a drawer on a narrow screen.
   representation so server/client locales do not cause hydration mismatches.
 - **Sidebar:** views (the saved tabs) with a count, then filter facets. It is about 240px,
   collapses to icons, and becomes a drawer below 768px. "+ Save as view" is quiet and only
-  for a signed-in user. Facets show a namespace colour and the tag display label. Click
-  toggles AND, Shift toggles OR, and Alt toggles NOT. Selected facets remain available
+  for a signed-in user. Facets show a namespace colour and the tag display label. Click selects/switches a single namespace value or removes it;
+  Shift toggles OR and Alt toggles NOT. Namespace counts exclude their own simple AND
+  terms, keeping tab/other constraints; typed OR/parentheses retain filtered counts. Selected facets remain available
   at zero matches so they can be removed. `state` is a virtual facet and is not stored
   as a tag. "Clear filters" clears the query bar.
 - **Toolbar:** sticky query bar with `⌘K` and `/`, a segmented control for cards, tiles,
@@ -571,3 +573,22 @@ extends V1 import with controller image downloads, API delegation, split tag
 columns, favicon overrides and scope-managed checks. Existing arguments and
 stored data remain compatible; explicit secret field values remain redacted.
 See configuration, migration, API and Ansible docs for the complete contract.
+
+
+### 2.4.0 authentication and facet extension (2026-11-06)
+
+Optional server-side automatic OIDC is off by default. Only eligible anonymous
+GET document navigations use `prompt=none`, with validated session return path,
+state, S256 PKCE, bounded provider operations and token validation. Silent failure
+returns publicly without an error page and suppresses retries; logout suppresses
+until explicit sign-in or browser-session end. Interactive failures render a
+safe one-time portal message. APIs/assets/monitoring/token clients are unaffected.
+Provider sign-in is primary, and local break-glass stays reachable when local
+login is disabled. Account menus show the effective server role, refreshed OIDC
+display name, canonical user name/e-mail and sign-in method; names are backed up.
+
+Both sidebars show server-computed namespace counts with own AND terms excluded,
+other predicates and saved tabs retained, and typed OR/parentheses left filtered.
+Single selections switch on plain click, selected values toggle off and move
+first, and Shift-OR/Alt-NOT remain available. Full contracts and boundaries are
+in configuration, API, query-language and decision documentation. Fixes #46.
