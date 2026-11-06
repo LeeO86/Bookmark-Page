@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test as nuxtTest } from '@nuxt/test-utils/playwright'
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, BrowserContext } from '@playwright/test'
 import { createOidcProvider, freeTestPort } from '../helpers/oidc-provider'
 
 const token = 'bp_' + 'z'.repeat(43)
@@ -153,6 +153,9 @@ for (const role of ['viewer', 'editor', 'admin'] as const) {
           await context.request.get(new URL('/api/v1/auth/session', baseURL).href)
         ).json()
         const row = page.getByTestId('admin-user-' + session.actor.userId)
+        await expect(row.getByTestId('oidc-role-diagnostics')).toContainText(
+          'Last roles: fixture-admin',
+        )
         await expect(row).toContainText('Fixture admin')
         await expect(row).toContainText('Role managed by Fixture ID; updated at every sign-in.')
         await expect(row.locator('select')).toBeDisabled()
@@ -250,5 +253,66 @@ test('keeps break-glass login reachable with local login disabled and prevents i
     ).toBe(-1)
   } finally {
     await context.close()
+  }
+})
+
+test('shows the last unmapped role Values and Viewer fallback to admins', async ({
+  baseURL,
+  request,
+  oidcLab,
+}) => {
+  if (!baseURL) throw new Error('Missing portal test URL')
+  await seed(baseURL, request, oidcLab)
+  const contexts: BrowserContext[] = []
+  try {
+    for (const diagnostic of [true, false]) {
+      oidcLab.provider.configure(
+        diagnostic
+          ? {
+              subject: 'unmapped-role-browser',
+              roleValues: ['Bookmark.Admin'],
+              name: 'Unmapped fixture',
+            }
+          : { subject: 'diagnostic-admin-browser', role: 'admin' },
+      )
+      const context = await oidcLab.provider.browserContext()
+      contexts.push(context)
+      await context.addCookies([
+        {
+          name: 'mock-sso',
+          value: '1',
+          url: oidcLab.provider.origin,
+          secure: true,
+          httpOnly: true,
+          sameSite: 'Lax',
+        },
+      ])
+      const page = await context.newPage()
+      await page.goto(baseURL, { waitUntil: 'networkidle' })
+      if (diagnostic) {
+        await page.getByTestId('user-menu-button').click()
+        await expect(page.getByTestId('user-role')).toHaveText('Viewer')
+        expect((await context.request.get(new URL('/api/v1/users', baseURL).href)).status()).toBe(
+          403,
+        )
+      } else {
+        const users = (
+          await (await context.request.get(new URL('/api/v1/users', baseURL).href)).json()
+        ).users
+        const user = users.find(
+          (item: { oidcRoleDiagnostics?: { subject: string } }) =>
+            item.oidcRoleDiagnostics?.subject === 'unmapped-role-browser',
+        )
+        await page.goto(new URL('/admin/users', baseURL).href, { waitUntil: 'networkidle' })
+        const row = page.getByTestId('admin-user-' + user.id)
+        await expect(row.getByTestId('oidc-role-diagnostics')).toContainText(
+          'Last roles: Bookmark.Admin',
+        )
+        await expect(row).toContainText('No mapped value; Viewer fallback')
+        await expect(row).toContainText("Map the app role's Value, not its display name")
+      }
+    }
+  } finally {
+    for (const context of contexts) await context.close()
   }
 })

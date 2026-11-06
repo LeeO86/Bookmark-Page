@@ -1,3 +1,4 @@
+import type { OidcRoleDiagnostics } from '../../shared/oidc-role'
 import {
   authorizationCodeGrant,
   buildAuthorizationUrl,
@@ -90,7 +91,22 @@ export async function completeOidcLogin(
   }
   const issuer = env.oidcDiscoveryUrl ?? ''
   const email = stringClaim(claims.email)
-  const role = mapClaimToRole(claims[env.oidcRoleClaim], env.oidcRoleMapping)
+  const received = claims[env.oidcRoleClaim]
+  const rawValues = Array.isArray(received) ? received : received == null ? [] : [received]
+  const values = rawValues.filter((value): value is string => typeof value === 'string')
+  const matched = values.some((value) => Object.hasOwn(env.oidcRoleMapping, value))
+  const role = mapClaimToRole(received, env.oidcRoleMapping)
+  const diagnostics: OidcRoleDiagnostics = {
+    issuer: stringClaim(claims.iss) ?? issuer,
+    subject,
+    claim: env.oidcRoleClaim,
+    values: values.slice(0, 200).map((value) => value.slice(0, 1000)),
+    matched,
+    ignoredNonStringValues: rawValues.length !== values.length,
+    truncated: values.length > 200 || values.some((value) => value.length > 1000),
+    receivedAt: new Date().toISOString(),
+  }
+  if (!matched) console.info('OIDC role claim has no mapped value; using viewer', diagnostics)
   const preferred =
     stringClaim(claims.preferred_username) ?? email ?? `oidc-${subject.slice(0, 12)}`
   return upsertOidcUser(
@@ -100,6 +116,7 @@ export async function completeOidcLogin(
     email,
     role,
     stringClaim(claims.name)?.trim().slice(0, 200) ?? null,
+    diagnostics,
   )
 }
 
@@ -110,6 +127,7 @@ function upsertOidcUser(
   email: string | undefined,
   role: 'viewer' | 'editor' | 'admin',
   displayName: string | null,
+  oidcRoleDiagnostics: OidcRoleDiagnostics,
 ): string {
   const db = getDatabase()
   const existing = db
@@ -120,7 +138,13 @@ function upsertOidcUser(
   const timestamp = now()
   if (existing) {
     db.update(users)
-      .set({ role, email: email ?? existing.email, displayName, updatedAt: timestamp })
+      .set({
+        role,
+        email: email ?? existing.email,
+        displayName,
+        oidcRoleDiagnostics,
+        updatedAt: timestamp,
+      })
       .where(eq(users.id, existing.id))
       .run()
     return existing.id
@@ -132,6 +156,7 @@ function upsertOidcUser(
       username: uniqueUsername(db, sanitizeUsername(preferred)),
       email: email ?? null,
       displayName,
+      oidcRoleDiagnostics,
       passwordHash: null,
       role,
       breakGlass: false,

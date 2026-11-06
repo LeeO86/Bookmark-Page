@@ -235,3 +235,20 @@ all other conditions. OR/parenthesised user queries use `mode=filtered` and reta
 the former current-result counts. Each query applies the same anonymous visibility
 and role-based field-search rules as the entry payload. Hidden tag labels and
 restricted fields cannot leak through counts. SSR seeds the same counts.
+
+## Role and capacity diagnostics (2.4.2)
+
+Admin-only `GET /api/v1/users` includes nullable `oidcRoleDiagnostics`:
+`{issuer, subject, claim, values, matched, ignoredNonStringValues, truncated,
+receivedAt}`. It describes the last successful verified OIDC sign-in, not the
+current token. Missing/unmapped claims yield Viewer with `matched: false`;
+a configured Viewer mapping has `matched: true`. Mapping uses full received
+string values; stored/logged diagnostics cap the list at 200 strings of 1000
+characters, with `truncated: true` when applicable. Older/local users have null.
+Backups retain diagnostics and older archives restore with null. The public
+actor/auth-options responses never include them; user-list permissions are
+unchanged.
+
+The existing `/metrics` endpoint adds server-check concurrency, in-flight, due,
+overdue and maximum-delay gauges; existing token protection is unchanged. See
+[checks](checks-and-actions.md#server-check-capacity-and-fairness-242).

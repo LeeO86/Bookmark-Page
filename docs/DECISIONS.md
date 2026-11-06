@@ -362,3 +362,33 @@ are unchanged. Multiple selections remain multi-select. Preserve the remaining
 boolean expression, show selected values first, and share behaviour across both
 sidebars including plain tags and state. Counts for simple state facets use actual
 state predicates; complex typed queries retain their previous aggregate counts.
+
+## 2026-11-06 — Restricted-network follow-up (2.4.2)
+
+Use the same browser-compatible image Accept value in Python downloads and
+server image requests. Preferred MIME types reflect the supported image formats,
+followed by image and general wildcard fallbacks. Decode unsolicited gzip/deflate before validation, with
+wire/decoded layer limits; preserve bounded decoded-head scanning. Python also
+accepts legacy raw deflate. Proxy handling remains enabled by default; an
+explicit favicon-only bypass avoids pretending urllib supports CIDR no_proxy.
+Skip generated checks for loopback entry hosts without altering imported links.
+Per-column minimum roles are explicit, validated and default to Viewer.
+
+Supplied-slot failures keep successful diagnostics and provenance, changing only
+attempt time; repair old error states in the additive migration. Do not discard
+supplied bytes or resume background refresh implicitly.
+
+Use never-run/oldest-first scheduling with immediate refill and fresh DB snapshots.
+A five-second tick discovers new work, while actual completion controls throughput.
+Expose capacity/overdue gauges and a rate-limited warning rather than silently
+increasing concurrency. Timeouts still consume capacity.
+
+Store the latest verified role-claim diagnostics as a nullable user JSON column,
+backed up with default-null compatibility. Expose it only to admins. Log unmapped
+verified issuer/subject/claim values, never tokens; bound diagnostic output while
+mapping the full claim. Distinguish a Viewer mapping from the Viewer fallback.
+
+Ansible option `version_added` metadata accepts major/minor releases only. The
+patch-added proxy option is dated precisely in the 2.4.2 changelog and prose,
+without an inaccurate option-level version annotation. The collection's actual
+release remains 2.4.2 as requested.

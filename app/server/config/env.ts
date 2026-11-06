@@ -74,7 +74,7 @@ export function mapClaimToRole(claim: unknown, mapping: Record<string, StoredRol
     if (typeof value !== 'string') {
       continue
     }
-    const role = mapping[value]
+    const role = Object.hasOwn(mapping, value) ? mapping[value] : undefined
     if (role) {
       matched.push(role)
     }

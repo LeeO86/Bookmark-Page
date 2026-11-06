@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { OidcRoleDiagnostics } from '#shared/oidc-role'
 import { settingsPatchSchema } from '#shared/contracts'
 import { accentPresets, plainTagColour, suggestedNeutral, type AccentPreset } from '#shared/theme'
 import type { PortalField, PortalNamespace, PortalSettings } from '../../types/portal'
@@ -14,6 +15,7 @@ interface AdminUser {
   id: string
   username: string
   displayName?: string | null
+  oidcRoleDiagnostics?: OidcRoleDiagnostics | null
   email: string | null
   role: 'viewer' | 'editor' | 'admin'
   breakGlass: boolean
@@ -547,6 +549,34 @@ function toggleScope(scope: string) {
                     : user.authSource
                 }}
               </p>
+              <div
+                v-if="user.authSource === 'oidc' && user.oidcRoleDiagnostics"
+                class="mt-1 max-w-xl break-words text-xs"
+                data-testid="oidc-role-diagnostics"
+              >
+                <p>
+                  Last {{ user.oidcRoleDiagnostics.claim }}:
+                  {{
+                    user.oidcRoleDiagnostics.values.length
+                      ? user.oidcRoleDiagnostics.values.join(', ')
+                      : '(no string values)'
+                  }}
+                </p>
+                <p v-if="!user.oidcRoleDiagnostics.matched" class="text-warning">
+                  No mapped value; Viewer fallback. Map the app role's Value, not its display name,
+                  in OIDC_ROLE_MAPPING.
+                </p>
+                <p v-if="user.oidcRoleDiagnostics.ignoredNonStringValues" class="text-warning">
+                  Non-string claim values were ignored.
+                </p>
+                <p v-if="user.oidcRoleDiagnostics.truncated" class="text-warning">
+                  The displayed claim values were truncated.
+                </p>
+                <p class="text-muted">
+                  {{ user.oidcRoleDiagnostics.issuer }} · Subject:
+                  {{ user.oidcRoleDiagnostics.subject }} · {{ user.oidcRoleDiagnostics.receivedAt }}
+                </p>
+              </div>
             </div>
             <select
               :value="user.role"
