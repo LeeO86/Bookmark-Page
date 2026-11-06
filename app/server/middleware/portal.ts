@@ -1,3 +1,6 @@
+import { automaticOidcRedirect, consumeOidcError } from '../auth/oidc-flow'
+import { publicActor } from '../auth/presentation'
+import { authOptions } from '../auth/status'
 import { browserImageOrigins } from '../services/browser-images'
 import { createError, defineEventHandler, getCookie, getRequestURL, setCookie } from 'nuxt/server'
 import { resolveActor } from '../auth/resolve'
@@ -25,15 +28,18 @@ export default defineEventHandler(async (event) => {
     return
   }
   event.res.headers.set('cache-control', 'private, no-store')
-  event.res.headers.append('vary', 'Cookie, Authorization')
+  event.res.headers.append('vary', 'Cookie, Authorization, Sec-Fetch-Mode, Sec-Fetch-Dest')
   try {
+    const actor = await resolveActor(event)
+    const redirect = automaticOidcRedirect(event, actor)
+    if (redirect) return redirect
+    const authError = await consumeOidcError(event)
     const settings = publicSettings()
     const cookieMode = getCookie(event, 'bp-color-mode')
     let mode: ColourMode = settings.defaultColourMode
     if (cookieMode && isColourMode(cookieMode)) {
       mode = cookieMode
     }
-    const actor = await resolveActor(event)
     event.context.bookmarkImageOrigins = browserImageOrigins(actor)
     const stored = actor.userId ? readPreferences(actor.userId) : null
     if (stored?.colourMode) {
@@ -66,7 +72,9 @@ export default defineEventHandler(async (event) => {
     }
     event.context.bookmarkBranding = {
       settings,
-      actor: { role: actor.role, label: actor.label, kind: actor.kind, userId: actor.userId },
+      actor: publicActor(actor),
+      authOptions: authOptions(),
+      authError,
     }
     if (pathname === '/') {
       const query = requestUrl.searchParams

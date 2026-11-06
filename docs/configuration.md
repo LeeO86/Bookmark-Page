@@ -170,3 +170,52 @@ for dependable display. The [Mixed Content standard](https://www.w3.org/TR/mixed
 and [MDN guidance](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content)
 also describe restrictions; the table records actual browser tests, not a
 cross-browser guarantee. See [image checks](checks-and-actions.md#image-checks).
+
+## Automatic OIDC sign-in and account identity (2.4.0)
+
+| Variable                        | Default  | Behaviour                                                                     |
+| ------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `OIDC_AUTO_LOGIN`               | `false`  | Enable server-side silent sign-in only when all OIDC configuration is present |
+| `OIDC_AUTO_LOGIN_RETRY_SECONDS` | `3600`   | Failed-attempt suppression duration, integer 1–2592000 seconds                |
+| `OIDC_PROVIDER_NAME`            | `OpenID` | Provider label in sign-in/account/error UI, one line of at most 80 characters |
+
+Automatic sign-in applies only to a GET document navigation carrying both
+`Sec-Fetch-Mode: navigate` and `Sec-Fetch-Dest: document`, with an anonymous actor,
+no Authorization header and no `bp-oidc-auto` cookie. It runs before rendering.
+API, assets, health, metrics, non-document requests, curl/Ansible/monitoring and
+signed-in/token/trusted-header actors keep their existing behaviour. No iframe,
+third-party JavaScript, polling or additional identity service is introduced.
+
+The app redirects to its own OIDC start endpoint, which uses state and S256 PKCE
+with `prompt=none`, then returns to the stored path. Discovery is refreshed at
+start even if metadata was cached, so an unavailable provider can fall back.
+Discovery, token and JWKS requests have a 10-second timeout and retain TLS checks;
+ID token signatures, issuer/audience/expiry and state/PKCE are validated. Only
+the configured provider's discovery/endpoints are contacted. Transactions expire
+after ten minutes. Return paths must start with `/`, remain on this origin, and
+contain no controls, backslashes, network-path references or OIDC endpoint loops.
+At most 2048 UTF-8 bytes fit the sealed session transaction; explicit oversized
+paths are rejected and automatic navigation falls back to `/` for an oversized
+or invalid URL rather than creating an unusable cookie.
+
+A failed silent attempt clears its transaction and returns to public viewing
+without an error banner. `bp-oidc-auto` suppresses attempts for the configured
+retry duration. It is HttpOnly, SameSite=Lax, Path=/, and has the same Secure flag
+as the session (`SESSION_COOKIE_SECURE`). Sign out sets a session-only suppression
+cookie, preventing immediate sign-in until explicit sign-in or browser-session
+end. Browser session restoration can retain session cookies. Interactive start
+clears suppression; successful provider/local sign-in removes it. Failed
+interactive sign-in also suppresses retries so its readable one-time error banner
+can be shown. Raw provider descriptions/tokens are never rendered or logged;
+server info logs contain a bounded reason/code. Normal seven-day session expiry
+permits a new silent attempt on the next navigation.
+
+The sign-in dialog presents the configured provider as a full-width primary
+button. The local form remains below; when local login is disabled, **Emergency
+local sign-in** still opens it for designated break-glass accounts. An account
+menu header shows the server's display name, canonical user name/e-mail, effective
+role and sign-in method. The OIDC `name` claim is refreshed at every sign-in,
+stored in nullable `users.display_name` and included in backups. Missing names
+fall back to the user name. Older archives restore with a null display name.
+Provider roles are mapped again at each sign-in; the admin list explains their
+provider ownership. Local/header sign-ins retain their existing role enforcement.

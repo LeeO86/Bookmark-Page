@@ -11,6 +11,7 @@ export default defineConfig({
       : undefined,
   },
   projects: [
+    { name: 'chromium-oidc', testMatch: '**/oidc.spec.ts', use: { browserName: 'chromium' } },
     {
       name: 'chromium-network',
       testMatch: '**/image-compat.spec.ts',
@@ -23,7 +24,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: '**/image-compat.spec.ts',
+      testIgnore: ['**/image-compat.spec.ts', '**/oidc.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],

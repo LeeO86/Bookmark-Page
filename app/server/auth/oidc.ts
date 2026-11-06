@@ -3,6 +3,7 @@ import {
   buildAuthorizationUrl,
   calculatePKCECodeChallenge,
   discovery,
+  enableNonRepudiationChecks,
   randomPKCECodeVerifier,
   randomState,
   type Configuration,
@@ -14,21 +15,35 @@ import { newId, now } from '../db/ids'
 import { users } from '../db/schema'
 import { badRequest } from '../http/errors'
 
-let cached: { issuer: string; clientId: string; config: Configuration } | undefined
+let cached:
+  | { issuer: string; clientId: string; secret: string | undefined; config: Configuration }
+  | undefined
 
-export async function oidcConfig(env: RuntimeEnv): Promise<Configuration> {
+export async function oidcConfig(env: RuntimeEnv, refresh = false): Promise<Configuration> {
   if (!env.oidcDiscoveryUrl || !env.oidcClientId || !env.oidcRedirectUri) {
     throw badRequest('OIDC is not configured', 'oidc_disabled')
   }
-  if (cached?.issuer === env.oidcDiscoveryUrl && cached.clientId === env.oidcClientId) {
+  if (
+    !refresh &&
+    cached?.issuer === env.oidcDiscoveryUrl &&
+    cached.clientId === env.oidcClientId &&
+    cached.secret === env.oidcClientSecret
+  ) {
     return cached.config
   }
   const config = await discovery(
     new URL(env.oidcDiscoveryUrl),
     env.oidcClientId,
     env.oidcClientSecret,
+    undefined,
+    { timeout: 10, execute: [enableNonRepudiationChecks] },
   )
-  cached = { issuer: env.oidcDiscoveryUrl, clientId: env.oidcClientId, config }
+  cached = {
+    issuer: env.oidcDiscoveryUrl,
+    clientId: env.oidcClientId,
+    secret: env.oidcClientSecret,
+    config,
+  }
   return config
 }
 
@@ -36,8 +51,10 @@ export async function authorizationRedirect(
   env: RuntimeEnv,
   verifier: string,
   state: string,
+  silent = false,
 ): Promise<string> {
-  const config = await oidcConfig(env)
+  // A cached discovery document must not send silent users to an unavailable provider.
+  const config = await oidcConfig(env, true)
   const challenge = await calculatePKCECodeChallenge(verifier)
   return buildAuthorizationUrl(config, {
     redirect_uri: env.oidcRedirectUri ?? '',
@@ -46,6 +63,7 @@ export async function authorizationRedirect(
     code_challenge_method: 'S256',
     state,
     response_type: 'code',
+    ...(silent ? { prompt: 'none' } : {}),
   }).href
 }
 
@@ -75,7 +93,14 @@ export async function completeOidcLogin(
   const role = mapClaimToRole(claims[env.oidcRoleClaim], env.oidcRoleMapping)
   const preferred =
     stringClaim(claims.preferred_username) ?? email ?? `oidc-${subject.slice(0, 12)}`
-  return upsertOidcUser(issuer, subject, preferred, email, role)
+  return upsertOidcUser(
+    issuer,
+    subject,
+    preferred,
+    email,
+    role,
+    stringClaim(claims.name)?.trim().slice(0, 200) ?? null,
+  )
 }
 
 function upsertOidcUser(
@@ -84,6 +109,7 @@ function upsertOidcUser(
   preferred: string,
   email: string | undefined,
   role: 'viewer' | 'editor' | 'admin',
+  displayName: string | null,
 ): string {
   const db = getDatabase()
   const existing = db
@@ -94,7 +120,7 @@ function upsertOidcUser(
   const timestamp = now()
   if (existing) {
     db.update(users)
-      .set({ role, email: email ?? existing.email, updatedAt: timestamp })
+      .set({ role, email: email ?? existing.email, displayName, updatedAt: timestamp })
       .where(eq(users.id, existing.id))
       .run()
     return existing.id
@@ -105,6 +131,7 @@ function upsertOidcUser(
       id,
       username: uniqueUsername(db, sanitizeUsername(preferred)),
       email: email ?? null,
+      displayName,
       passwordHash: null,
       role,
       breakGlass: false,

@@ -1,3 +1,5 @@
+import { listEntryFacets } from './facets'
+import { publicActor } from '../auth/presentation'
 import { combineQueries } from '../../shared/query-chips'
 import { parseQuery } from '../../shared/query'
 import { initialPortalFilter } from '../../shared/portal'
@@ -26,7 +28,7 @@ export function initialPortal(
   const activeTab = selected?.id ?? 'all'
   return {
     settings,
-    actor: { role: actor.role, label: actor.label, kind: actor.kind, userId: actor.userId },
+    actor: publicActor(actor),
     authOptions: authOptions(),
     filters,
     allCount: countEntries(actor, ''),
@@ -35,6 +37,7 @@ export function initialPortal(
     fields: listFieldDefinitions(actor.role),
     entries: parsed.ok ? listEntries(actor, combined).entries : [],
     queryError: parsed.ok ? null : parsed.message,
+    entryFacets: parsed.ok ? listEntryFacets(actor, query.q, selected?.query ?? '') : null,
     groupBy: Object.hasOwn(preferences.groupModes, activeTab)
       ? (preferences.groupModes[activeTab] ?? null)
       : (selected?.groupBy ?? null),

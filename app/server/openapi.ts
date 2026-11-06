@@ -186,7 +186,7 @@ export function openApiDocument(): Record<string, unknown> {
     openapi: '3.1.0',
     info: {
       title: 'Bookmark-Page',
-      version: '2.3.0',
+      version: '2.4.0',
     },
     paths: documentedPaths(),
     security: [{ sessionCookie: [] }, { bearerToken: [] }],
@@ -287,6 +287,47 @@ function documentedPaths() {
           schema: { type: 'string' },
           description: path.endsWith('entries') ? 'Boolean entry query' : 'Icon name search',
         })
+      if (method === 'get' && path === '/api/v1/entries') {
+        parameters.push({
+          name: 'facetQuery',
+          in: 'query',
+          schema: { type: 'string' },
+          description:
+            'Optional raw sidebar query. Adds visibility-filtered namespace counts to the response; OR/parentheses retain filtered counts.',
+        })
+        parameters.push({
+          name: 'facetTab',
+          in: 'query',
+          schema: { type: 'string' },
+          description:
+            'Visible saved-tab ID (or all); its query stays a constraint on facet counts.',
+        })
+      }
+      if (method === 'get' && path === '/api/v1/auth/oidc/start') {
+        parameters.push({
+          name: 'returnTo',
+          in: 'query',
+          schema: { type: 'string', maxLength: 2048, default: '/' },
+          description:
+            'Same-origin absolute-path reference, at most 2048 UTF-8 bytes; credentials, external origins, backslashes, controls and OIDC endpoint loops are rejected.',
+        })
+        parameters.push({
+          name: 'silent',
+          in: 'query',
+          schema: { type: 'string', enum: ['1'] },
+          description: 'Use prompt=none; failures return anonymously and suppress retries.',
+        })
+      }
+      if (method === 'get' && path === '/api/v1/auth/oidc/callback') {
+        for (const name of ['code', 'state', 'error', 'error_description'])
+          parameters.push({
+            name,
+            in: 'query',
+            schema: { type: 'string' },
+            description:
+              'Provider callback parameter; return path and mode are taken only from the sealed session transaction.',
+          })
+      }
       if (method === 'get' && path === '/api/v1/icons')
         parameters.push({
           name: 'name',
@@ -455,9 +496,12 @@ const entryResponseSchema = z.object({
   createdBy: textOrNull,
   updatedBy: textOrNull,
 })
-const userResponseSchema = userWriteSchema
-  .omit({ password: true })
-  .extend({ id: idSchema, email: textOrNull, authSource: z.enum(['local', 'oidc', 'header']) })
+const userResponseSchema = userWriteSchema.omit({ password: true }).extend({
+  id: idSchema,
+  email: textOrNull,
+  displayName: textOrNull,
+  authSource: z.enum(['local', 'oidc', 'header']),
+})
 const tokenResponseSchema = tokenWriteSchema.extend({
   id: idSchema,
   userId: idSchema,
@@ -483,6 +527,23 @@ const resourceSchemas: Record<string, z.ZodType> = {
 }
 
 function responseSchema(path: string, method: string): Record<string, unknown> {
+  if (path === '/api/v1/entries' && method === 'get')
+    return jsonSchema(
+      z.object({
+        entries: z.array(entryResponseSchema),
+        facets: z
+          .object({
+            mode: z.enum(['disjunctive', 'filtered']),
+            tags: z.record(z.string(), z.number().int().nonnegative()),
+            state: z.object({
+              online: z.number().int(),
+              offline: z.number().int(),
+              unknown: z.number().int(),
+            }),
+          })
+          .optional(),
+      }),
+    )
   if (path === '/api/v1/events' || ['/api/v1/logo', '/api/v1/favicon'].includes(path))
     return { type: 'string', format: 'binary' }
   if (path.endsWith('/reveal'))
@@ -659,17 +720,33 @@ function responseSchema(path: string, method: string): Record<string, unknown> {
           label: z.string(),
           kind: z.string(),
           userId: textOrNull,
+          displayName: z.string(),
+          username: textOrNull,
+          email: textOrNull,
+          authMethod: z
+            .enum(['oidc', 'local', 'break-glass', 'trusted-header', 'token'])
+            .nullable(),
+          authProvider: textOrNull,
         }),
       }),
     )
   if (path === '/api/v1/auth/options')
-    return jsonSchema(z.object({ localLoginEnabled: z.boolean(), oidcEnabled: z.boolean() }))
+    return jsonSchema(
+      z.object({
+        localLoginEnabled: z.boolean(),
+        oidcEnabled: z.boolean(),
+        oidcProviderName: z.string(),
+      }),
+    )
   if (path === '/api/v1/auth/status')
     return jsonSchema(
       z.object({
         localLoginEnabled: z.boolean(),
         oidcEnabled: z.boolean(),
         oidcDiscoveryUrl: textOrNull,
+        oidcProviderName: z.string(),
+        oidcAutoLogin: z.boolean(),
+        oidcAutoLoginRetrySeconds: z.number(),
         oidcRoleClaim: z.string(),
         trustedHeaderEnabled: z.boolean(),
         trustedProxyCount: z.number(),
@@ -702,7 +779,7 @@ function responseSchema(path: string, method: string): Record<string, unknown> {
             id: idSchema,
             leaseId: idSchema,
             name: z.string(),
-            kind: z.enum(['icmp', 'tcp', 'http']),
+            kind: z.enum(['icmp', 'tcp', 'http', 'image']),
             url: textOrNull,
             timeoutMs: z.number(),
             note: textOrNull,

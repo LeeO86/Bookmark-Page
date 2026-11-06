@@ -10,6 +10,9 @@ export interface RuntimeEnv {
   oidcClientId: string | undefined
   oidcClientSecret: string | undefined
   oidcRedirectUri: string | undefined
+  oidcAutoLogin: boolean
+  oidcAutoLoginRetrySeconds: number
+  oidcProviderName: string
   oidcRoleClaim: string
   oidcRoleMapping: Record<string, StoredRole>
   trustedHeaderEnabled: boolean
@@ -33,6 +36,9 @@ export function parseRuntimeEnv(env: NodeJS.ProcessEnv): RuntimeEnv {
     oidcClientId: blankToUndefined(env.OIDC_CLIENT_ID),
     oidcClientSecret: blankToUndefined(env.OIDC_CLIENT_SECRET),
     oidcRedirectUri: blankToUndefined(env.OIDC_REDIRECT_URI),
+    oidcAutoLogin: parseBoolean(env.OIDC_AUTO_LOGIN, false, 'OIDC_AUTO_LOGIN'),
+    oidcAutoLoginRetrySeconds: parseRetrySeconds(env.OIDC_AUTO_LOGIN_RETRY_SECONDS),
+    oidcProviderName: providerName(env.OIDC_PROVIDER_NAME),
     oidcRoleClaim: blankToUndefined(env.OIDC_ROLE_CLAIM) ?? 'roles',
     oidcRoleMapping: parseRoleMap(env.OIDC_ROLE_MAPPING, 'OIDC_ROLE_MAPPING'),
     trustedHeaderEnabled: parseBoolean(
@@ -162,5 +168,19 @@ function readAdminToken(env: NodeJS.ProcessEnv): string | undefined {
       'ADMIN_API_TOKEN must have a bp_ prefix and at least 43 Base64url characters (32 random bytes)',
     )
   }
+  return value
+}
+
+function parseRetrySeconds(raw: string | undefined): number {
+  if (!raw?.trim()) return 3600
+  if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 2_592_000)
+    throw new Error('OIDC_AUTO_LOGIN_RETRY_SECONDS must be an integer from 1 to 2592000')
+  return Number(raw)
+}
+
+function providerName(raw: string | undefined): string {
+  const value = raw?.trim() || 'OpenID'
+  if (value.length > 80 || /[\p{Cc}\p{Zl}\p{Zp}]/u.test(value))
+    throw new Error('OIDC_PROVIDER_NAME must be a single line of at most 80 characters')
   return value
 }

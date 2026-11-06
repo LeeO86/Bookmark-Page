@@ -196,3 +196,42 @@ leases carry this live image target, never its supplied/cache URL. An unresolved
 secret-backed or data-only default target stays unknown. The server fetches and
 validates the image; the browser uses `Image` load/error/timeout. See
 [checks](checks-and-actions.md#image-checks) for false-down cases and browser limits.
+
+## OIDC navigation, identity and sidebar facets (2.4.0)
+
+`GET /api/v1/auth/oidc/start` accepts optional `returnTo` (default `/`, a safe
+same-origin path of at most 2048 UTF-8 bytes) and `silent=1` (`prompt=none`).
+Absolute/network URLs, backslashes/controls (including encoded forms), duplicate
+parameters and OIDC endpoint loops are rejected. State, PKCE verifier, return
+path, mode and creation time are held in the sealed session transaction. Callback
+parameters never choose the destination. `GET /api/v1/auth/oidc/callback` returns
+302 to that stored path on success or handled failure; silent failures return
+anonymously, interactive failures store a one-time portal message. Missing or
+invalid transactions return safely to `/`; no raw provider JSON is shown.
+
+The HttpOnly `bp-oidc-auto` cookie suppresses automatic attempts after failures
+and sign-out. Its SameSite/Path/Secure policy follows the session. Failures use
+the configured lifetime; sign-out uses a browser-session lifetime. Explicit start
+clears it and successful provider/local sign-in removes it. Automatic redirects
+apply only to eligible document navigations, never API calls; see
+[configuration](configuration.md#automatic-oidc-sign-in-and-account-identity-240).
+
+`GET /api/v1/auth/options` adds `oidcProviderName`. Admin `auth/status` adds
+`oidcProviderName`, effective `oidcAutoLogin` and `oidcAutoLoginRetrySeconds`.
+Existing fields remain. `auth/session.actor` adds `displayName`, `username`,
+`email`, `authMethod` (`oidc`, `local`, `break-glass`, `trusted-header`, `token`,
+or null) and nullable `authProvider`, describing only the current actor. Its
+existing `role` is the effective role enforced by the server. Admin user responses
+add nullable `displayName`; provider `name` refreshes it at every login, and
+backups preserve it with safe defaults for older archives.
+
+`GET /api/v1/entries?q=...` preserves existing entry-query semantics. Optional
+`facetQuery=<raw sidebar query>` adds `facets: {mode, tags, state}`. Optional
+`facetTab=<visible saved-tab id>` (or `all`) keeps the tab's query as a constraint;
+unknown/private tab IDs are rejected. `tags` maps namespace:value (or #value for plain tags) to counts;
+`state` has `online`, `offline`, `unknown`. For simple top-level AND terms,
+`mode=disjunctive` excludes that namespace's own terms from its counts, keeping
+all other conditions. OR/parenthesised user queries use `mode=filtered` and retain
+the former current-result counts. Each query applies the same anonymous visibility
+and role-based field-search rules as the entry payload. Hidden tag labels and
+restricted fields cannot leak through counts. SSR seeds the same counts.

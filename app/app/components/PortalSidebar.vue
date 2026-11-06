@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { queryHasTerm, toggleQueryTerm } from '#shared/query-chips'
 import type { PortalFilter } from '../types/portal'
 import { apiFetch } from '../utils/api'
-import { tagCounts } from '../utils/view'
 
 defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ navigate: [] }>()
@@ -17,52 +15,7 @@ const renameOpen = ref(false)
 const renameName = ref('')
 const message = ref('')
 
-const counts = computed(() => tagCounts(portal.entries.value))
-const stateTags = computed(() => {
-  let online = 0
-  let offline = 0
-  let unknown = 0
-  for (const entry of portal.entries.value) {
-    if (entry.status === 'up') online += 1
-    else if (entry.status === 'down') offline += 1
-    else if (entry.status === 'unknown') unknown += 1
-  }
-  return [
-    { token: 'state:online', title: 'Online', count: online, mark: 'status-up' },
-    { token: 'state:offline', title: 'Offline', count: offline, mark: 'status-down' },
-    { token: 'state:unknown', title: 'Unknown', count: unknown, mark: 'status-unknown' },
-  ].filter((tag) => tag.count > 0 || selected(tag.token))
-})
-const sections = computed(() => {
-  const namespaces = [...portal.namespaces.value]
-    .filter((namespace) => namespace.showInSidebar)
-    .sort((left, right) => left.sort - right.sort || left.label.localeCompare(right.label))
-  return namespaces
-    .map((namespace) => ({
-      id: namespace.id,
-      label: namespace.label,
-      colour: namespace.colour,
-      tags: portal.tags.value
-        .filter((tag) => tag.namespace === namespace.name)
-        .map((tag) => ({
-          token: tag.label,
-          title: tag.displayLabel || tag.value,
-          count: counts.value.get(tag.label) ?? 0,
-        }))
-        .filter((tag) => tag.count > 0 || selected(tag.token))
-        .sort((left, right) => left.title.localeCompare(right.title)),
-    }))
-    .filter((section) => section.tags.length > 0)
-})
-
-function selected(token: string): boolean {
-  return queryHasTerm(portal.queryText.value, token)
-}
-
-async function addTag(event: MouseEvent, token: string) {
-  const mode = event.altKey ? 'not' : event.shiftKey ? 'or' : 'and'
-  await portal.setQuery(toggleQueryTerm(portal.queryText.value, token, mode))
-}
+const { sections, stateTags, selected, addTag } = useSidebarFacets()
 
 function choose(id: string) {
   void portal.setTab(id)
@@ -298,7 +251,8 @@ function mask(name: string) {
               type="button"
               class="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-elevated"
               :class="selected(tag.token) ? 'bg-primary/15 font-medium text-accent' : ''"
-              :title="`${tag.token}. Click to add, Shift for OR, Alt for NOT`"
+              :title="`${tag.token}. Click to switch or remove; Shift for OR, Alt for NOT`"
+              :aria-pressed="selected(tag.token)"
               @click="addTag($event, tag.token)"
             >
               <span class="flex min-w-0 items-center gap-2">
@@ -326,7 +280,8 @@ function mask(name: string) {
               type="button"
               class="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-elevated"
               :class="selected(tag.token) ? 'bg-primary/15 font-medium text-accent' : ''"
-              :title="`${tag.token}. Click to add, Shift for OR, Alt for NOT`"
+              :title="`${tag.token}. Click to switch or remove; Shift for OR, Alt for NOT`"
+              :aria-pressed="selected(tag.token)"
               @click="addTag($event, tag.token)"
             >
               <span class="flex min-w-0 items-center gap-2">

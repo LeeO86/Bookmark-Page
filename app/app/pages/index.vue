@@ -93,6 +93,24 @@ function onSaved(entry: PortalEntry) {
   void portal.refreshTags()
 }
 
+const accountName = computed(() => portal.actor.value.displayName || portal.actor.value.label)
+const accountRole = computed(
+  () => portal.actor.value.role.charAt(0).toUpperCase() + portal.actor.value.role.slice(1),
+)
+const accountMethod = computed(() => {
+  const actor = portal.actor.value
+  if (actor.authMethod === 'oidc')
+    return actor.authProvider || portal.authOptions.value.oidcProviderName || 'OpenID'
+  return (
+    {
+      local: 'Local',
+      'break-glass': 'Break-glass',
+      'trusted-header': 'Trusted header',
+      token: 'API token',
+    }[actor.authMethod || 'local'] || 'Local'
+  )
+})
+
 const menuItems = computed<DropdownMenuItem[][]>(() => {
   const items: DropdownMenuItem[][] = [
     [
@@ -290,19 +308,43 @@ function onKeydown(event: KeyboardEvent) {
         :items="menuItems"
         :ui="{ content: 'bg-default shadow-lg ring ring-default' }"
       >
-        <UButton color="neutral" variant="ghost" size="lg" :aria-label="portal.actor.value.label">
+        <template #content-top>
+          <div
+            class="min-w-60 max-w-80 border-b border-default px-3 py-3"
+            data-testid="user-menu-identity"
+          >
+            <p class="break-words font-semibold text-highlighted">{{ accountName }}</p>
+            <p class="mt-0.5 break-words text-sm text-muted">
+              {{
+                portal.actor.value.email || portal.actor.value.username || portal.actor.value.label
+              }}
+            </p>
+            <div class="mt-2 flex items-center gap-2 text-xs">
+              <UBadge color="neutral" variant="soft" data-testid="user-role">{{
+                accountRole
+              }}</UBadge>
+              <span>{{ accountMethod }}</span>
+            </div>
+          </div>
+        </template>
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="lg"
+          :aria-label="portal.actor.value.label"
+          :title="`${accountName} (${accountRole})`"
+          data-testid="user-menu-button"
+        >
           <span
             class="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-inverted"
           >
-            {{ initials(portal.actor.value.label) }}
+            {{ initials(accountName) }}
           </span>
           <span class="sr-only">{{ portal.actor.value.label }}</span>
         </UButton>
       </UDropdownMenu>
       <UButton
-        v-else-if="
-          portal.authOptions.value.localLoginEnabled || portal.authOptions.value.oidcEnabled
-        "
+        v-else
         data-testid="login-button"
         color="neutral"
         variant="outline"

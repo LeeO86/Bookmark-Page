@@ -1,3 +1,4 @@
+import type { EntryFacets } from '#shared/facets'
 import type { RequestSpec } from '#shared/contracts'
 
 export interface PortalActor {
@@ -5,6 +6,11 @@ export interface PortalActor {
   label: string
   kind: string
   userId: string | null
+  displayName?: string
+  username?: string | null
+  email?: string | null
+  authMethod?: 'oidc' | 'local' | 'break-glass' | 'trusted-header' | 'token' | null
+  authProvider?: string | null
 }
 
 export interface PortalSettings {
@@ -31,6 +37,7 @@ export interface PortalSettings {
 export interface AuthOptions {
   localLoginEnabled: boolean
   oidcEnabled: boolean
+  oidcProviderName?: string
 }
 
 export interface InitialPortal {
@@ -44,6 +51,7 @@ export interface InitialPortal {
   fields: PortalField[]
   entries: PortalEntry[]
   queryError: string | null
+  entryFacets: EntryFacets | null
   groupBy: string | null
   preferences: {
     viewModes: Record<string, 'cards' | 'tiles' | 'list'>

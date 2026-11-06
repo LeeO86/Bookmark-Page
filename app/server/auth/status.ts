@@ -8,6 +8,9 @@ export function authStatus() {
   return {
     localLoginEnabled: env.localLoginEnabled,
     oidcEnabled,
+    oidcProviderName: env.oidcProviderName,
+    oidcAutoLogin: oidcEnabled && env.oidcAutoLogin,
+    oidcAutoLoginRetrySeconds: env.oidcAutoLoginRetrySeconds,
     oidcDiscoveryUrl: env.oidcDiscoveryUrl ?? null,
     oidcRoleClaim: env.oidcRoleClaim,
     trustedHeaderEnabled: env.trustedHeaderEnabled,
@@ -23,5 +26,6 @@ export function authOptions() {
   return {
     localLoginEnabled: status.localLoginEnabled,
     oidcEnabled: status.oidcEnabled,
+    oidcProviderName: status.oidcProviderName,
   }
 }

@@ -1,3 +1,4 @@
+import { listEntryFacets } from '../../services/facets'
 import {
   previewEntryFavicon,
   supplyEntryFavicon,
@@ -10,9 +11,7 @@ import {
   defineEventHandler,
   getQuery,
   getRequestURL,
-  getSession,
   readBody,
-  sendRedirect,
   setResponseStatus,
   updateSession,
 } from 'nuxt/server'
@@ -54,7 +53,13 @@ import { importCsv, previewCsv } from '../../backup/csv'
 import { createBackup } from '../../backup/export'
 import { restoreBackup } from '../../backup/restore'
 import { authenticateLocal } from '../../auth/login'
-import { completeOidcLogin, authorizationRedirect, newOidcTransaction } from '../../auth/oidc'
+import {
+  startOidcSignIn,
+  completeOidcSignIn,
+  clearOidcSuppression,
+  suppressOidc,
+} from '../../auth/oidc-flow'
+import { publicActor } from '../../auth/presentation'
 import { authOptions, authStatus } from '../../auth/status'
 import { peerIp, resolveActor } from '../../auth/resolve'
 import { sessionConfig, type AppSession } from '../../auth/session'
@@ -65,12 +70,11 @@ import {
   requireWrite,
   requireTokenScope,
 } from '../../auth/permissions'
-import { getRuntimeEnv } from '../../config/env'
 import { getDatabase } from '../../db/client'
 import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { run } from '../../http/api'
-import { badRequest, HttpError, notFound } from '../../http/errors'
+import { badRequest, HttpError } from '../../http/errors'
 import { openApiDocument, openApiHtml } from '../../openapi'
 import {
   createFieldDefinition,
@@ -173,11 +177,19 @@ export default defineEventHandler(async (event) => {
       const body = loginSchema.parse(await readBody(event))
       const user = await authenticateLocal(body.username, body.password, peerIp(event))
       await clearSession(event, sessionConfig())
-      await updateSession<AppSession>(event, sessionConfig(), { userId: user.id })
+      await updateSession<AppSession>(event, sessionConfig(), {
+        userId: user.id,
+        signInMethod: getDatabase().select().from(users).where(eq(users.id, user.id)).get()
+          ?.breakGlass
+          ? 'break-glass'
+          : 'local',
+      })
+      clearOidcSuppression(event)
       return { user }
     }
     if (method === 'POST' && path === '/api/v1/auth/logout') {
       await clearSession(event, sessionConfig())
+      suppressOidc(event, true)
       return { ok: true }
     }
     if (method === 'GET' && path === '/api/v1/auth/session') {
@@ -190,42 +202,24 @@ export default defineEventHandler(async (event) => {
       requireAdmin(actor)
       return authStatus()
     }
-    if (method === 'GET' && path === '/api/v1/auth/oidc/start') {
-      const env = getRuntimeEnv()
-      const transaction = newOidcTransaction()
-      await updateSession<AppSession>(event, sessionConfig(), {
-        oidcState: transaction.state,
-        oidcVerifier: transaction.verifier,
-      })
-      return sendRedirect(
-        event,
-        await authorizationRedirect(env, transaction.verifier, transaction.state),
-        302,
-      )
-    }
-    if (method === 'GET' && path === '/api/v1/auth/oidc/callback') {
-      const session = await getSession<AppSession>(event, sessionConfig())
-      if (!session.data.oidcState || !session.data.oidcVerifier) {
-        throw badRequest('OIDC transaction is missing')
-      }
-      const userId = await completeOidcLogin(
-        getRuntimeEnv(),
-        url,
-        session.data.oidcVerifier,
-        session.data.oidcState,
-      )
-      await clearSession(event, sessionConfig())
-      await updateSession<AppSession>(event, sessionConfig(), { userId })
-      const user = getDatabase().select().from(users).where(eq(users.id, userId)).get()
-      if (!user) {
-        throw notFound('User not found')
-      }
-      return sendRedirect(event, '/', 302)
-    }
+    if (method === 'GET' && path === '/api/v1/auth/oidc/start') return startOidcSignIn(event)
+    if (method === 'GET' && path === '/api/v1/auth/oidc/callback') return completeOidcSignIn(event)
 
     if (method === 'GET' && path === '/api/v1/entries') {
-      const query = getQuery(event).q
-      return listEntries(actor, typeof query === 'string' ? query : '')
+      const query = getQuery(event)
+      const result = listEntries(actor, typeof query.q === 'string' ? query.q : '')
+      if (query.facetQuery === undefined) return result
+      if (
+        typeof query.facetQuery !== 'string' ||
+        (query.facetTab !== undefined && typeof query.facetTab !== 'string')
+      )
+        throw badRequest('Invalid facet parameters')
+      const tab =
+        query.facetTab && query.facetTab !== 'all'
+          ? listFilters(actor).find((filter) => filter.id === query.facetTab)
+          : null
+      if (query.facetTab && query.facetTab !== 'all' && !tab) throw badRequest('Unknown facet tab')
+      return { ...result, facets: listEntryFacets(actor, query.facetQuery, tab?.query ?? '') }
     }
     if (method === 'POST' && path === '/api/v1/entries') {
       requireWrite(actor)
@@ -809,13 +803,4 @@ function matchAll(path: string, pattern: RegExp): string[] | null {
     return null
   }
   return result.slice(1)
-}
-
-function publicActor(actor: { role: string; label: string; kind: string; userId: string | null }) {
-  return {
-    role: actor.role,
-    label: actor.label,
-    kind: actor.kind,
-    userId: actor.userId,
-  }
 }

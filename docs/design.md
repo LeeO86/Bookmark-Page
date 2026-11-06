@@ -62,7 +62,7 @@ Below 768px the sidebar is not on the page. A toolbar button opens it as a drawe
 
 The count is how many entries match that view’s saved query under the caller’s visibility rules. It ignores the text currently typed in the search box, so the numbers stay put while someone is filtering. `GET /api/v1/filters` gains a `count` for each filter. The All count is the same kind of total with an empty saved query.
 
-**Filters.** One collapsible group per namespace that is shown in the sidebar, including the virtual `state` group (Online, Offline, Unknown). Each value has the namespace colour dot, the display label, and a count. The selected value is highlighted. Click adds AND, Shift adds OR, Alt adds NOT, and the hover hint says so. “Clear filters” is shown only when the query bar is not empty, and it clears that bar. It does not change the selected view.
+**Filters.** One collapsible group per namespace that is shown in the sidebar, including the virtual `state` group (Online, Offline, Unknown). Each value has the namespace colour dot, the display label, and a count. Selected values are highlighted and appear first. A plain click switches a single selection within a namespace or removes the clicked selection; Shift adds OR and Alt adds NOT, as the hover hint explains. Counts exclude their own namespace for simple AND queries while keeping the tab and other filters; typed OR/parentheses retain filtered counts. “Clear filters” is shown only when the query bar is not empty, and it clears that bar. It does not change the selected view.
 
 ### Toolbar
 

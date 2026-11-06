@@ -311,3 +311,54 @@ legacy values remain protected, including metadata failures.
 
 **Reason:** This fixes short public values masking unrelated result names while
 preserving existing secret arguments and their invocation/error privacy.
+
+## 2026-11-06 — Opt-in document OIDC and server-authoritative identity
+
+**Decision:** Ship `OIDC_AUTO_LOGIN=false`, a 3600-second retry default and a
+configurable OpenID label. Only anonymous GET document navigations carrying both
+fetch-metadata headers may start automatically. Tokens/API/assets/health/metrics
+and clients without those headers remain unaffected. Use top-level `prompt=none`
+with state/S256 PKCE; fresh discovery at start detects outages despite previous
+metadata caching. Keep TLS verification and validate token signatures/claims.
+Provider operations time out after ten seconds; transactions expire after ten
+minutes. Store only the validated return path in the sealed transaction.
+
+**Reason:** Managed browsers can reuse an upstream session before anonymous SSR,
+while machine clients retain their existing protocol. Silent failure must return
+to public viewing without prompting or looping. Failure suppression is HttpOnly
+and follows session cookie policy; sign-out suppression is session-only. Successful
+explicit sign-in clears it. Failed interactive attempts also set temporary
+suppression, so their one-time readable error is not immediately replaced by an
+automatic attempt. Log bounded reason/codes, never raw callback/provider bodies.
+
+**Decision:** Bound return paths to 2048 UTF-8 bytes so the existing sealed cookie
+fits the browser's 4 KiB limit; reject oversized explicit requests. An automatic
+request with an oversized/invalid return URL signs in with `/` as its return path.
+Reject encoded controls/backslashes/network paths and OIDC endpoint loops.
+Persist nullable display name from `name`, refresh it and the mapped role at every
+OIDC sign-in, include it in both backup restore modes, and present the server's
+actual actor/method/role. Keep canonical user names and existing API fields.
+
+**Reason:** Avoid raw oversized-session errors and open redirects while preserving
+existing sessions and local break-glass access. Provider-managed roles need an
+explicit admin explanation; a display label must never become an authority source.
+
+## 2026-11-06 — Namespace facets and single-selection switching (issue #46)
+
+**Decision:** Compute optional facet counts on the server using the same SQL
+visibility and field-search predicates as entries. Seed them in SSR and return
+with the entry request. For simple raw AND terms, remove that namespace's own
+terms and keep the other user terms plus the saved tab's query. Typed OR or
+parentheses retain filtered counts. Do not send an unfiltered catalogue to the
+client or infer hidden labels. Ignore stale entry/facet responses together.
+
+**Reason:** Client counts from already filtered entries hide peer groups; a second
+full catalogue would duplicate data and risk inconsistent role filtering. Keeping
+tab constraints separate preserves existing tab/query-chip/URL semantics.
+
+**Decision:** A plain sidebar click replaces exactly one selected value in that
+namespace, or removes the clicked selection. Existing Shift-OR and Alt-NOT toggles
+are unchanged. Multiple selections remain multi-select. Preserve the remaining
+boolean expression, show selected values first, and share behaviour across both
+sidebars including plain tags and state. Counts for simple state facets use actual
+state predicates; complex typed queries retain their previous aggregate counts.

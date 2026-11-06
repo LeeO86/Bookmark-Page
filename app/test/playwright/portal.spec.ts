@@ -682,7 +682,8 @@ test('manages personal views, filters spaced tags and reveals secret links', asy
   await expect(page.getByTestId('query-input')).toHaveValue('')
   await facet.click({ modifiers: ['Alt'] })
   await expect(page.getByTestId('query-input')).toHaveValue('-group:"Control Room"')
-  await expect(page.getByRole('button', { name: 'Control Room 0', exact: true })).toBeVisible()
+  // This namespace's counts exclude its own NOT term, so the selected value retains its potential count.
+  await expect(page.getByRole('button', { name: 'Control Room 1', exact: true })).toBeVisible()
   await facet.click({ modifiers: ['Alt'] })
   await expect(page.getByTestId('query-input')).toHaveValue('')
   await page
@@ -895,3 +896,46 @@ for (const view of ['cards', 'tiles'] as const) {
     await keyboard.close()
   })
 }
+
+test('switches groups in one click while keeping other facets visible and selected values first (#46)', async ({
+  page,
+  goto,
+}) => {
+  await goto('/', { waitUntil: 'networkidle' })
+  await signIn(page)
+  const base = new URL(page.url()).origin
+  const ids: string[] = []
+  try {
+    for (const name of ['A', 'B']) {
+      const response = await page.request.post(base + '/api/v1/entries', {
+        headers: { origin: base },
+        data: { name: 'Facet device ' + name, tags: ['group:Facet ' + name, 'type:facet-audio'] },
+      })
+      expect(response.ok()).toBe(true)
+      ids.push((await response.json()).entry.id)
+    }
+    await page.goto(base + '/?view=cards&q=type%3Afacet-audio', { waitUntil: 'networkidle' })
+    const a = page.getByRole('button', { name: 'Facet A 1', exact: true }),
+      b = page.getByRole('button', { name: 'Facet B 1', exact: true })
+    await a.click()
+    await expect(page.getByTestId('query-input')).toHaveValue('type:facet-audio group:"Facet A"')
+    await expect(page.locator(`[data-entry-id="${ids[0]}"]`)).toBeVisible()
+    await expect(b).toBeVisible()
+    await expect(a).toHaveAttribute('aria-pressed', 'true')
+    await b.click()
+    await expect(page.getByTestId('query-input')).toHaveValue('type:facet-audio group:"Facet B"')
+    await expect(page.locator(`[data-entry-id="${ids[1]}"]`)).toBeVisible()
+    await expect(page.locator(`[data-entry-id="${ids[0]}"]`)).toHaveCount(0)
+    await expect(b).toHaveAttribute('aria-pressed', 'true')
+    await expect(a).toBeVisible()
+    await expect(
+      b.locator('xpath=ancestor::section[1]').locator('ul > li > button').first(),
+    ).toHaveAccessibleName('Facet B 1')
+    await expect(b).toHaveAttribute('title', /Shift for OR, Alt for NOT/)
+    await b.click()
+    await expect(page.getByTestId('query-input')).toHaveValue('type:facet-audio')
+  } finally {
+    for (const id of ids)
+      await page.request.delete(base + '/api/v1/entries/' + id, { headers: { origin: base } })
+  }
+})
