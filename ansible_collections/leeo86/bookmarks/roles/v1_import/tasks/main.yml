@@ -11,7 +11,7 @@
 
 - name: Plan the V1 import
   ansible.builtin.set_fact:
-    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace, v1_import_tag_fields, v1_url, v1_import_checks, v1_import_favicon_checks, v1_import_favicon_overrides) }}'
+    v1_plan: '{{ v1_global | leeo86.bookmarks.v1_import_plan(v1_bookmarks, v1_import_secret_fields, v1_group_namespace, v1_import_tag_fields, v1_url, v1_import_checks, v1_import_favicon_checks, v1_import_favicon_overrides, v1_import_field_min_roles) }}'
   no_log: true
   delegate_to: localhost
   run_once: true
@@ -77,7 +77,7 @@
 
 - name: Download configured V1 favicons on the controller
   ansible.builtin.set_fact:
-    v1_favicon_downloads: "{{ v1_favicon_downloads + [(query('leeo86.bookmarks.favicon_image', item.favicon_url, validate_certs=v1_import_favicon_validate_certs, timeout=v1_import_favicon_timeout, max_bytes=v1_import_favicon_max_bytes) | first) | combine({'external_key': item.external_key})] }}"
+    v1_favicon_downloads: "{{ v1_favicon_downloads + [(query('leeo86.bookmarks.favicon_image', item.favicon_url, validate_certs=v1_import_favicon_validate_certs, timeout=v1_import_favicon_timeout, max_bytes=v1_import_favicon_max_bytes, use_proxy=v1_import_favicon_use_proxy) | first) | combine({'external_key': item.external_key})] }}"
   loop: "{{ v1_plan.entries | selectattr('favicon_url') | list }}"
   loop_control:
     label: '{{ item.external_key }}'

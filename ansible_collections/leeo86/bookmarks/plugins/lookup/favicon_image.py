@@ -25,6 +25,10 @@ options:
     description: [Verify target TLS certificates.]
     type: bool
     default: true
+  use_proxy:
+    description: [Use controller proxy settings for image downloads.]
+    type: bool
+    default: true
   timeout:
     description: [Request timeout in seconds.]
     type: int
@@ -57,7 +61,8 @@ class LookupModule(LookupBase):
         for url in terms:
             try:
                 payload = image_data(url=url, validate_certs=self.get_option('validate_certs'),
-                                     timeout=self.get_option('timeout'), max_bytes=self.get_option('max_bytes'))
+                                     timeout=self.get_option('timeout'), max_bytes=self.get_option('max_bytes'),
+                                     use_proxy=self.get_option('use_proxy'))
                 results.append(dict(payload, ok=True))
             except FaviconError as error:
                 results.append(dict(ok=False, error=str(error)))

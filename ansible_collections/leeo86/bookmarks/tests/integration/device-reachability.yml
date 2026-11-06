@@ -51,6 +51,7 @@
     external_key: one
     url: '{{ v1_fixture_url }}/device-fixture/icon.svg'
     timeout: 3
+    use_proxy: false
     max_bytes: 524288
   register: supplied_url
 
@@ -147,6 +148,8 @@
         namespace: ''
         split: ','
     v1_import_secret_fields: [user8]
+    v1_import_field_min_roles:
+      user8: editor
     v1_import_checks:
       - name: ping
         kind: icmp
@@ -157,6 +160,7 @@
       '11': '{{ v1_fixture_url }}/device-fixture/icon.svg'
     v1_import_supply_favicons: true
     v1_import_favicon_validate_certs: true
+    v1_import_favicon_use_proxy: false
     v1_import_favicon_timeout: 2
     v1_import_favicon_max_bytes: 524288
 
@@ -218,6 +222,20 @@
       - migrated_devices.entries[0].tags | selectattr('value', 'equalto', 'Model') | list | length == 1
       - migrated_devices.entries[0].checks | map(attribute='kind') | sort | list == ['icmp', 'image']
 
+- name: Inspect field roles after repeated V1 imports
+  ansible.builtin.uri:
+    url: '{{ api_url }}/api/v1/fields'
+    headers:
+      Authorization: 'Bearer {{ api_token }}'
+    return_content: true
+  register: migration_fields
+  no_log: true
+
+- name: Verify the password column keeps its configured minimum role
+  ansible.builtin.assert:
+    that:
+      - migration_fields.json.fields | selectattr('key', 'equalto', 'user8') | map(attribute='minRoleToView') | list == ['editor']
+
 - name: Remove the managed checks and clear old favicon overrides
   ansible.builtin.include_role:
     name: leeo86.bookmarks.v1_import
@@ -230,6 +248,8 @@
         namespace: ''
         split: ','
     v1_import_secret_fields: [user8]
+    v1_import_field_min_roles:
+      user8: editor
     v1_import_checks: []
     v1_import_favicon_checks: false
     v1_import_favicon_overrides: { '11': '', '12': '' }

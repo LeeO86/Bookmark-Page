@@ -90,7 +90,7 @@ Field definitions referenced by a first-run dry run must already exist, as with
 other entry syncs.
 
 `v1_import_checks` adds each supplied definition to every imported entry with a
-host. It uses the `entries_sync.checks` options. The default empty list removes
+non-loopback host. It uses the `entries_sync.checks` options. The default empty list removes
 previously managed checks when reimported; hand-added checks remain. Optional
 `v1_import_favicon_checks: true` adds a client `image` check named `favicon` for
 each effective V1 favicon URL (including URL overrides). Do not reuse that name
@@ -103,3 +103,41 @@ result names. Existing `fields[].value` remains valid, including legacy secret
 fields. Prefer `secret_value` for secrets: it is redacted from argument parsing,
 errors and output. Legacy values are conservatively protected until the module
 can read field definitions, and secret/unknown fields remain protected afterward.
+
+## Restricted-network follow-up options (2.4.2)
+
+```yaml
+v1_import_supply_favicons: true
+v1_import_favicon_use_proxy: false
+v1_import_field_min_roles:
+  user8: editor
+v1_import_checks:
+  - { name: ping, kind: icmp, executor: server, interval_seconds: 60 }
+```
+
+Image proxy use defaults to `true` for compatibility. Python urllib treats
+`no_proxy` as hostname suffixes, not CIDR ranges or arbitrary IP prefixes.
+A corporate proxy can therefore receive device requests despite `no_proxy`
+containing a private CIDR. Disable image proxy use explicitly when the
+controller can contact devices directly; this does not change the API host's
+proxy configuration. Downloads now use a browser-like Accept header and bounded
+gzip/deflate decoding. Unreachable or rejected images remain non-fatal and are
+reported; repeated successful supplies remain unchanged.
+
+Imported checks are skipped for loopback hosts: `localhost` (case-insensitive,
+optional final dot), 127/8 IPv4 literals and `::1`, including equivalent numeric
+forms. This applies to both `v1_import_checks` and generated favicon checks.
+Links to local workstation tools remain imported, but no misleading portal-side
+online indicator is added. Manually configured application checks remain allowed.
+
+`v1_import_field_min_roles` maps `user1`…`user8` to a minimum field role. Omitted
+columns remain `viewer`; the map does not select which columns are secret or
+tags. Repeated runs retain the selected minimum role, and removing an override
+restores the default on the next import. Incorrect keys/roles fail planning
+before API writes. Check mode plans the same field changes without writing them.
+
+Large imports no longer favour the first server checks: never-run checks are
+scheduled first, then the oldest result, and freed slots refill immediately.
+Size `CHECK_CONCURRENCY` for actual timeout/latency and inspect overdue metrics;
+raising it does not make an unreachable network reachable. See
+[checks and capacity](checks-and-actions.md#server-check-capacity-and-fairness-242).

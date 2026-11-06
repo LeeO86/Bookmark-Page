@@ -1,11 +1,11 @@
 # Ansible
 
-The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.4.0, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
+The `leeo86.bookmarks` collection manages a Bookmark-Page V2 server. It lives at `ansible_collections/leeo86/bookmarks`, version 2.4.2, and needs ansible-core 2.16 or newer. The modules are GPL-3.0-or-later because they import Ansible. The application outside the collection remains MIT.
 
 ## Install
 
 ```bash
-ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.4.0"
+ansible-galaxy collection install "git+https://github.com/LeeO86/Bookmark-Page.git#/ansible_collections/leeo86/bookmarks,v2.4.2"
 ```
 
 From a git checkout, set `ANSIBLE_COLLECTIONS_PATH` to the repository root so Ansible finds `leeo86.bookmarks` without installing it.
@@ -259,6 +259,8 @@ The V1 role additionally supports:
 
 | Variable                           | Default     | Meaning                                                                           |
 | ---------------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `v1_import_field_min_roles`        | `{}`        | Minimum role per imported user1..user8 field; omitted columns remain viewer       |
+| `v1_import_favicon_use_proxy`      | `true`      | Respect controller proxy settings for favicon downloads; false bypasses proxies   |
 | `v1_import_supply_favicons`        | `false`     | Download effective V1 favicon URLs on the controller and supply successful images |
 | `v1_import_favicon_validate_certs` | `true`      | Verify controller image-download certificates                                     |
 | `v1_import_favicon_timeout`        | `5`         | Download timeout in seconds                                                       |
@@ -275,3 +277,38 @@ hashes. Image failures do not abort the role. See [migration](migration-v1.md#re
 for delegation, check-mode prerequisites, managed removal and TLS separation.
 Ordinary known public field values are released from result masking after a
 successful metadata lookup; legacy secret and unknown values stay redacted.
+
+## Device favicon transport and proxies (2.4.2)
+
+`leeo86.bookmarks.favicon_image` and `entry_favicon` URL downloads send
+`Accept: image/webp,image/png,image/svg+xml,image/x-icon,image/jpeg,image/gif,image/*,*/*;q=0.8`.
+They decode gzip/deflate even when a device compresses without negotiation.
+`max_bytes` limits both downloaded bytes and each decoded layer; malformed,
+truncated, unsupported encodings and oversized images are reported as failures.
+The lookup returns `ok: false`, so an import can report the failure and continue.
+TLS verification and existing timeout/redirect limits still apply.
+
+Both accept `use_proxy: true` by default. Set it to `false` for direct image
+requests from a reachable controller/execution host; the V1 role exposes
+`v1_import_favicon_use_proxy: false`. This controls the favicon download, not the
+portal API connection. Python urllib `no_proxy` matches hostname suffixes; CIDRs
+such as `10.0.0.0/8` and IP-prefix shortcuts such as `10.` do not bypass proxies.
+Use explicit host/suffix exclusions or disable image proxy use for that task.
+See [Python ProxyHandler](https://docs.python.org/3/library/urllib.request.html#urllib.request.ProxyHandler).
+
+```yaml
+- name: Supply a directly reachable device image
+  leeo86.bookmarks.entry_favicon:
+    scope: devices
+    external_key: camera
+    url: http://device.example/icon.ico
+    use_proxy: false
+```
+
+V1 imports omit all automatically added checks for loopback entry hosts
+(`localhost`, numeric 127/8 and `::1`, including equivalent numeric forms).
+The entry/link and optional supplied image are still imported. Per-column
+`v1_import_field_min_roles`, for example `{user8: editor}`, controls imported
+field definitions; omitted columns retain `viewer`. Allowed values are
+`anonymous`, `viewer`, `editor` and `admin`. The secret-column selection remains
+independent. See [migration options](migration-v1.md).

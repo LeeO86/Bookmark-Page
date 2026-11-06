@@ -42,6 +42,10 @@ options:
   content_type:
     description: [Optional image MIME type. Inferred from bytes when omitted.]
     type: str
+  use_proxy:
+    description: [Use execution-host proxy settings when downloading O(url).]
+    type: bool
+    default: true
   timeout:
     description: [Download timeout in seconds.]
     type: int
@@ -78,7 +82,8 @@ def main():
     spec = common_argument_spec()
     spec.update(id=dict(type='str'), scope=dict(type='str'), external_key=dict(type='str', no_log=False),
                 src=dict(type='path'), content=dict(type='str', no_log=True), url=dict(type='str', no_log=True),
-                content_type=dict(type='str'), timeout=dict(type='int', default=5), max_bytes=dict(type='int', default=524288))
+                content_type=dict(type='str'), timeout=dict(type='int', default=5), max_bytes=dict(type='int', default=524288),
+                use_proxy=dict(type='bool', default=True))
     module = AnsibleModule(argument_spec=spec, supports_check_mode=True,
                            mutually_exclusive=[['id', 'scope'], ['id', 'external_key'], ['src', 'content', 'url']],
                            required_one_of=[['id', 'scope'], ['src', 'content', 'url']], required_together=[['scope', 'external_key']])
@@ -91,7 +96,7 @@ def main():
     try:
         payload = image_data(src=module.params['src'], content=module.params['content'], content_type=module.params['content_type'],
                              url=module.params['url'], validate_certs=module.params['validate_certs'],
-                             timeout=module.params['timeout'], max_bytes=module.params['max_bytes'])
+                             timeout=module.params['timeout'], max_bytes=module.params['max_bytes'], use_proxy=module.params['use_proxy'])
     except FaviconError as error:
         module.fail_json(msg=str(error))
     path = '/api/v1/entries/' + quote_path(identifier) + '/favicon'

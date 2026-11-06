@@ -16,3 +16,5 @@ v1_import_favicon_validate_certs: true
 v1_import_favicon_timeout: 5
 v1_import_favicon_max_bytes: 524288
 v1_import_api_delegate_to: localhost
+v1_import_favicon_use_proxy: true
+v1_import_field_min_roles: {}
