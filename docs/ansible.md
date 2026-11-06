@@ -290,8 +290,9 @@ TLS verification and existing timeout/redirect limits still apply.
 
 Both accept `use_proxy: true` by default. Set it to `false` for direct image
 requests from a reachable controller/execution host; the V1 role exposes
-`v1_import_favicon_use_proxy: false`. This controls the favicon download, not the
-portal API connection. Python urllib `no_proxy` matches hostname suffixes; CIDRs
+`v1_import_favicon_use_proxy: false`. The V1-role flag controls only controller image downloads. In the direct
+`entry_favicon` module, Ansible also applies `use_proxy` to portal API calls;
+neither option alters the execution host's proxy environment. Python urllib `no_proxy` matches hostname suffixes; CIDRs
 such as `10.0.0.0/8` and IP-prefix shortcuts such as `10.` do not bypass proxies.
 Use explicit host/suffix exclusions or disable image proxy use for that task.
 See [Python ProxyHandler](https://docs.python.org/3/library/urllib.request.html#urllib.request.ProxyHandler).
