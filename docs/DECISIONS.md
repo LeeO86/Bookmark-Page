@@ -392,3 +392,17 @@ Ansible option `version_added` metadata accepts major/minor releases only. The
 patch-added proxy option is dated precisely in the 2.4.2 changelog and prose,
 without an inaccurate option-level version annotation. The collection's actual
 release remains 2.4.2 as requested.
+
+## 2026-11-06 — Pin the release test/build environment
+
+Pin GitHub-hosted x64 CI/build jobs to Ubuntu 24.04, matching the existing ARM64
+runner family, during the ubuntu-latest migration to 26.04. Logs showed unusually
+slow browser-dependency downloads on the moving label. Both systems are supported;
+this is a reproducibility choice, not a bypass of failing assertions. Test counts,
+permissions, native image smokes and offline compile checks stay unchanged.
+
+The workflow-dispatch release path can rebuild the existing immutable v2.4.2 tag
+using this updated infrastructure. Its source job still resolves/checks that tag,
+passes the exact SHA to every checkout and verifies app/collection versions.
+The application source/tag and collection archive remain unchanged. This
+infrastructure-only commit does not change product behaviour or its version.

@@ -17,7 +17,7 @@ permissions:
 jobs:
   check:
     name: Lint, typecheck, and test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,7 +39,7 @@ jobs:
 
   image:
     name: Build container image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,7 +59,7 @@ jobs:
 
   ansible:
     name: Ansible sanity and integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
